@@ -14,7 +14,7 @@ open5gs:
 
 webui:
   image:
-    repository: 542548491317.dkr.ecr.us-east-2.amazonaws.com/open5gs-x86-web
+    repository: 975050082972.dkr.ecr.us-east-1.amazonaws.com/open5gs-x86-web
     pullPolicy: Always
     tag: "41fd851"
 
