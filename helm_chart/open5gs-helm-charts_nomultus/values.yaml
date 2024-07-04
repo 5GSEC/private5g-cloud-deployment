@@ -9,19 +9,19 @@
 open5gs:
   image:
     repository: 975050082972.dkr.ecr.us-east-1.amazonaws.com/ecr-cdk-stack-myopen5gs41a0c7ec-7kisksltr81k
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
     tag: "v265"
 
 webui:
   image:
     repository: 542548491317.dkr.ecr.us-east-2.amazonaws.com/open5gs-x86-web
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
     tag: "41fd851"
 
 ueImport:
   image:
     repository: free5gmano/nextepc-mongodb
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
     tag: "latest"
 
 simulator:
@@ -45,7 +45,7 @@ dnn: internet
 k8swait:
   repository: groundnuty/k8s-wait-for
   tag: v1.6
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 k8s:
   interface: eth0
@@ -71,4 +71,4 @@ prometheus:
   nodeExporter:
      repository: quay.io/prometheus/node-exporter
      tag: v1.3.1
-     pullPolicy: IfNotPresent
+     pullPolicy: Always

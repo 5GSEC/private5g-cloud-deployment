@@ -33,7 +33,7 @@ static bool maximum_number_of_gnbs_is_reached(void)
         }
     }
 
-    return number_of_gnbs_online >= ogs_global_conf()->max.peer;
+    return number_of_gnbs_online >= ogs_app()->max.peer;
 }
 
 static bool gnb_plmn_id_is_foreign(amf_gnb_t *gnb)
@@ -66,7 +66,7 @@ static bool served_tai_is_found(amf_gnb_t *gnb)
             tai.tac.v = gnb->supported_ta_list[i].tac.v;
             served_tai_index = amf_find_served_tai(&tai);
             if (served_tai_index >= 0 &&
-                    served_tai_index < OGS_MAX_NUM_OF_SUPPORTED_TA) {
+                    served_tai_index < OGS_MAX_NUM_OF_SERVED_TAI) {
                 ogs_debug("    TAC[%d]", gnb->supported_ta_list[i].tac.v);
                 ogs_debug("    PLMN_ID[MCC:%d MNC:%d]",
                     ogs_plmn_id_mcc(&gnb->supported_ta_list[i].
@@ -205,8 +205,8 @@ void ngap_handle_ng_setup_request(amf_gnb_t *gnb, ogs_ngap_message_t *message)
     /* Parse Supported TA */
     for (i = 0, gnb->num_of_supported_ta_list = 0;
             i < SupportedTAList->list.count &&
-            gnb->num_of_supported_ta_list < OGS_MAX_NUM_OF_SUPPORTED_TA;
-            i++) {
+            gnb->num_of_supported_ta_list < OGS_MAX_NUM_OF_TAI;
+                i++) {
         NGAP_SupportedTAItem_t *SupportedTAItem = NULL;
 
         SupportedTAItem = (NGAP_SupportedTAItem_t *)
@@ -263,7 +263,7 @@ void ngap_handle_ng_setup_request(amf_gnb_t *gnb, ogs_ngap_message_t *message)
                             bplmn_list[j].num_of_s_nssai = 0;
                     k < BroadcastPLMNItem->tAISliceSupportList.list.count &&
                     gnb->supported_ta_list[i].bplmn_list[j].num_of_s_nssai <
-                        OGS_MAX_NUM_OF_SLICE_SUPPORT;
+                        OGS_MAX_NUM_OF_SLICE;
                             k++) {
                 NGAP_SliceSupportItem_t *SliceSupportItem = NULL;
                 NGAP_S_NSSAI_t *s_NSSAI = NULL;
@@ -594,9 +594,6 @@ void ngap_handle_uplink_nas_transport(
     NGAP_UserLocationInformation_t *UserLocationInformation = NULL;
     NGAP_UserLocationInformationNR_t *UserLocationInformationNR = NULL;
 
-    ogs_5gs_tai_t nr_tai;
-    int served_tai_index = 0;
-
     ogs_assert(gnb);
     ogs_assert(gnb->sctp.sock);
 
@@ -709,22 +706,6 @@ void ngap_handle_uplink_nas_transport(
     UserLocationInformationNR =
         UserLocationInformation->choice.userLocationInformationNR;
     ogs_assert(UserLocationInformationNR);
-    ogs_ngap_ASN_to_5gs_tai(&UserLocationInformationNR->tAI, &nr_tai);
-
-    served_tai_index = amf_find_served_tai(&nr_tai);
-    if (served_tai_index < 0) {
-        ogs_error("Cannot find Served TAI[PLMN_ID:%06x,TAC:%d]",
-            ogs_plmn_id_hexdump(&nr_tai.plmn_id), nr_tai.tac.v);
-        r = ngap_send_error_indication(
-                gnb, &ran_ue->ran_ue_ngap_id, &ran_ue->amf_ue_ngap_id,
-                NGAP_Cause_PR_protocol,
-                NGAP_CauseProtocol_message_not_compatible_with_receiver_state);
-        ogs_expect(r == OGS_OK);
-        ogs_assert(r != OGS_ERROR);
-        return;
-    }
-    ogs_debug("    SERVED_TAI_INDEX[%d]", served_tai_index);
-
     ogs_ngap_ASN_to_nr_cgi(
             &UserLocationInformationNR->nR_CGI, &ran_ue->saved.nr_cgi);
     ogs_ngap_ASN_to_5gs_tai(
@@ -933,8 +914,6 @@ void ngap_handle_initial_context_setup_response(
 
     ogs_debug("    RAN_UE_NGAP_ID[%d] AMF_UE_NGAP_ID[%lld]",
             ran_ue->ran_ue_ngap_id, (long long)ran_ue->amf_ue_ngap_id);
-
-    ran_ue->initial_context_setup_response_received = true;
 
     amf_ue = ran_ue->amf_ue;
     if (!amf_ue) {
@@ -2683,9 +2662,6 @@ void ngap_handle_path_switch_request(
 
     amf_nsmf_pdusession_sm_context_param_t param;
 
-    ogs_5gs_tai_t nr_tai;
-    int served_tai_index = 0;
-
     ogs_assert(gnb);
     ogs_assert(gnb->sctp.sock);
 
@@ -2842,22 +2818,6 @@ void ngap_handle_path_switch_request(
     UserLocationInformationNR =
             UserLocationInformation->choice.userLocationInformationNR;
     ogs_assert(UserLocationInformationNR);
-    ogs_ngap_ASN_to_5gs_tai(&UserLocationInformationNR->tAI, &nr_tai);
-
-    served_tai_index = amf_find_served_tai(&nr_tai);
-    if (served_tai_index < 0) {
-        ogs_error("Cannot find Served TAI[PLMN_ID:%06x,TAC:%d]",
-            ogs_plmn_id_hexdump(&nr_tai.plmn_id), nr_tai.tac.v);
-        r = ngap_send_error_indication(
-                gnb, &ran_ue->ran_ue_ngap_id, &ran_ue->amf_ue_ngap_id,
-                NGAP_Cause_PR_protocol,
-                NGAP_CauseProtocol_message_not_compatible_with_receiver_state);
-        ogs_expect(r == OGS_OK);
-        ogs_assert(r != OGS_ERROR);
-        return;
-    }
-    ogs_debug("    SERVED_TAI_INDEX[%d]", served_tai_index);
-
     ogs_ngap_ASN_to_nr_cgi(
             &UserLocationInformationNR->nR_CGI, &ran_ue->saved.nr_cgi);
     ogs_ngap_ASN_to_5gs_tai(
@@ -3230,8 +3190,6 @@ void ngap_handle_handover_required(
     target_ue->ue_context_requested = source_ue->ue_context_requested;
     target_ue->initial_context_setup_request_sent =
             source_ue->initial_context_setup_request_sent;
-    target_ue->initial_context_setup_response_received =
-            source_ue->initial_context_setup_response_received;
 
     target_ue->psimask.activated = source_ue->psimask.activated;
 
@@ -4108,7 +4066,7 @@ void ngap_handle_handover_notification(
             NGAP_Cause_PR_radioNetwork,
             NGAP_CauseRadioNetwork_successful_handover,
             NGAP_UE_CTX_REL_NG_HANDOVER_COMPLETE,
-            ogs_local_conf()->time.handover.duration);
+            ogs_app()->time.handover.duration);
     ogs_expect(r == OGS_OK);
     ogs_assert(r != OGS_ERROR);
 
@@ -4256,7 +4214,7 @@ void ngap_handle_ran_configuration_update(
                                 bplmn_list[j].num_of_s_nssai = 0;
                         k < BroadcastPLMNItem->tAISliceSupportList.list.count &&
                         gnb->supported_ta_list[i].bplmn_list[j].num_of_s_nssai <
-                            OGS_MAX_NUM_OF_SLICE_SUPPORT;
+                            OGS_MAX_NUM_OF_SLICE;
                                 k++) {
                     NGAP_SliceSupportItem_t *SliceSupportItem = NULL;
                     NGAP_S_NSSAI_t *s_NSSAI = NULL;

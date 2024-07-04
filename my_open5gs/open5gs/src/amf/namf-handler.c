@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -228,9 +228,7 @@ int amf_namf_comm_handle_n1_n2_message_transfer(
                 ogs_sbi_header_t header;
                 ogs_sbi_client_t *client = NULL;
                 OpenAPI_uri_scheme_e scheme = OpenAPI_uri_scheme_NULL;
-                char *fqdn = NULL;
-                uint16_t fqdn_port = 0;
-                ogs_sockaddr_t *addr = NULL, *addr6 = NULL;
+                ogs_sockaddr_t *addr = NULL;
 
                 if (!N1N2MessageTransferReqData->n1n2_failure_txf_notif_uri) {
                     ogs_error("[%s:%d] No n1-n2-failure-notification-uri",
@@ -238,8 +236,7 @@ int amf_namf_comm_handle_n1_n2_message_transfer(
                     return OGS_ERROR;
                 }
 
-                rc = ogs_sbi_getaddr_from_uri(
-                        &scheme, &fqdn, &fqdn_port, &addr, &addr6,
+                rc = ogs_sbi_getaddr_from_uri(&scheme, &addr,
                         N1N2MessageTransferReqData->n1n2_failure_txf_notif_uri);
                 if (rc == false || scheme == OpenAPI_uri_scheme_NULL) {
                     ogs_error("[%s:%d] Invalid URI [%s]",
@@ -249,27 +246,13 @@ int amf_namf_comm_handle_n1_n2_message_transfer(
                     return OGS_ERROR;;
                 }
 
-                client = ogs_sbi_client_find(
-                        scheme, fqdn, fqdn_port, addr, addr6);
+                client = ogs_sbi_client_find(scheme, addr);
                 if (!client) {
-                    ogs_debug("%s: ogs_sbi_client_add()", OGS_FUNC);
-                    client = ogs_sbi_client_add(
-                            scheme, fqdn, fqdn_port, addr, addr6);
-                    if (!client) {
-                        ogs_error("%s: ogs_sbi_client_add() failed", OGS_FUNC);
-
-                        ogs_free(fqdn);
-                        ogs_freeaddrinfo(addr);
-                        ogs_freeaddrinfo(addr6);
-
-                        return OGS_ERROR;
-                    }
+                    client = ogs_sbi_client_add(scheme, addr);
+                    ogs_assert(client);
                 }
                 OGS_SBI_SETUP_CLIENT(&sess->paging, client);
-
-                ogs_free(fqdn);
                 ogs_freeaddrinfo(addr);
-                ogs_freeaddrinfo(addr6);
 
                 status = OGS_SBI_HTTP_STATUS_ACCEPTED;
                 N1N2MessageTransferRspData.cause =
@@ -367,18 +350,10 @@ int amf_namf_comm_handle_n1_n2_message_transfer(
             ogs_assert(r != OGS_ERROR);
 
         } else if (CM_CONNECTED(amf_ue)) {
-            if (CONTEXT_SETUP_ESTABLISHED(amf_ue)) {
-                r = nas_send_pdu_session_modification_command(
-                        sess, n1buf, n2buf);
-                ogs_expect(r == OGS_OK);
-                ogs_assert(r != OGS_ERROR);
-            } else {
-                /* Store 5GSM Message */
-                ogs_warn("[Session MODIFY] Context setup is not established");
-                AMF_SESS_STORE_5GSM_MESSAGE(sess,
-                        OGS_NAS_5GS_PDU_SESSION_MODIFICATION_COMMAND,
-                        n1buf, n2buf);
-            }
+            r = nas_send_pdu_session_modification_command(sess, n1buf, n2buf);
+            ogs_expect(r == OGS_OK);
+            ogs_assert(r != OGS_ERROR);
+
         } else {
             ogs_fatal("[%s] Invalid AMF-UE state", amf_ue->supi);
             ogs_assert_if_reached();
@@ -443,17 +418,9 @@ int amf_namf_comm_handle_n1_n2_message_transfer(
             }
 
         } else if (CM_CONNECTED(amf_ue)) {
-            if (CONTEXT_SETUP_ESTABLISHED(amf_ue)) {
-                r = nas_send_pdu_session_release_command(sess, n1buf, n2buf);
-                ogs_expect(r == OGS_OK);
-                ogs_assert(r != OGS_ERROR);
-            } else {
-                /* Store 5GSM Message */
-                ogs_warn("[Session RELEASE] Context setup is not established");
-                AMF_SESS_STORE_5GSM_MESSAGE(sess,
-                        OGS_NAS_5GS_PDU_SESSION_RELEASE_COMMAND,
-                        n1buf, n2buf);
-            }
+            r = nas_send_pdu_session_release_command(sess, n1buf, n2buf);
+            ogs_expect(r == OGS_OK);
+            ogs_assert(r != OGS_ERROR);
         } else {
             ogs_fatal("[%s] Invalid AMF-UE state", amf_ue->supi);
             ogs_assert_if_reached();
@@ -742,10 +709,6 @@ static int update_rat_res_add_one(cJSON *restriction,
     }
 
     restr = (void *) OpenAPI_rat_type_FromString(cJSON_GetStringValue(restriction));
-    if (!restr) {
-        ogs_error("No restr");
-        return OGS_ERROR;
-    }
 
     if (index == restrictions->count) {
         OpenAPI_list_add(restrictions, restr);

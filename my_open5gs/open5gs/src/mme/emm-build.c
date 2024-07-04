@@ -153,7 +153,7 @@ ogs_pkbuf_t *emm_build_attach_accept(
     served_tai_index = mme_find_served_tai(&mme_ue->tai);
     ogs_debug("    SERVED_TAI_INDEX[%d]", served_tai_index);
     ogs_assert(served_tai_index >= 0 &&
-            served_tai_index < OGS_MAX_NUM_OF_SUPPORTED_TA);
+            served_tai_index < OGS_MAX_NUM_OF_SERVED_TAI);
     ogs_assert(OGS_OK ==
         ogs_nas_tai_list_build(&attach_accept->tai_list,
             &mme_self()->served_tai[served_tai_index].list0,
@@ -199,7 +199,7 @@ ogs_pkbuf_t *emm_build_attach_accept(
 
     attach_accept->presencemask |= 
         OGS_NAS_EPS_ATTACH_ACCEPT_EPS_NETWORK_FEATURE_SUPPORT_PRESENT;
-    if (ogs_global_conf()->parameter.use_openair == false) {
+    if (ogs_app()->parameter.use_openair == false) {
         eps_network_feature_support->length = 2;
     } else {
         eps_network_feature_support->length = 1;
@@ -416,7 +416,7 @@ ogs_pkbuf_t *emm_build_security_mode_command(mme_ue_t *mme_ue)
      * However, Openair UE does not support HashMME. For user convenience,
      * we added a way not to include HashMME through the configuration file.
      */
-    if (ogs_global_conf()->parameter.use_openair == false) {
+    if (ogs_app()->parameter.use_openair == false) {
         security_mode_command->presencemask |=
             OGS_NAS_EPS_SECURITY_MODE_COMMAND_HASHMME_PRESENT;
         hashmme->length = OGS_HASH_MME_LEN;
@@ -555,7 +555,7 @@ ogs_pkbuf_t *emm_build_tau_accept(mme_ue_t *mme_ue)
     served_tai_index = mme_find_served_tai(&mme_ue->tai);
     ogs_debug("    SERVED_TAI_INDEX[%d]", served_tai_index);
     ogs_assert(served_tai_index >= 0 &&
-            served_tai_index < OGS_MAX_NUM_OF_SUPPORTED_TA);
+            served_tai_index < OGS_MAX_NUM_OF_SERVED_TAI);
     ogs_assert(OGS_OK ==
         ogs_nas_tai_list_build(&tau_accept->tai_list,
             &mme_self()->served_tai[served_tai_index].list0,
@@ -611,7 +611,7 @@ ogs_pkbuf_t *emm_build_tau_accept(mme_ue_t *mme_ue)
     /* Set EPS network feature support */
     tau_accept->presencemask |=
         OGS_NAS_EPS_TRACKING_AREA_UPDATE_ACCEPT_EPS_NETWORK_FEATURE_SUPPORT_PRESENT;
-    if (ogs_global_conf()->parameter.use_openair == false) {
+    if (ogs_app()->parameter.use_openair == false) {
         tau_accept->eps_network_feature_support.length = 2;
     } else {
         tau_accept->eps_network_feature_support.length = 1;
