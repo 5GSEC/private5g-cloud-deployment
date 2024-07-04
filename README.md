@@ -235,6 +235,8 @@ Open the Git repo, commit, and push.
 cd ~/private5g-cloud-deployment
 rm -rf .git
 
+> need to setup the SSH key for the CodeCommit repository.
+
 code_commit_uri=$(aws ssm get-parameters --names "CodeCommitUri" | grep "Value" | cut -d'"' -f4)
 echo $code_commit_uri
 
