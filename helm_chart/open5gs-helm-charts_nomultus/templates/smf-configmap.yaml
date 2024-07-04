@@ -17,7 +17,7 @@ data:
         client:
           no_tls: true
     smf:
-        sbi:     
+        sbi:
         - addr: 0.0.0.0
           advertise: {{ .Release.Name }}-smf
         pfcp:
@@ -36,7 +36,7 @@ data:
 
     nrf:
      sbi:
-      name: {{ .Release.Name }}-nrf 
+      name: {{ .Release.Name }}-nrf
 
     upf:
       pfcp:
