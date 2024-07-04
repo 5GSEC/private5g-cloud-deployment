@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019,2020 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -23,12 +23,14 @@ static ogs_thread_t *thread;
 static void udm_main(void *data);
 static int initialized = 0;
 
-int udm_initialize(void)
+int udm_initialize()
 {
     int rv;
 
-    ogs_sbi_context_init(OpenAPI_nf_type_UDM);
+    ogs_sbi_context_init();
+
     udm_context_init();
+    udm_event_init();
 
     rv = ogs_sbi_context_parse_config("udm", "nrf", "scp");
     if (rv != OGS_OK) return rv;
@@ -59,7 +61,7 @@ static void event_termination(void)
 
     /* Sending NF Instance De-registeration to NRF */
     ogs_list_for_each(&ogs_sbi_self()->nf_instance_list, nf_instance)
-        ogs_sbi_nf_fsm_fini(nf_instance);
+        udm_nf_fsm_fini(nf_instance);
 
     /* Starting holding timer */
     t_termination_holding = ogs_timer_add(ogs_app()->timer_mgr, NULL, NULL);
@@ -85,6 +87,8 @@ void udm_terminate(void)
 
     udm_context_final();
     ogs_sbi_context_final();
+
+    udm_event_final(); /* Destroy event */
 }
 
 static void udm_main(void *data)
@@ -92,7 +96,8 @@ static void udm_main(void *data)
     ogs_fsm_t udm_sm;
     int rv;
 
-    ogs_fsm_init(&udm_sm, udm_state_initial, udm_state_final, 0);
+    ogs_fsm_create(&udm_sm, udm_state_initial, udm_state_final);
+    ogs_fsm_init(&udm_sm, 0);
 
     for ( ;; ) {
         ogs_pollset_poll(ogs_app()->pollset,
@@ -125,10 +130,11 @@ static void udm_main(void *data)
 
             ogs_assert(e);
             ogs_fsm_dispatch(&udm_sm, e);
-            ogs_event_free(e);
+            udm_event_free(e);
         }
     }
 done:
 
     ogs_fsm_fini(&udm_sm, 0);
+    ogs_fsm_delete(&udm_sm);
 }

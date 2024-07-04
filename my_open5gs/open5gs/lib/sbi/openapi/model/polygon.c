@@ -20,29 +20,21 @@ OpenAPI_polygon_t *OpenAPI_polygon_create(
 
 void OpenAPI_polygon_free(OpenAPI_polygon_t *polygon)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == polygon) {
         return;
     }
-    if (polygon->shape) {
-        OpenAPI_supported_gad_shapes_free(polygon->shape);
-        polygon->shape = NULL;
+    OpenAPI_lnode_t *node;
+    OpenAPI_supported_gad_shapes_free(polygon->shape);
+    OpenAPI_list_for_each(polygon->point_list, node) {
+        OpenAPI_geographical_coordinates_free(node->data);
     }
-    if (polygon->point_list) {
-        OpenAPI_list_for_each(polygon->point_list, node) {
-            OpenAPI_geographical_coordinates_free(node->data);
-        }
-        OpenAPI_list_free(polygon->point_list);
-        polygon->point_list = NULL;
-    }
+    OpenAPI_list_free(polygon->point_list);
     ogs_free(polygon);
 }
 
 cJSON *OpenAPI_polygon_convertToJSON(OpenAPI_polygon_t *polygon)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (polygon == NULL) {
         ogs_error("OpenAPI_polygon_convertToJSON() failed [Polygon]");
@@ -50,10 +42,6 @@ cJSON *OpenAPI_polygon_convertToJSON(OpenAPI_polygon_t *polygon)
     }
 
     item = cJSON_CreateObject();
-    if (!polygon->shape) {
-        ogs_error("OpenAPI_polygon_convertToJSON() failed [shape]");
-        return NULL;
-    }
     cJSON *shape_local_JSON = OpenAPI_supported_gad_shapes_convertToJSON(polygon->shape);
     if (shape_local_JSON == NULL) {
         ogs_error("OpenAPI_polygon_convertToJSON() failed [shape]");
@@ -65,22 +53,22 @@ cJSON *OpenAPI_polygon_convertToJSON(OpenAPI_polygon_t *polygon)
         goto end;
     }
 
-    if (!polygon->point_list) {
-        ogs_error("OpenAPI_polygon_convertToJSON() failed [point_list]");
-        return NULL;
-    }
     cJSON *point_listList = cJSON_AddArrayToObject(item, "pointList");
     if (point_listList == NULL) {
         ogs_error("OpenAPI_polygon_convertToJSON() failed [point_list]");
         goto end;
     }
-    OpenAPI_list_for_each(polygon->point_list, node) {
-        cJSON *itemLocal = OpenAPI_geographical_coordinates_convertToJSON(node->data);
-        if (itemLocal == NULL) {
-            ogs_error("OpenAPI_polygon_convertToJSON() failed [point_list]");
-            goto end;
+
+    OpenAPI_lnode_t *point_list_node;
+    if (polygon->point_list) {
+        OpenAPI_list_for_each(polygon->point_list, point_list_node) {
+            cJSON *itemLocal = OpenAPI_geographical_coordinates_convertToJSON(point_list_node->data);
+            if (itemLocal == NULL) {
+                ogs_error("OpenAPI_polygon_convertToJSON() failed [point_list]");
+                goto end;
+            }
+            cJSON_AddItemToArray(point_listList, itemLocal);
         }
-        cJSON_AddItemToArray(point_listList, itemLocal);
     }
 
 end:
@@ -90,47 +78,45 @@ end:
 OpenAPI_polygon_t *OpenAPI_polygon_parseFromJSON(cJSON *polygonJSON)
 {
     OpenAPI_polygon_t *polygon_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *shape = NULL;
-    OpenAPI_supported_gad_shapes_t *shape_local_nonprim = NULL;
-    cJSON *point_list = NULL;
-    OpenAPI_list_t *point_listList = NULL;
-    shape = cJSON_GetObjectItemCaseSensitive(polygonJSON, "shape");
+    cJSON *shape = cJSON_GetObjectItemCaseSensitive(polygonJSON, "shape");
     if (!shape) {
         ogs_error("OpenAPI_polygon_parseFromJSON() failed [shape]");
         goto end;
     }
-    shape_local_nonprim = OpenAPI_supported_gad_shapes_parseFromJSON(shape);
-    if (!shape_local_nonprim) {
-        ogs_error("OpenAPI_supported_gad_shapes_parseFromJSON failed [shape]");
-        goto end;
-    }
 
-    point_list = cJSON_GetObjectItemCaseSensitive(polygonJSON, "pointList");
+    OpenAPI_supported_gad_shapes_t *shape_local_nonprim = NULL;
+    shape_local_nonprim = OpenAPI_supported_gad_shapes_parseFromJSON(shape);
+
+    cJSON *point_list = cJSON_GetObjectItemCaseSensitive(polygonJSON, "pointList");
     if (!point_list) {
         ogs_error("OpenAPI_polygon_parseFromJSON() failed [point_list]");
         goto end;
     }
-        cJSON *point_list_local = NULL;
-        if (!cJSON_IsArray(point_list)) {
+
+    OpenAPI_list_t *point_listList;
+    cJSON *point_list_local_nonprimitive;
+    if (!cJSON_IsArray(point_list)){
+        ogs_error("OpenAPI_polygon_parseFromJSON() failed [point_list]");
+        goto end;
+    }
+
+    point_listList = OpenAPI_list_create();
+
+    cJSON_ArrayForEach(point_list_local_nonprimitive, point_list ) {
+        if (!cJSON_IsObject(point_list_local_nonprimitive)) {
             ogs_error("OpenAPI_polygon_parseFromJSON() failed [point_list]");
             goto end;
         }
+        OpenAPI_geographical_coordinates_t *point_listItem = OpenAPI_geographical_coordinates_parseFromJSON(point_list_local_nonprimitive);
 
-        point_listList = OpenAPI_list_create();
-
-        cJSON_ArrayForEach(point_list_local, point_list) {
-            if (!cJSON_IsObject(point_list_local)) {
-                ogs_error("OpenAPI_polygon_parseFromJSON() failed [point_list]");
-                goto end;
-            }
-            OpenAPI_geographical_coordinates_t *point_listItem = OpenAPI_geographical_coordinates_parseFromJSON(point_list_local);
-            if (!point_listItem) {
-                ogs_error("No point_listItem");
-                goto end;
-            }
-            OpenAPI_list_add(point_listList, point_listItem);
+        if (!point_listItem) {
+            ogs_error("No point_listItem");
+            OpenAPI_list_free(point_listList);
+            goto end;
         }
+
+        OpenAPI_list_add(point_listList, point_listItem);
+    }
 
     polygon_local_var = OpenAPI_polygon_create (
         shape_local_nonprim,
@@ -139,17 +125,6 @@ OpenAPI_polygon_t *OpenAPI_polygon_parseFromJSON(cJSON *polygonJSON)
 
     return polygon_local_var;
 end:
-    if (shape_local_nonprim) {
-        OpenAPI_supported_gad_shapes_free(shape_local_nonprim);
-        shape_local_nonprim = NULL;
-    }
-    if (point_listList) {
-        OpenAPI_list_for_each(point_listList, node) {
-            OpenAPI_geographical_coordinates_free(node->data);
-        }
-        OpenAPI_list_free(point_listList);
-        point_listList = NULL;
-    }
     return NULL;
 }
 

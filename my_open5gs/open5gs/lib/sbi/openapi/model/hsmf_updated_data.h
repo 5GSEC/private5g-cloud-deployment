@@ -1,7 +1,7 @@
 /*
  * hsmf_updated_data.h
  *
- * Data within Update Response from H-SMF, or from SMF to I-SMF
+ * 
  */
 
 #ifndef _OpenAPI_hsmf_updated_data_H_
@@ -35,7 +35,6 @@ typedef struct OpenAPI_hsmf_updated_data_s {
     OpenAPI_list_t *dnai_list;
     char *supported_features;
     struct OpenAPI_roaming_charging_profile_s *roaming_charging_profile;
-    char *home_provided_charging_id;
     struct OpenAPI_up_security_s *up_security;
     OpenAPI_max_integrity_protected_data_rate_e max_integrity_protected_data_rate_ul;
     OpenAPI_max_integrity_protected_data_rate_e max_integrity_protected_data_rate_dl;
@@ -47,8 +46,6 @@ typedef struct OpenAPI_hsmf_updated_data_s {
     OpenAPI_list_t *eps_bearer_info;
     bool is_pti;
     int pti;
-    char *inter_plmn_api_root;
-    char *intra_plmn_api_root;
 } OpenAPI_hsmf_updated_data_t;
 
 OpenAPI_hsmf_updated_data_t *OpenAPI_hsmf_updated_data_create(
@@ -59,7 +56,6 @@ OpenAPI_hsmf_updated_data_t *OpenAPI_hsmf_updated_data_create(
     OpenAPI_list_t *dnai_list,
     char *supported_features,
     OpenAPI_roaming_charging_profile_t *roaming_charging_profile,
-    char *home_provided_charging_id,
     OpenAPI_up_security_t *up_security,
     OpenAPI_max_integrity_protected_data_rate_e max_integrity_protected_data_rate_ul,
     OpenAPI_max_integrity_protected_data_rate_e max_integrity_protected_data_rate_dl,
@@ -70,9 +66,7 @@ OpenAPI_hsmf_updated_data_t *OpenAPI_hsmf_updated_data_create(
     OpenAPI_eps_pdn_cnx_info_t *eps_pdn_cnx_info,
     OpenAPI_list_t *eps_bearer_info,
     bool is_pti,
-    int pti,
-    char *inter_plmn_api_root,
-    char *intra_plmn_api_root
+    int pti
 );
 void OpenAPI_hsmf_updated_data_free(OpenAPI_hsmf_updated_data_t *hsmf_updated_data);
 OpenAPI_hsmf_updated_data_t *OpenAPI_hsmf_updated_data_parseFromJSON(cJSON *hsmf_updated_dataJSON);

@@ -1,7 +1,6 @@
 /*
  * Copyright (C) 2019 by Sukchan Lee <acetcom@gmail.com>
  * Copyright (C) 2022 by sysmocom - s.f.m.c. GmbH <info@sysmocom.de>
- * Copyright (C) 2023 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -58,7 +57,7 @@ extern "C" {
  */
 typedef struct ogs_gtp_xact_s {
     ogs_lnode_t     node;           /**< A node of list */
-    ogs_pool_id_t   index;
+    ogs_index_t     index;
 
     uint8_t gtp_version;            /**< 1 or 2 */
 
@@ -97,15 +96,13 @@ typedef struct ogs_gtp_xact_s {
 #define OGS_GTP_MODIFY_QOS_UPDATE ((uint64_t)1<<1)
     uint64_t        update_flags;
 
-#define OGS_GTP_DELETE_NO_ACTION                                1
-#define OGS_GTP_DELETE_SEND_AUTHENTICATION_REQUEST              2
-#define OGS_GTP_DELETE_SEND_DETACH_ACCEPT                       3
-#define OGS_GTP_DELETE_SEND_DEACTIVATE_BEARER_CONTEXT_REQUEST   4
-#define OGS_GTP_DELETE_SEND_RELEASE_WITH_UE_CONTEXT_REMOVE      5
-#define OGS_GTP_DELETE_SEND_RELEASE_WITH_S1_REMOVE_AND_UNLINK   6
-#define OGS_GTP_DELETE_HANDLE_PDN_CONNECTIVITY_REQUEST          7
-#define OGS_GTP_DELETE_IN_PATH_SWITCH_REQUEST                   8
-
+#define OGS_GTP_DELETE_SEND_AUTHENTICATION_REQUEST 1
+#define OGS_GTP_DELETE_SEND_DETACH_ACCEPT 2
+#define OGS_GTP_DELETE_SEND_DEACTIVATE_BEARER_CONTEXT_REQUEST 3
+#define OGS_GTP_DELETE_SEND_UE_CONTEXT_RELEASE_COMMAND 4
+#define OGS_GTP_DELETE_HANDLE_PDN_CONNECTIVITY_REQUEST 5
+#define OGS_GTP_DELETE_UE_CONTEXT_REMOVE 6
+#define OGS_GTP_DELETE_IN_PATH_SWITCH_REQUEST 7
     int             delete_action;
 
 #define OGS_GTP_RELEASE_SEND_UE_CONTEXT_RELEASE_COMMAND     1

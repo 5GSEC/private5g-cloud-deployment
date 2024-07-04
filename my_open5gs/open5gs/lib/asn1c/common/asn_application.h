@@ -61,7 +61,7 @@ enum asn_transfer_syntax {
      */
     ATS_BASIC_XER,
     ATS_CANONICAL_XER,
-    ATS_JER,
+    ATS_BASIC_JER,
 };
 
 /*

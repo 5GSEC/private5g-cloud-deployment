@@ -22,30 +22,19 @@ OpenAPI_user_identifier_t *OpenAPI_user_identifier_create(
 
 void OpenAPI_user_identifier_free(OpenAPI_user_identifier_t *user_identifier)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == user_identifier) {
         return;
     }
-    if (user_identifier->supi) {
-        ogs_free(user_identifier->supi);
-        user_identifier->supi = NULL;
-    }
-    if (user_identifier->gpsi) {
-        ogs_free(user_identifier->gpsi);
-        user_identifier->gpsi = NULL;
-    }
-    if (user_identifier->validity_time) {
-        ogs_free(user_identifier->validity_time);
-        user_identifier->validity_time = NULL;
-    }
+    OpenAPI_lnode_t *node;
+    ogs_free(user_identifier->supi);
+    ogs_free(user_identifier->gpsi);
+    ogs_free(user_identifier->validity_time);
     ogs_free(user_identifier);
 }
 
 cJSON *OpenAPI_user_identifier_convertToJSON(OpenAPI_user_identifier_t *user_identifier)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (user_identifier == NULL) {
         ogs_error("OpenAPI_user_identifier_convertToJSON() failed [UserIdentifier]");
@@ -53,10 +42,6 @@ cJSON *OpenAPI_user_identifier_convertToJSON(OpenAPI_user_identifier_t *user_ide
     }
 
     item = cJSON_CreateObject();
-    if (!user_identifier->supi) {
-        ogs_error("OpenAPI_user_identifier_convertToJSON() failed [supi]");
-        return NULL;
-    }
     if (cJSON_AddStringToObject(item, "supi", user_identifier->supi) == NULL) {
         ogs_error("OpenAPI_user_identifier_convertToJSON() failed [supi]");
         goto end;
@@ -83,31 +68,30 @@ end:
 OpenAPI_user_identifier_t *OpenAPI_user_identifier_parseFromJSON(cJSON *user_identifierJSON)
 {
     OpenAPI_user_identifier_t *user_identifier_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *supi = NULL;
-    cJSON *gpsi = NULL;
-    cJSON *validity_time = NULL;
-    supi = cJSON_GetObjectItemCaseSensitive(user_identifierJSON, "supi");
+    cJSON *supi = cJSON_GetObjectItemCaseSensitive(user_identifierJSON, "supi");
     if (!supi) {
         ogs_error("OpenAPI_user_identifier_parseFromJSON() failed [supi]");
         goto end;
     }
+
     if (!cJSON_IsString(supi)) {
         ogs_error("OpenAPI_user_identifier_parseFromJSON() failed [supi]");
         goto end;
     }
 
-    gpsi = cJSON_GetObjectItemCaseSensitive(user_identifierJSON, "gpsi");
+    cJSON *gpsi = cJSON_GetObjectItemCaseSensitive(user_identifierJSON, "gpsi");
+
     if (gpsi) {
-    if (!cJSON_IsString(gpsi) && !cJSON_IsNull(gpsi)) {
+    if (!cJSON_IsString(gpsi)) {
         ogs_error("OpenAPI_user_identifier_parseFromJSON() failed [gpsi]");
         goto end;
     }
     }
 
-    validity_time = cJSON_GetObjectItemCaseSensitive(user_identifierJSON, "validityTime");
+    cJSON *validity_time = cJSON_GetObjectItemCaseSensitive(user_identifierJSON, "validityTime");
+
     if (validity_time) {
-    if (!cJSON_IsString(validity_time) && !cJSON_IsNull(validity_time)) {
+    if (!cJSON_IsString(validity_time)) {
         ogs_error("OpenAPI_user_identifier_parseFromJSON() failed [validity_time]");
         goto end;
     }
@@ -115,8 +99,8 @@ OpenAPI_user_identifier_t *OpenAPI_user_identifier_parseFromJSON(cJSON *user_ide
 
     user_identifier_local_var = OpenAPI_user_identifier_create (
         ogs_strdup(supi->valuestring),
-        gpsi && !cJSON_IsNull(gpsi) ? ogs_strdup(gpsi->valuestring) : NULL,
-        validity_time && !cJSON_IsNull(validity_time) ? ogs_strdup(validity_time->valuestring) : NULL
+        gpsi ? ogs_strdup(gpsi->valuestring) : NULL,
+        validity_time ? ogs_strdup(validity_time->valuestring) : NULL
     );
 
     return user_identifier_local_var;

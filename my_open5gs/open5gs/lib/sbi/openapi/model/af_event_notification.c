@@ -5,7 +5,7 @@
 #include "af_event_notification.h"
 
 OpenAPI_af_event_notification_t *OpenAPI_af_event_notification_create(
-    OpenAPI_npcf_af_event_e event,
+    OpenAPI_af_event_e event,
     OpenAPI_list_t *flows
 )
 {
@@ -20,25 +20,20 @@ OpenAPI_af_event_notification_t *OpenAPI_af_event_notification_create(
 
 void OpenAPI_af_event_notification_free(OpenAPI_af_event_notification_t *af_event_notification)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == af_event_notification) {
         return;
     }
-    if (af_event_notification->flows) {
-        OpenAPI_list_for_each(af_event_notification->flows, node) {
-            OpenAPI_flows_free(node->data);
-        }
-        OpenAPI_list_free(af_event_notification->flows);
-        af_event_notification->flows = NULL;
+    OpenAPI_lnode_t *node;
+    OpenAPI_list_for_each(af_event_notification->flows, node) {
+        OpenAPI_flows_free(node->data);
     }
+    OpenAPI_list_free(af_event_notification->flows);
     ogs_free(af_event_notification);
 }
 
 cJSON *OpenAPI_af_event_notification_convertToJSON(OpenAPI_af_event_notification_t *af_event_notification)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (af_event_notification == NULL) {
         ogs_error("OpenAPI_af_event_notification_convertToJSON() failed [AfEventNotification]");
@@ -46,11 +41,7 @@ cJSON *OpenAPI_af_event_notification_convertToJSON(OpenAPI_af_event_notification
     }
 
     item = cJSON_CreateObject();
-    if (af_event_notification->event == OpenAPI_npcf_af_event_NULL) {
-        ogs_error("OpenAPI_af_event_notification_convertToJSON() failed [event]");
-        return NULL;
-    }
-    if (cJSON_AddStringToObject(item, "event", OpenAPI_npcf_af_event_ToString(af_event_notification->event)) == NULL) {
+    if (cJSON_AddStringToObject(item, "event", OpenAPI_af_event_ToString(af_event_notification->event)) == NULL) {
         ogs_error("OpenAPI_af_event_notification_convertToJSON() failed [event]");
         goto end;
     }
@@ -61,13 +52,17 @@ cJSON *OpenAPI_af_event_notification_convertToJSON(OpenAPI_af_event_notification
         ogs_error("OpenAPI_af_event_notification_convertToJSON() failed [flows]");
         goto end;
     }
-    OpenAPI_list_for_each(af_event_notification->flows, node) {
-        cJSON *itemLocal = OpenAPI_flows_convertToJSON(node->data);
-        if (itemLocal == NULL) {
-            ogs_error("OpenAPI_af_event_notification_convertToJSON() failed [flows]");
-            goto end;
+
+    OpenAPI_lnode_t *flows_node;
+    if (af_event_notification->flows) {
+        OpenAPI_list_for_each(af_event_notification->flows, flows_node) {
+            cJSON *itemLocal = OpenAPI_flows_convertToJSON(flows_node->data);
+            if (itemLocal == NULL) {
+                ogs_error("OpenAPI_af_event_notification_convertToJSON() failed [flows]");
+                goto end;
+            }
+            cJSON_AddItemToArray(flowsList, itemLocal);
         }
-        cJSON_AddItemToArray(flowsList, itemLocal);
     }
     }
 
@@ -78,44 +73,46 @@ end:
 OpenAPI_af_event_notification_t *OpenAPI_af_event_notification_parseFromJSON(cJSON *af_event_notificationJSON)
 {
     OpenAPI_af_event_notification_t *af_event_notification_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *event = NULL;
-    OpenAPI_npcf_af_event_e eventVariable = 0;
-    cJSON *flows = NULL;
-    OpenAPI_list_t *flowsList = NULL;
-    event = cJSON_GetObjectItemCaseSensitive(af_event_notificationJSON, "event");
+    cJSON *event = cJSON_GetObjectItemCaseSensitive(af_event_notificationJSON, "event");
     if (!event) {
         ogs_error("OpenAPI_af_event_notification_parseFromJSON() failed [event]");
         goto end;
     }
+
+    OpenAPI_af_event_e eventVariable;
     if (!cJSON_IsString(event)) {
         ogs_error("OpenAPI_af_event_notification_parseFromJSON() failed [event]");
         goto end;
     }
-    eventVariable = OpenAPI_npcf_af_event_FromString(event->valuestring);
+    eventVariable = OpenAPI_af_event_FromString(event->valuestring);
 
-    flows = cJSON_GetObjectItemCaseSensitive(af_event_notificationJSON, "flows");
+    cJSON *flows = cJSON_GetObjectItemCaseSensitive(af_event_notificationJSON, "flows");
+
+    OpenAPI_list_t *flowsList;
     if (flows) {
-        cJSON *flows_local = NULL;
-        if (!cJSON_IsArray(flows)) {
+    cJSON *flows_local_nonprimitive;
+    if (!cJSON_IsArray(flows)){
+        ogs_error("OpenAPI_af_event_notification_parseFromJSON() failed [flows]");
+        goto end;
+    }
+
+    flowsList = OpenAPI_list_create();
+
+    cJSON_ArrayForEach(flows_local_nonprimitive, flows ) {
+        if (!cJSON_IsObject(flows_local_nonprimitive)) {
             ogs_error("OpenAPI_af_event_notification_parseFromJSON() failed [flows]");
             goto end;
         }
+        OpenAPI_flows_t *flowsItem = OpenAPI_flows_parseFromJSON(flows_local_nonprimitive);
 
-        flowsList = OpenAPI_list_create();
-
-        cJSON_ArrayForEach(flows_local, flows) {
-            if (!cJSON_IsObject(flows_local)) {
-                ogs_error("OpenAPI_af_event_notification_parseFromJSON() failed [flows]");
-                goto end;
-            }
-            OpenAPI_flows_t *flowsItem = OpenAPI_flows_parseFromJSON(flows_local);
-            if (!flowsItem) {
-                ogs_error("No flowsItem");
-                goto end;
-            }
-            OpenAPI_list_add(flowsList, flowsItem);
+        if (!flowsItem) {
+            ogs_error("No flowsItem");
+            OpenAPI_list_free(flowsList);
+            goto end;
         }
+
+        OpenAPI_list_add(flowsList, flowsItem);
+    }
     }
 
     af_event_notification_local_var = OpenAPI_af_event_notification_create (
@@ -125,13 +122,6 @@ OpenAPI_af_event_notification_t *OpenAPI_af_event_notification_parseFromJSON(cJS
 
     return af_event_notification_local_var;
 end:
-    if (flowsList) {
-        OpenAPI_list_for_each(flowsList, node) {
-            OpenAPI_flows_free(node->data);
-        }
-        OpenAPI_list_free(flowsList);
-        flowsList = NULL;
-    }
     return NULL;
 }
 

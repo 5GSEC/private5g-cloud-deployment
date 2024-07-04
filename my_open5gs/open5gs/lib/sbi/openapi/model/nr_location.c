@@ -7,8 +7,6 @@
 OpenAPI_nr_location_t *OpenAPI_nr_location_create(
     OpenAPI_tai_t *tai,
     OpenAPI_ncgi_t *ncgi,
-    bool is_ignore_ncgi,
-    int ignore_ncgi,
     bool is_age_of_location_information,
     int age_of_location_information,
     char *ue_location_timestamp,
@@ -22,8 +20,6 @@ OpenAPI_nr_location_t *OpenAPI_nr_location_create(
 
     nr_location_local_var->tai = tai;
     nr_location_local_var->ncgi = ncgi;
-    nr_location_local_var->is_ignore_ncgi = is_ignore_ncgi;
-    nr_location_local_var->ignore_ncgi = ignore_ncgi;
     nr_location_local_var->is_age_of_location_information = is_age_of_location_information;
     nr_location_local_var->age_of_location_information = age_of_location_information;
     nr_location_local_var->ue_location_timestamp = ue_location_timestamp;
@@ -36,42 +32,22 @@ OpenAPI_nr_location_t *OpenAPI_nr_location_create(
 
 void OpenAPI_nr_location_free(OpenAPI_nr_location_t *nr_location)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == nr_location) {
         return;
     }
-    if (nr_location->tai) {
-        OpenAPI_tai_free(nr_location->tai);
-        nr_location->tai = NULL;
-    }
-    if (nr_location->ncgi) {
-        OpenAPI_ncgi_free(nr_location->ncgi);
-        nr_location->ncgi = NULL;
-    }
-    if (nr_location->ue_location_timestamp) {
-        ogs_free(nr_location->ue_location_timestamp);
-        nr_location->ue_location_timestamp = NULL;
-    }
-    if (nr_location->geographical_information) {
-        ogs_free(nr_location->geographical_information);
-        nr_location->geographical_information = NULL;
-    }
-    if (nr_location->geodetic_information) {
-        ogs_free(nr_location->geodetic_information);
-        nr_location->geodetic_information = NULL;
-    }
-    if (nr_location->global_gnb_id) {
-        OpenAPI_global_ran_node_id_free(nr_location->global_gnb_id);
-        nr_location->global_gnb_id = NULL;
-    }
+    OpenAPI_lnode_t *node;
+    OpenAPI_tai_free(nr_location->tai);
+    OpenAPI_ncgi_free(nr_location->ncgi);
+    ogs_free(nr_location->ue_location_timestamp);
+    ogs_free(nr_location->geographical_information);
+    ogs_free(nr_location->geodetic_information);
+    OpenAPI_global_ran_node_id_free(nr_location->global_gnb_id);
     ogs_free(nr_location);
 }
 
 cJSON *OpenAPI_nr_location_convertToJSON(OpenAPI_nr_location_t *nr_location)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (nr_location == NULL) {
         ogs_error("OpenAPI_nr_location_convertToJSON() failed [NrLocation]");
@@ -79,10 +55,6 @@ cJSON *OpenAPI_nr_location_convertToJSON(OpenAPI_nr_location_t *nr_location)
     }
 
     item = cJSON_CreateObject();
-    if (!nr_location->tai) {
-        ogs_error("OpenAPI_nr_location_convertToJSON() failed [tai]");
-        return NULL;
-    }
     cJSON *tai_local_JSON = OpenAPI_tai_convertToJSON(nr_location->tai);
     if (tai_local_JSON == NULL) {
         ogs_error("OpenAPI_nr_location_convertToJSON() failed [tai]");
@@ -94,10 +66,6 @@ cJSON *OpenAPI_nr_location_convertToJSON(OpenAPI_nr_location_t *nr_location)
         goto end;
     }
 
-    if (!nr_location->ncgi) {
-        ogs_error("OpenAPI_nr_location_convertToJSON() failed [ncgi]");
-        return NULL;
-    }
     cJSON *ncgi_local_JSON = OpenAPI_ncgi_convertToJSON(nr_location->ncgi);
     if (ncgi_local_JSON == NULL) {
         ogs_error("OpenAPI_nr_location_convertToJSON() failed [ncgi]");
@@ -107,13 +75,6 @@ cJSON *OpenAPI_nr_location_convertToJSON(OpenAPI_nr_location_t *nr_location)
     if (item->child == NULL) {
         ogs_error("OpenAPI_nr_location_convertToJSON() failed [ncgi]");
         goto end;
-    }
-
-    if (nr_location->is_ignore_ncgi) {
-    if (cJSON_AddBoolToObject(item, "ignoreNcgi", nr_location->ignore_ncgi) == NULL) {
-        ogs_error("OpenAPI_nr_location_convertToJSON() failed [ignore_ncgi]");
-        goto end;
-    }
     }
 
     if (nr_location->is_age_of_location_information) {
@@ -164,49 +125,26 @@ end:
 OpenAPI_nr_location_t *OpenAPI_nr_location_parseFromJSON(cJSON *nr_locationJSON)
 {
     OpenAPI_nr_location_t *nr_location_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *tai = NULL;
-    OpenAPI_tai_t *tai_local_nonprim = NULL;
-    cJSON *ncgi = NULL;
-    OpenAPI_ncgi_t *ncgi_local_nonprim = NULL;
-    cJSON *ignore_ncgi = NULL;
-    cJSON *age_of_location_information = NULL;
-    cJSON *ue_location_timestamp = NULL;
-    cJSON *geographical_information = NULL;
-    cJSON *geodetic_information = NULL;
-    cJSON *global_gnb_id = NULL;
-    OpenAPI_global_ran_node_id_t *global_gnb_id_local_nonprim = NULL;
-    tai = cJSON_GetObjectItemCaseSensitive(nr_locationJSON, "tai");
+    cJSON *tai = cJSON_GetObjectItemCaseSensitive(nr_locationJSON, "tai");
     if (!tai) {
         ogs_error("OpenAPI_nr_location_parseFromJSON() failed [tai]");
         goto end;
     }
-    tai_local_nonprim = OpenAPI_tai_parseFromJSON(tai);
-    if (!tai_local_nonprim) {
-        ogs_error("OpenAPI_tai_parseFromJSON failed [tai]");
-        goto end;
-    }
 
-    ncgi = cJSON_GetObjectItemCaseSensitive(nr_locationJSON, "ncgi");
+    OpenAPI_tai_t *tai_local_nonprim = NULL;
+    tai_local_nonprim = OpenAPI_tai_parseFromJSON(tai);
+
+    cJSON *ncgi = cJSON_GetObjectItemCaseSensitive(nr_locationJSON, "ncgi");
     if (!ncgi) {
         ogs_error("OpenAPI_nr_location_parseFromJSON() failed [ncgi]");
         goto end;
     }
+
+    OpenAPI_ncgi_t *ncgi_local_nonprim = NULL;
     ncgi_local_nonprim = OpenAPI_ncgi_parseFromJSON(ncgi);
-    if (!ncgi_local_nonprim) {
-        ogs_error("OpenAPI_ncgi_parseFromJSON failed [ncgi]");
-        goto end;
-    }
 
-    ignore_ncgi = cJSON_GetObjectItemCaseSensitive(nr_locationJSON, "ignoreNcgi");
-    if (ignore_ncgi) {
-    if (!cJSON_IsBool(ignore_ncgi)) {
-        ogs_error("OpenAPI_nr_location_parseFromJSON() failed [ignore_ncgi]");
-        goto end;
-    }
-    }
+    cJSON *age_of_location_information = cJSON_GetObjectItemCaseSensitive(nr_locationJSON, "ageOfLocationInformation");
 
-    age_of_location_information = cJSON_GetObjectItemCaseSensitive(nr_locationJSON, "ageOfLocationInformation");
     if (age_of_location_information) {
     if (!cJSON_IsNumber(age_of_location_information)) {
         ogs_error("OpenAPI_nr_location_parseFromJSON() failed [age_of_location_information]");
@@ -214,66 +152,53 @@ OpenAPI_nr_location_t *OpenAPI_nr_location_parseFromJSON(cJSON *nr_locationJSON)
     }
     }
 
-    ue_location_timestamp = cJSON_GetObjectItemCaseSensitive(nr_locationJSON, "ueLocationTimestamp");
+    cJSON *ue_location_timestamp = cJSON_GetObjectItemCaseSensitive(nr_locationJSON, "ueLocationTimestamp");
+
     if (ue_location_timestamp) {
-    if (!cJSON_IsString(ue_location_timestamp) && !cJSON_IsNull(ue_location_timestamp)) {
+    if (!cJSON_IsString(ue_location_timestamp)) {
         ogs_error("OpenAPI_nr_location_parseFromJSON() failed [ue_location_timestamp]");
         goto end;
     }
     }
 
-    geographical_information = cJSON_GetObjectItemCaseSensitive(nr_locationJSON, "geographicalInformation");
+    cJSON *geographical_information = cJSON_GetObjectItemCaseSensitive(nr_locationJSON, "geographicalInformation");
+
     if (geographical_information) {
-    if (!cJSON_IsString(geographical_information) && !cJSON_IsNull(geographical_information)) {
+    if (!cJSON_IsString(geographical_information)) {
         ogs_error("OpenAPI_nr_location_parseFromJSON() failed [geographical_information]");
         goto end;
     }
     }
 
-    geodetic_information = cJSON_GetObjectItemCaseSensitive(nr_locationJSON, "geodeticInformation");
+    cJSON *geodetic_information = cJSON_GetObjectItemCaseSensitive(nr_locationJSON, "geodeticInformation");
+
     if (geodetic_information) {
-    if (!cJSON_IsString(geodetic_information) && !cJSON_IsNull(geodetic_information)) {
+    if (!cJSON_IsString(geodetic_information)) {
         ogs_error("OpenAPI_nr_location_parseFromJSON() failed [geodetic_information]");
         goto end;
     }
     }
 
-    global_gnb_id = cJSON_GetObjectItemCaseSensitive(nr_locationJSON, "globalGnbId");
+    cJSON *global_gnb_id = cJSON_GetObjectItemCaseSensitive(nr_locationJSON, "globalGnbId");
+
+    OpenAPI_global_ran_node_id_t *global_gnb_id_local_nonprim = NULL;
     if (global_gnb_id) {
     global_gnb_id_local_nonprim = OpenAPI_global_ran_node_id_parseFromJSON(global_gnb_id);
-    if (!global_gnb_id_local_nonprim) {
-        ogs_error("OpenAPI_global_ran_node_id_parseFromJSON failed [global_gnb_id]");
-        goto end;
-    }
     }
 
     nr_location_local_var = OpenAPI_nr_location_create (
         tai_local_nonprim,
         ncgi_local_nonprim,
-        ignore_ncgi ? true : false,
-        ignore_ncgi ? ignore_ncgi->valueint : 0,
         age_of_location_information ? true : false,
         age_of_location_information ? age_of_location_information->valuedouble : 0,
-        ue_location_timestamp && !cJSON_IsNull(ue_location_timestamp) ? ogs_strdup(ue_location_timestamp->valuestring) : NULL,
-        geographical_information && !cJSON_IsNull(geographical_information) ? ogs_strdup(geographical_information->valuestring) : NULL,
-        geodetic_information && !cJSON_IsNull(geodetic_information) ? ogs_strdup(geodetic_information->valuestring) : NULL,
+        ue_location_timestamp ? ogs_strdup(ue_location_timestamp->valuestring) : NULL,
+        geographical_information ? ogs_strdup(geographical_information->valuestring) : NULL,
+        geodetic_information ? ogs_strdup(geodetic_information->valuestring) : NULL,
         global_gnb_id ? global_gnb_id_local_nonprim : NULL
     );
 
     return nr_location_local_var;
 end:
-    if (tai_local_nonprim) {
-        OpenAPI_tai_free(tai_local_nonprim);
-        tai_local_nonprim = NULL;
-    }
-    if (ncgi_local_nonprim) {
-        OpenAPI_ncgi_free(ncgi_local_nonprim);
-        ncgi_local_nonprim = NULL;
-    }
-    if (global_gnb_id_local_nonprim) {
-        OpenAPI_global_ran_node_id_free(global_gnb_id_local_nonprim);
-        global_gnb_id_local_nonprim = NULL;
-    }
     return NULL;
 }
 

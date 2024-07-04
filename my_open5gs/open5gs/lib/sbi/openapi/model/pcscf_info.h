@@ -27,9 +27,6 @@ typedef struct OpenAPI_pcscf_info_s {
     char *gm_fqdn;
     OpenAPI_list_t *gm_ipv4_addresses;
     OpenAPI_list_t *gm_ipv6_addresses;
-    char *mw_fqdn;
-    OpenAPI_list_t *mw_ipv4_addresses;
-    OpenAPI_list_t *mw_ipv6_addresses;
     OpenAPI_list_t *served_ipv4_address_ranges;
     OpenAPI_list_t *served_ipv6_prefix_ranges;
 } OpenAPI_pcscf_info_t;
@@ -40,9 +37,6 @@ OpenAPI_pcscf_info_t *OpenAPI_pcscf_info_create(
     char *gm_fqdn,
     OpenAPI_list_t *gm_ipv4_addresses,
     OpenAPI_list_t *gm_ipv6_addresses,
-    char *mw_fqdn,
-    OpenAPI_list_t *mw_ipv4_addresses,
-    OpenAPI_list_t *mw_ipv6_addresses,
     OpenAPI_list_t *served_ipv4_address_ranges,
     OpenAPI_list_t *served_ipv6_prefix_ranges
 );

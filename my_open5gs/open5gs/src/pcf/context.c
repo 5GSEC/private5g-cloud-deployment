@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019,2020 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -117,12 +117,6 @@ int pcf_context_parse_config(void)
                 ogs_assert(pcf_key);
                 if (!strcmp(pcf_key, "sbi")) {
                     /* handle config in sbi library */
-                } else if (!strcmp(pcf_key, "service_name")) {
-                    /* handle config in sbi library */
-                } else if (!strcmp(pcf_key, "discovery")) {
-                    /* handle config in sbi library */
-                } else if (!strcmp(pcf_key, "metrics")) {
-                    /* handle config in metrics library */
                 } else
                     ogs_warn("unknown key `%s`", pcf_key);
             }
@@ -163,7 +157,8 @@ pcf_ue_t *pcf_ue_add(char *supi)
 
     memset(&e, 0, sizeof(e));
     e.pcf_ue = pcf_ue;
-    ogs_fsm_init(&pcf_ue->sm, pcf_am_state_initial, pcf_am_state_final, &e);
+    ogs_fsm_create(&pcf_ue->sm, pcf_am_state_initial, pcf_am_state_final);
+    ogs_fsm_init(&pcf_ue->sm, &e);
 
     ogs_list_add(&self.pcf_ue_list, pcf_ue);
 
@@ -181,11 +176,9 @@ void pcf_ue_remove(pcf_ue_t *pcf_ue)
     memset(&e, 0, sizeof(e));
     e.pcf_ue = pcf_ue;
     ogs_fsm_fini(&pcf_ue->sm, &e);
+    ogs_fsm_delete(&pcf_ue->sm);
 
     /* Free SBI object memory */
-    if (ogs_list_count(&pcf_ue->sbi.xact_list))
-        ogs_error("UE transaction [%d]",
-                ogs_list_count(&pcf_ue->sbi.xact_list));
     ogs_sbi_object_free(&pcf_ue->sbi);
 
     pcf_sess_remove_all(pcf_ue);
@@ -214,7 +207,7 @@ void pcf_ue_remove(pcf_ue_t *pcf_ue)
     ogs_pool_free(&pcf_ue_pool, pcf_ue);
 }
 
-void pcf_ue_remove_all(void)
+void pcf_ue_remove_all()
 {
     pcf_ue_t *pcf_ue = NULL, *next = NULL;;
 
@@ -275,7 +268,8 @@ pcf_sess_t *pcf_sess_add(pcf_ue_t *pcf_ue, uint8_t psi)
 
     memset(&e, 0, sizeof(e));
     e.sess = sess;
-    ogs_fsm_init(&sess->sm, pcf_sm_state_initial, pcf_sm_state_final, &e);
+    ogs_fsm_create(&sess->sm, pcf_sm_state_initial, pcf_sm_state_final);
+    ogs_fsm_init(&sess->sm, &e);
 
     ogs_list_add(&pcf_ue->sess_list, sess);
 
@@ -294,11 +288,9 @@ void pcf_sess_remove(pcf_sess_t *sess)
     memset(&e, 0, sizeof(e));
     e.sess = sess;
     ogs_fsm_fini(&sess->sm, &e);
+    ogs_fsm_delete(&sess->sm);
 
     /* Free SBI object memory */
-    if (ogs_list_count(&sess->sbi.xact_list))
-        ogs_error("Session transaction [%d]",
-                ogs_list_count(&sess->sbi.xact_list));
     ogs_sbi_object_free(&sess->sbi);
 
     pcf_app_remove_all(sess);
@@ -319,9 +311,6 @@ void pcf_sess_remove(pcf_sess_t *sess)
 
     clear_ipv4addr(sess);
     clear_ipv6prefix(sess);
-
-    OpenAPI_clear_and_free_string_list(sess->ipv4_frame_route_list);
-    OpenAPI_clear_and_free_string_list(sess->ipv6_frame_route_list);
 
     if (sess->subscribed_sess_ambr)
         OpenAPI_ambr_free(sess->subscribed_sess_ambr);
@@ -373,16 +362,10 @@ bool pcf_sess_set_ipv4addr(pcf_sess_t *sess, char *ipv4addr_string)
     clear_ipv4addr(sess);
 
     rv = ogs_ipv4_from_string(&sess->ipv4addr, ipv4addr_string);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_ipv4_from_string() failed");
-        return false;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, false);
 
     sess->ipv4addr_string = ogs_strdup(ipv4addr_string);
-    if (!sess->ipv4addr_string) {
-        ogs_error("ogs_strdup() failed");
-        return false;
-    }
+    ogs_expect_or_return_val(sess->ipv4addr_string, false);
 
     ogs_hash_set(self.ipv4addr_hash,
             &sess->ipv4addr, sizeof(sess->ipv4addr), sess);
@@ -401,18 +384,12 @@ bool pcf_sess_set_ipv6prefix(pcf_sess_t *sess, char *ipv6prefix_string)
 
     rv = ogs_ipv6prefix_from_string(
             sess->ipv6prefix.addr6, &sess->ipv6prefix.len, ipv6prefix_string);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_ipv6prefix_from_string() failed");
-        return false;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, false);
 
     ogs_assert(sess->ipv6prefix.len == OGS_IPV6_128_PREFIX_LEN);
 
     sess->ipv6prefix_string = ogs_strdup(ipv6prefix_string);
-    if (!sess->ipv6prefix_string) {
-        ogs_error("ogs_strdup() failed");
-        return false;
-    }
+    ogs_expect_or_return_val(sess->ipv6prefix_string, false);
 
     ogs_hash_set(self.ipv6prefix_hash,
             &sess->ipv6prefix, (sess->ipv6prefix.len >> 3) + 1, sess);
@@ -449,10 +426,7 @@ pcf_sess_t *pcf_sess_find_by_ipv4addr(char *ipv4addr_string)
     ogs_assert(ipv4addr_string);
 
     rv = ogs_ipv4_from_string(&ipv4addr, ipv4addr_string);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_ipv4_from_string() failed");
-        return NULL;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, NULL);
 
     return ogs_hash_get(self.ipv4addr_hash, &ipv4addr, sizeof(ipv4addr));
 }
@@ -468,7 +442,7 @@ int pcf_sessions_number_by_snssai_and_dnn(
 
     ogs_list_for_each(&pcf_ue->sess_list, sess)
         if (sess->s_nssai.sst == s_nssai->sst &&
-            sess->dnn && ogs_strcasecmp(sess->dnn, dnn) == 0)
+            sess->dnn && strcmp(sess->dnn, dnn) == 0)
             number_of_sessions++;
 
     return number_of_sessions;
@@ -486,10 +460,7 @@ pcf_sess_t *pcf_sess_find_by_ipv6addr(char *ipv6addr_string)
     ogs_assert(ipv6addr_string);
 
     rv = ogs_inet_pton(AF_INET6, ipv6addr_string, &tmp);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_inet_pton() failed");
-        return NULL;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, NULL);
 
     memcpy(ipv6prefix.addr6, tmp.sin6.sin6_addr.s6_addr, OGS_IPV6_LEN);
     ipv6prefix.len = OGS_IPV6_128_PREFIX_LEN;
@@ -593,11 +564,4 @@ pcf_app_t *pcf_app_find_by_app_session_id(char *app_session_id)
 {
     ogs_assert(app_session_id);
     return pcf_app_find(atoll(app_session_id));
-}
-
-int pcf_instance_get_load(void)
-{
-    return (((ogs_pool_size(&pcf_ue_pool) -
-            ogs_pool_avail(&pcf_ue_pool)) * 100) /
-            ogs_pool_size(&pcf_ue_pool));
 }

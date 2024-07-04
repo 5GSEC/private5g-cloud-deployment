@@ -117,7 +117,7 @@ void test_s2b_recv(test_sess_t *sess, ogs_pkbuf_t *pkbuf)
                 xact, sess, &gtp_message.delete_bearer_request);
             break;
         default:
-            ogs_error("Not implemented(type:%d)", gtp_message.h.type);
+            ogs_error("Not implmeneted(type:%d)", gtp_message.h.type);
             break;
     }
 
@@ -138,16 +138,10 @@ int test_s2b_send_create_session_request(test_sess_t *sess, bool handover_ind)
     h.teid = sess->smf_s2b_c_teid;
 
     pkbuf = test_s2b_build_create_session_request(h.type, sess, handover_ind);
-    if (!pkbuf) {
-        ogs_error("test_s2b_build_create_session_request() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(pkbuf, OGS_ERROR);
 
     xact = ogs_gtp_xact_local_create(sess->gnode, &h, pkbuf, NULL, sess);
-    if (!xact) {
-        ogs_error("ogs_gtp_xact_local_create() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(xact, OGS_ERROR);
 
     rv = ogs_gtp_xact_commit(xact);
     ogs_expect(rv == OGS_OK);
@@ -169,16 +163,10 @@ int test_s2b_send_delete_session_request(test_sess_t *sess)
     h.teid = sess->smf_s2b_c_teid;
 
     pkbuf = test_s2b_build_delete_session_request(h.type, sess);
-    if (!pkbuf) {
-        ogs_error("test_s2b_build_delete_session_request() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(pkbuf, OGS_ERROR);
 
     xact = ogs_gtp_xact_local_create(sess->gnode, &h, pkbuf, NULL, sess);
-    if (!xact) {
-        ogs_error("ogs_gtp_xact_local_create() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(xact, OGS_ERROR);
 
     rv = ogs_gtp_xact_commit(xact);
     ogs_expect(rv == OGS_OK);
@@ -204,16 +192,10 @@ int test_s2b_send_create_bearer_response(
     h.teid = sess->smf_s2b_c_teid;
 
     pkbuf = test_s2b_build_create_bearer_response(h.type, bearer);
-    if (!pkbuf) {
-        ogs_error("test_s2b_build_create_bearer_response() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(pkbuf, OGS_ERROR);
 
     rv = ogs_gtp_xact_update_tx(xact, &h, pkbuf);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_gtp_xact_update_tx() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, OGS_ERROR);
 
     rv = ogs_gtp_xact_commit(xact);
     ogs_expect(rv == OGS_OK);
@@ -239,16 +221,10 @@ int test_s2b_send_delete_bearer_response(
     h.teid = sess->smf_s2b_c_teid;
 
     pkbuf = test_s2b_build_delete_bearer_response(h.type, bearer);
-    if (!pkbuf) {
-        ogs_error("test_s2b_build_delete_bearer_response() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(pkbuf, OGS_ERROR);
 
     rv = ogs_gtp_xact_update_tx(xact, &h, pkbuf);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_gtp_xact_update_tx() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, OGS_ERROR);
 
     rv = ogs_gtp_xact_commit(xact);
     ogs_expect(rv == OGS_OK);

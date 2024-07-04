@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2022 by Sukchan Lee <acetcom@gmail.com>
+# Copyright (C) 2019,2020 by Sukchan Lee <acetcom@gmail.com>
 
 # This file is part of Open5GS.
 
@@ -17,10 +17,13 @@
 
 libpcf_sources = files('''
     context.c
-    metrics.c
     event.c
+    timer.c
 
+    nnrf-build.c
     nnrf-handler.c
+    nf-sm.c
+
     npcf-handler.c
 
     nudr-build.c
@@ -44,15 +47,17 @@ libpcf_sources = files('''
 
 libpcf = static_library('pcf',
     sources : libpcf_sources,
-    dependencies : [libdbi_dep,
-                    libmetrics_dep,
+    dependencies : [libcrypt_dep,
+                    libapp_dep,
+                    libdbi_dep,
                     libsbi_dep],
     install : false)
 
 libpcf_dep = declare_dependency(
     link_with : libpcf,
-    dependencies : [libdbi_dep,
-                    libmetrics_dep,
+    dependencies : [libcrypt_dep,
+                    libapp_dep,
+                    libdbi_dep,
                     libsbi_dep])
 
 pcf_sources = files('''

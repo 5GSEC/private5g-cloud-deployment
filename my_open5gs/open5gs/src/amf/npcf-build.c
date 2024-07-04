@@ -38,7 +38,6 @@ ogs_sbi_request_t *amf_npcf_am_policy_control_build_create(
 
     ogs_assert(amf_ue);
     ogs_assert(amf_ue->supi);
-    ogs_assert(ran_ue_cycle(amf_ue->ran_ue));
 
     memset(&message, 0, sizeof(message));
     message.h.method = (char *)OGS_SBI_HTTP_METHOD_POST;
@@ -48,14 +47,9 @@ ogs_sbi_request_t *amf_npcf_am_policy_control_build_create(
     message.h.resource.component[0] = (char *)OGS_SBI_RESOURCE_NAME_POLICIES;
 
     memset(&PolicyAssociationRequest, 0, sizeof(PolicyAssociationRequest));
-    memset(&ueLocation, 0, sizeof(ueLocation));
-    memset(&UeAmbr, 0, sizeof(UeAmbr));
 
     server = ogs_list_first(&ogs_sbi_self()->server_list);
-    if (!server) {
-        ogs_error("No server");
-        goto end;
-    }
+    ogs_expect_or_return_val(server, NULL);
 
     memset(&header, 0, sizeof(header));
     header.service.name = (char *)OGS_SBI_SERVICE_NAME_NAMF_CALLBACK;
@@ -65,10 +59,7 @@ ogs_sbi_request_t *amf_npcf_am_policy_control_build_create(
             (char *)OGS_SBI_RESOURCE_NAME_AM_POLICY_NOTIFY;
     PolicyAssociationRequest.notification_uri =
                         ogs_sbi_server_uri(server, &header);
-    if (!PolicyAssociationRequest.notification_uri) {
-        ogs_error("No notifiation_uri");
-        goto end;
-    }
+    ogs_expect_or_return_val(PolicyAssociationRequest.notification_uri, NULL);
 
     PolicyAssociationRequest.supi = amf_ue->supi;
 
@@ -76,46 +67,34 @@ ogs_sbi_request_t *amf_npcf_am_policy_control_build_create(
         if (amf_ue->msisdn[0]) {
             PolicyAssociationRequest.gpsi = ogs_msprintf("%s-%s",
                         OGS_ID_GPSI_TYPE_MSISDN, amf_ue->msisdn[0]);
-            if (!PolicyAssociationRequest.gpsi) {
-                ogs_error("No gpsi");
-                goto end;
-            }
+            ogs_assert(PolicyAssociationRequest.gpsi);
         }
     }
 
     PolicyAssociationRequest.access_type = amf_ue->nas.access_type; 
     PolicyAssociationRequest.pei = amf_ue->pei;
 
+    memset(&ueLocation, 0, sizeof(ueLocation));
     ueLocation.nr_location = ogs_sbi_build_nr_location(
             &amf_ue->nr_tai, &amf_ue->nr_cgi);
-    if (!ueLocation.nr_location) {
-        ogs_error("No ueLocation.nr_location");
-        goto end;
-    }
+    ogs_expect_or_return_val(ueLocation.nr_location, NULL);
     ueLocation.nr_location->ue_location_timestamp =
         ogs_sbi_gmtime_string(amf_ue->ue_location_timestamp);
-    if (!ueLocation.nr_location->ue_location_timestamp) {
-        ogs_error("No ueLocation.nr_location->ue_location_timestamp");
-        goto end;
-    }
+    ogs_expect_or_return_val(
+            ueLocation.nr_location->ue_location_timestamp, NULL);
     PolicyAssociationRequest.user_loc = &ueLocation;
 
     PolicyAssociationRequest.time_zone =
         ogs_sbi_timezone_string(ogs_timezone());
-    if (!PolicyAssociationRequest.time_zone) {
-        ogs_error("No time_zone");
-        goto end;
-    }
+    ogs_expect_or_return_val(PolicyAssociationRequest.time_zone, NULL);
 
     PolicyAssociationRequest.serving_plmn =
         ogs_sbi_build_plmn_id_nid(&amf_ue->nr_tai.plmn_id);
-    if (!PolicyAssociationRequest.serving_plmn) {
-        ogs_error("No serving_plmn");
-        goto end;
-    }
+    ogs_expect_or_return_val(PolicyAssociationRequest.serving_plmn, NULL);
 
     PolicyAssociationRequest.rat_type = amf_ue_rat_type(amf_ue);
 
+    memset(&UeAmbr, 0, sizeof(UeAmbr));
     if (OGS_SBI_FEATURES_IS_SET(amf_ue->am_policy_control_features,
                 OGS_SBI_NPCF_AM_POLICY_CONTROL_UE_AMBR_AUTHORIZATION)) {
         if (amf_ue->ue_ambr.uplink) {
@@ -136,10 +115,7 @@ ogs_sbi_request_t *amf_npcf_am_policy_control_build_create(
 
     for (i = 0; i < amf_ue->allowed_nssai.num_of_s_nssai; i++) {
         struct OpenAPI_snssai_s *Snssai = ogs_calloc(1, sizeof(*Snssai));
-        if (!Snssai) {
-            ogs_error("No Snssai");
-            goto end;
-        }
+        ogs_expect_or_return_val(Snssai, NULL);
 
         Snssai->sst = amf_ue->allowed_nssai.s_nssai[i].sst;
         Snssai->sd = ogs_s_nssai_sd_to_string(
@@ -154,31 +130,22 @@ ogs_sbi_request_t *amf_npcf_am_policy_control_build_create(
         OpenAPI_list_free(AllowedSnssais);
 
     PolicyAssociationRequest.guami = ogs_sbi_build_guami(amf_ue->guami);
-    if (!PolicyAssociationRequest.guami) {
-        ogs_error("No guami");
-        goto end;
-    }
+    ogs_expect_or_return_val(PolicyAssociationRequest.guami, NULL);
 
     PolicyAssociationRequest.service_name =
         (char *)OGS_SBI_SERVICE_NAME_NAMF_CALLBACK;
 
     PolicyAssociationRequest.supp_feat =
         ogs_uint64_to_string(amf_ue->am_policy_control_features);
-    if (!PolicyAssociationRequest.supp_feat) {
-        ogs_error("No supp_feat");
-        goto end;
-    }
+    ogs_expect_or_return_val(PolicyAssociationRequest.supp_feat, NULL);
 
     message.PolicyAssociationRequest = &PolicyAssociationRequest;
 
     request = ogs_sbi_build_request(&message);
     ogs_expect(request);
 
-end:
-    if (PolicyAssociationRequest.notification_uri)
-        ogs_free(PolicyAssociationRequest.notification_uri);
-    if (PolicyAssociationRequest.supp_feat)
-        ogs_free(PolicyAssociationRequest.supp_feat);
+    ogs_free(PolicyAssociationRequest.notification_uri);
+    ogs_free(PolicyAssociationRequest.supp_feat);
 
     if (PolicyAssociationRequest.gpsi)
         ogs_free(PolicyAssociationRequest.gpsi);

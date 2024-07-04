@@ -1,7 +1,7 @@
 /*
  * termination_info.h
  *
- * Indicates the cause for requesting the deletion of the Individual Application Session Context resource.
+ * indicates the cause for requesting the deletion of the Individual Application Session Context resource
  */
 
 #ifndef _OpenAPI_termination_info_H_

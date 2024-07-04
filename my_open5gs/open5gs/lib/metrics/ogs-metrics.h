@@ -20,7 +20,8 @@
 #ifndef OGS_METRICS_H
 #define OGS_METRICS_H
 
-#include "app/ogs-app.h"
+#include "ogs-core.h"
+#include "ogs-app.h"
 
 #define OGS_METRICS_INSIDE
 

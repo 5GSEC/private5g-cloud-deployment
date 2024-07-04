@@ -33,11 +33,6 @@ typedef struct OpenAPI_ee_subscription_s {
     char *scef_diam_host;
     char *scef_diam_realm;
     char *notify_correlation_id;
-    char *second_callback_ref;
-    char *gpsi;
-    OpenAPI_list_t *exclude_gpsi_list;
-    OpenAPI_list_t *include_gpsi_list;
-    char *data_restoration_callback_uri;
 } OpenAPI_ee_subscription_t;
 
 OpenAPI_ee_subscription_t *OpenAPI_ee_subscription_create(
@@ -51,12 +46,7 @@ OpenAPI_ee_subscription_t *OpenAPI_ee_subscription_create(
     int epc_applied_ind,
     char *scef_diam_host,
     char *scef_diam_realm,
-    char *notify_correlation_id,
-    char *second_callback_ref,
-    char *gpsi,
-    OpenAPI_list_t *exclude_gpsi_list,
-    OpenAPI_list_t *include_gpsi_list,
-    char *data_restoration_callback_uri
+    char *notify_correlation_id
 );
 void OpenAPI_ee_subscription_free(OpenAPI_ee_subscription_t *ee_subscription);
 OpenAPI_ee_subscription_t *OpenAPI_ee_subscription_parseFromJSON(cJSON *ee_subscriptionJSON);

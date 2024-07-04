@@ -19,21 +19,19 @@
 
 #include "context.h"
 
-const char *nrf_timer_get_name(int timer_id)
+static nrf_timer_cfg_t g_nrf_timer_cfg[MAX_NUM_OF_NRF_TIMER] = {
+    /* Nothing */
+};
+
+nrf_timer_cfg_t *nrf_timer_cfg(nrf_timer_e id)
 {
-    switch (timer_id) {
-    case OGS_TIMER_NF_INSTANCE_REGISTRATION_INTERVAL:
-        return OGS_TIMER_NAME_NF_INSTANCE_REGISTRATION_INTERVAL;
-    case OGS_TIMER_NF_INSTANCE_HEARTBEAT_INTERVAL:
-        return OGS_TIMER_NAME_NF_INSTANCE_HEARTBEAT_INTERVAL;
-    case OGS_TIMER_NF_INSTANCE_NO_HEARTBEAT:
-        return OGS_TIMER_NAME_NF_INSTANCE_NO_HEARTBEAT;
-    case OGS_TIMER_NF_INSTANCE_VALIDITY:
-        return OGS_TIMER_NAME_NF_INSTANCE_VALIDITY;
-    case OGS_TIMER_SUBSCRIPTION_VALIDITY:
-        return OGS_TIMER_NAME_SUBSCRIPTION_VALIDITY;
-    case OGS_TIMER_SBI_CLIENT_WAIT:
-        return OGS_TIMER_NAME_SBI_CLIENT_WAIT;
+    ogs_assert(id < MAX_NUM_OF_NRF_TIMER);
+    return &g_nrf_timer_cfg[id];
+}
+
+const char *nrf_timer_get_name(nrf_timer_e id)
+{
+    switch (id) {
     case NRF_TIMER_NF_INSTANCE_NO_HEARTBEAT:
         return "NRF_TIMER_NF_INSTANCE_NO_HEARTBEAT";
     case NRF_TIMER_SUBSCRIPTION_VALIDITY:
@@ -42,7 +40,6 @@ const char *nrf_timer_get_name(int timer_id)
        break;
     }
 
-    ogs_error("Unknown Timer[%d]", timer_id);
     return "UNKNOWN_TIMER";
 }
 
@@ -54,14 +51,14 @@ static void timer_send_event(int timer_id, void *data)
 
     switch (timer_id) {
     case NRF_TIMER_NF_INSTANCE_NO_HEARTBEAT:
-        e = nrf_event_new(OGS_EVENT_SBI_TIMER);
-        e->h.timer_id = timer_id;
+        e = nrf_event_new(NRF_EVT_SBI_TIMER);
+        e->timer_id = timer_id;
         e->nf_instance = data;
         break;
     case NRF_TIMER_SUBSCRIPTION_VALIDITY:
-        e = nrf_event_new(OGS_EVENT_SBI_TIMER);
-        e->h.timer_id = timer_id;
-        e->subscription_data = data;
+        e = nrf_event_new(NRF_EVT_SBI_TIMER);
+        e->timer_id = timer_id;
+        e->subscription = data;
         break;
     default:
         ogs_fatal("Unknown timer id[%d]", timer_id);
@@ -72,7 +69,7 @@ static void timer_send_event(int timer_id, void *data)
     rv = ogs_queue_push(ogs_app()->queue, e);
     if (rv != OGS_OK) {
         ogs_error("ogs_queue_push() failed:%d", (int)rv);
-        ogs_event_free(e);
+        nrf_event_free(e);
     }
 }
 
@@ -84,4 +81,9 @@ void nrf_timer_nf_instance_no_heartbeat(void *data)
 void nrf_timer_subscription_validity(void *data)
 {
     timer_send_event(NRF_TIMER_SUBSCRIPTION_VALIDITY, data);
+}
+
+void nrf_timer_sbi_client_wait_expire(void *data)
+{
+    timer_send_event(NRF_TIMER_SBI_CLIENT_WAIT, data);
 }

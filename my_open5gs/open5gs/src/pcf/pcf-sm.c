@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019,2020 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -42,14 +42,14 @@ void pcf_state_operational(ogs_fsm_t *s, pcf_event_t *e)
     ogs_sbi_request_t *request = NULL;
 
     ogs_sbi_nf_instance_t *nf_instance = NULL;
-    ogs_sbi_subscription_data_t *subscription_data = NULL;
+    ogs_sbi_subscription_t *subscription = NULL;
     ogs_sbi_response_t *response = NULL;
     ogs_sbi_message_t message;
 
     ogs_sbi_object_t *sbi_object = NULL;
     ogs_sbi_xact_t *sbi_xact = NULL;
 
-    ogs_sbi_service_type_e service_type = OGS_SBI_SERVICE_TYPE_NULL;
+    OpenAPI_nf_type_e target_nf_type = OpenAPI_nf_type_NULL;
 
     pcf_ue_t *pcf_ue = NULL;
     pcf_sess_t *sess = NULL;
@@ -59,17 +59,17 @@ void pcf_state_operational(ogs_fsm_t *s, pcf_event_t *e)
 
     ogs_assert(s);
 
-    switch (e->h.id) {
+    switch (e->id) {
     case OGS_FSM_ENTRY_SIG:
         break;
 
     case OGS_FSM_EXIT_SIG:
         break;
 
-    case OGS_EVENT_SBI_SERVER:
-        request = e->h.sbi.request;
+    case PCF_EVT_SBI_SERVER:
+        request = e->sbi.request;
         ogs_assert(request);
-        stream = e->h.sbi.data;
+        stream = e->sbi.data;
         ogs_assert(stream);
 
         rv = ogs_sbi_parse_request(&message, request);
@@ -100,7 +100,7 @@ void pcf_state_operational(ogs_fsm_t *s, pcf_event_t *e)
             CASE(OGS_SBI_RESOURCE_NAME_NF_STATUS_NOTIFY)
                 SWITCH(message.h.method)
                 CASE(OGS_SBI_HTTP_METHOD_POST)
-                    ogs_nnrf_nfm_handle_nf_status_notify(stream, &message);
+                    pcf_nnrf_handle_nf_status_notify(stream, &message);
                     break;
 
                 DEFAULT
@@ -160,7 +160,7 @@ void pcf_state_operational(ogs_fsm_t *s, pcf_event_t *e)
             ogs_assert(OGS_FSM_STATE(&pcf_ue->sm));
 
             e->pcf_ue = pcf_ue;
-            e->h.sbi.message = &message;
+            e->sbi.message = &message;
             ogs_fsm_dispatch(&pcf_ue->sm, e);
             if (OGS_FSM_CHECK(&pcf_ue->sm, pcf_am_state_exception)) {
                 ogs_error("[%s] State machine exception", pcf_ue->supi);
@@ -179,20 +179,17 @@ void pcf_state_operational(ogs_fsm_t *s, pcf_event_t *e)
                         message.SmPolicyContextData->supi) {
                         pcf_ue = pcf_ue_find_by_supi(
                                     message.SmPolicyContextData->supi);
-                        if (!pcf_ue) {
-                            pcf_ue = pcf_ue_add(
-                                        message.SmPolicyContextData->supi);
-                            ogs_assert(pcf_ue);
-                        }
-                        if (message.SmPolicyContextData->pdu_session_id) {
-                            sess = pcf_sess_find_by_psi(pcf_ue, message.
-                                    SmPolicyContextData->pdu_session_id);
-                            if (!sess) {
-                                sess = pcf_sess_add(pcf_ue, message.
-                                    SmPolicyContextData->pdu_session_id);
-                                ogs_assert(sess);
-                                ogs_debug("[%s:%d] PCF session added",
-                                            pcf_ue->supi, sess->psi);
+                        if (pcf_ue) {
+                            if (message.SmPolicyContextData->pdu_session_id) {
+                                sess = pcf_sess_find_by_psi(pcf_ue, message.
+                                        SmPolicyContextData->pdu_session_id);
+                                if (!sess) {
+                                    sess = pcf_sess_add(pcf_ue, message.
+                                        SmPolicyContextData->pdu_session_id);
+                                    ogs_assert(sess);
+                                    ogs_debug("[%s:%d] PCF session added",
+                                                pcf_ue->supi, sess->psi);
+                                }
                             }
                         }
                     }
@@ -217,7 +214,7 @@ void pcf_state_operational(ogs_fsm_t *s, pcf_event_t *e)
             ogs_assert(OGS_FSM_STATE(&sess->sm));
 
             e->sess = sess;
-            e->h.sbi.message = &message;
+            e->sbi.message = &message;
             ogs_fsm_dispatch(&sess->sm, e);
             if (OGS_FSM_CHECK(&sess->sm, pcf_sm_state_exception)) {
                 ogs_error("[%s:%d] State machine exception",
@@ -268,7 +265,7 @@ void pcf_state_operational(ogs_fsm_t *s, pcf_event_t *e)
 
             e->sess = sess;
             e->app = app_session;
-            e->h.sbi.message = &message;
+            e->sbi.message = &message;
             ogs_fsm_dispatch(&sess->sm, e);
             if (OGS_FSM_CHECK(&sess->sm, pcf_sm_state_exception)) {
                 ogs_error("[%s:%d] State machine exception",
@@ -289,10 +286,10 @@ void pcf_state_operational(ogs_fsm_t *s, pcf_event_t *e)
         ogs_sbi_message_free(&message);
         break;
 
-    case OGS_EVENT_SBI_CLIENT:
+    case PCF_EVT_SBI_CLIENT:
         ogs_assert(e);
 
-        response = e->h.sbi.response;
+        response = e->sbi.response;
         ogs_assert(response);
         rv = ogs_sbi_parse_response(&message, response);
         if (rv != OGS_OK) {
@@ -314,58 +311,43 @@ void pcf_state_operational(ogs_fsm_t *s, pcf_event_t *e)
 
             SWITCH(message.h.resource.component[0])
             CASE(OGS_SBI_RESOURCE_NAME_NF_INSTANCES)
-                nf_instance = e->h.sbi.data;
+                nf_instance = e->sbi.data;
                 ogs_assert(nf_instance);
                 ogs_assert(OGS_FSM_STATE(&nf_instance->sm));
 
-                e->h.sbi.message = &message;
+                e->sbi.message = &message;
                 ogs_fsm_dispatch(&nf_instance->sm, e);
                 break;
 
             CASE(OGS_SBI_RESOURCE_NAME_SUBSCRIPTIONS)
-                subscription_data = e->h.sbi.data;
-                ogs_assert(subscription_data);
+                subscription = e->sbi.data;
+                ogs_assert(subscription);
 
                 SWITCH(message.h.method)
                 CASE(OGS_SBI_HTTP_METHOD_POST)
                     if (message.res_status == OGS_SBI_HTTP_STATUS_CREATED ||
                         message.res_status == OGS_SBI_HTTP_STATUS_OK) {
-                        ogs_nnrf_nfm_handle_nf_status_subscribe(
-                                subscription_data, &message);
-                    } else {
-                        ogs_error("HTTP response error : %d",
-                                message.res_status);
-                    }
-                    break;
-
-                CASE(OGS_SBI_HTTP_METHOD_PATCH)
-                    if (message.res_status == OGS_SBI_HTTP_STATUS_OK ||
-                        message.res_status == OGS_SBI_HTTP_STATUS_NO_CONTENT) {
-                        ogs_nnrf_nfm_handle_nf_status_update(
-                                subscription_data, &message);
+                        pcf_nnrf_handle_nf_status_subscribe(
+                                subscription, &message);
                     } else {
                         ogs_error("[%s] HTTP response error [%d]",
-                                subscription_data->id ?
-                                    subscription_data->id : "Unknown",
-                                message.res_status);
+                                subscription->id, message.res_status);
                     }
                     break;
 
                 CASE(OGS_SBI_HTTP_METHOD_DELETE)
                     if (message.res_status ==
                             OGS_SBI_HTTP_STATUS_NO_CONTENT) {
-                        ogs_sbi_subscription_data_remove(subscription_data);
+                        ogs_sbi_subscription_remove(subscription);
                     } else {
                         ogs_error("[%s] HTTP response error [%d]",
-                                subscription_data->id ?
-                                    subscription_data->id : "Unknown",
-                                message.res_status);
+                                subscription->id, message.res_status);
                     }
                     break;
 
                 DEFAULT
                     ogs_error("[%s] Invalid HTTP method [%s]",
-                            subscription_data->id, message.h.method);
+                            subscription->id, message.h.method);
                     ogs_assert_if_reached();
                 END
                 break;
@@ -380,7 +362,7 @@ void pcf_state_operational(ogs_fsm_t *s, pcf_event_t *e)
         CASE(OGS_SBI_SERVICE_NAME_NNRF_DISC)
             SWITCH(message.h.resource.component[0])
             CASE(OGS_SBI_RESOURCE_NAME_NF_INSTANCES)
-                sbi_xact = e->h.sbi.data;
+                sbi_xact = e->sbi.data;
                 ogs_assert(sbi_xact);
 
                 SWITCH(message.h.method)
@@ -410,7 +392,7 @@ void pcf_state_operational(ogs_fsm_t *s, pcf_event_t *e)
             CASE(OGS_SBI_RESOURCE_NAME_POLICY_DATA)
                 SWITCH(message.h.resource.component[3])
                 CASE(OGS_SBI_RESOURCE_NAME_AM_DATA)
-                    sbi_xact = e->h.sbi.data;
+                    sbi_xact = e->sbi.data;
                     ogs_assert(sbi_xact);
 
                     sbi_xact = ogs_sbi_xact_cycle(sbi_xact);
@@ -424,7 +406,7 @@ void pcf_state_operational(ogs_fsm_t *s, pcf_event_t *e)
                     pcf_ue = (pcf_ue_t *)sbi_xact->sbi_object;
                     ogs_assert(pcf_ue);
 
-                    e->h.sbi.data = sbi_xact->assoc_stream;
+                    e->sbi.data = sbi_xact->assoc_stream;
 
                     ogs_sbi_xact_remove(sbi_xact);
 
@@ -436,7 +418,7 @@ void pcf_state_operational(ogs_fsm_t *s, pcf_event_t *e)
                     }
 
                     e->pcf_ue = pcf_ue;
-                    e->h.sbi.message = &message;
+                    e->sbi.message = &message;
 
                     ogs_fsm_dispatch(&pcf_ue->sm, e);
                     if (OGS_FSM_CHECK(&pcf_ue->sm, pcf_am_state_exception)) {
@@ -446,7 +428,7 @@ void pcf_state_operational(ogs_fsm_t *s, pcf_event_t *e)
                     break;
 
                 CASE(OGS_SBI_RESOURCE_NAME_SM_DATA)
-                    sbi_xact = e->h.sbi.data;
+                    sbi_xact = e->sbi.data;
                     ogs_assert(sbi_xact);
 
                     sbi_xact = ogs_sbi_xact_cycle(sbi_xact);
@@ -460,7 +442,7 @@ void pcf_state_operational(ogs_fsm_t *s, pcf_event_t *e)
                     sess = (pcf_sess_t *)sbi_xact->sbi_object;
                     ogs_assert(sess);
 
-                    e->h.sbi.data = sbi_xact->assoc_stream;
+                    e->sbi.data = sbi_xact->assoc_stream;
 
                     ogs_sbi_xact_remove(sbi_xact);
 
@@ -476,7 +458,7 @@ void pcf_state_operational(ogs_fsm_t *s, pcf_event_t *e)
                     ogs_assert(pcf_ue);
 
                     e->sess = sess;
-                    e->h.sbi.message = &message;
+                    e->sbi.message = &message;
 
                     ogs_fsm_dispatch(&sess->sm, e);
                     if (OGS_FSM_CHECK(&sess->sm, pcf_sm_state_exception)) {
@@ -505,7 +487,7 @@ void pcf_state_operational(ogs_fsm_t *s, pcf_event_t *e)
             SWITCH(message.h.resource.component[0])
             CASE(OGS_SBI_RESOURCE_NAME_PCF_BINDINGS)
 
-                sbi_xact = e->h.sbi.data;
+                sbi_xact = e->sbi.data;
                 ogs_assert(sbi_xact);
 
                 sbi_xact = ogs_sbi_xact_cycle(sbi_xact);
@@ -519,7 +501,7 @@ void pcf_state_operational(ogs_fsm_t *s, pcf_event_t *e)
                 sess = (pcf_sess_t *)sbi_xact->sbi_object;
                 ogs_assert(sess);
 
-                e->h.sbi.data = sbi_xact->assoc_stream;
+                e->sbi.data = sbi_xact->assoc_stream;
 
                 ogs_sbi_xact_remove(sbi_xact);
 
@@ -535,7 +517,7 @@ void pcf_state_operational(ogs_fsm_t *s, pcf_event_t *e)
                 ogs_assert(pcf_ue);
 
                 e->sess = sess;
-                e->h.sbi.message = &message;
+                e->sbi.message = &message;
 
                 ogs_fsm_dispatch(&sess->sm, e);
                 if (OGS_FSM_CHECK(&sess->sm, pcf_sm_state_exception)) {
@@ -565,87 +547,43 @@ void pcf_state_operational(ogs_fsm_t *s, pcf_event_t *e)
         ogs_sbi_response_free(response);
         break;
 
-    case OGS_EVENT_SBI_TIMER:
+    case PCF_EVT_SBI_TIMER:
         ogs_assert(e);
 
-        switch(e->h.timer_id) {
-        case OGS_TIMER_NF_INSTANCE_REGISTRATION_INTERVAL:
-        case OGS_TIMER_NF_INSTANCE_HEARTBEAT_INTERVAL:
-        case OGS_TIMER_NF_INSTANCE_NO_HEARTBEAT:
-        case OGS_TIMER_NF_INSTANCE_VALIDITY:
-            nf_instance = e->h.sbi.data;
+        switch(e->timer_id) {
+        case PCF_TIMER_NF_INSTANCE_REGISTRATION_INTERVAL:
+        case PCF_TIMER_NF_INSTANCE_HEARTBEAT_INTERVAL:
+        case PCF_TIMER_NF_INSTANCE_NO_HEARTBEAT:
+        case PCF_TIMER_NF_INSTANCE_VALIDITY:
+            nf_instance = e->sbi.data;
             ogs_assert(nf_instance);
             ogs_assert(OGS_FSM_STATE(&nf_instance->sm));
 
-            ogs_sbi_self()->nf_instance->load = pcf_instance_get_load();
-
             ogs_fsm_dispatch(&nf_instance->sm, e);
-            if (OGS_FSM_CHECK(&nf_instance->sm, ogs_sbi_nf_state_exception))
+            if (OGS_FSM_CHECK(&nf_instance->sm, pcf_nf_state_exception))
                 ogs_error("[%s:%s] State machine exception [%d]",
                         OpenAPI_nf_type_ToString(nf_instance->nf_type),
-                        nf_instance->id, e->h.timer_id);
+                        nf_instance->id, e->timer_id);
             break;
 
-        case OGS_TIMER_SUBSCRIPTION_VALIDITY:
-            subscription_data = e->h.sbi.data;
-            ogs_assert(subscription_data);
+        case PCF_TIMER_SUBSCRIPTION_VALIDITY:
+            subscription = e->sbi.data;
+            ogs_assert(subscription);
 
+            ogs_assert(ogs_sbi_self()->nf_instance);
             ogs_assert(true ==
-                ogs_nnrf_nfm_send_nf_status_subscribe(
+                ogs_nnrf_nfm_send_nf_status_subscribe(subscription->client,
                     ogs_sbi_self()->nf_instance->nf_type,
-                    subscription_data->req_nf_instance_id,
-                    subscription_data->subscr_cond.nf_type,
-                    subscription_data->subscr_cond.service_name));
+                    subscription->req_nf_instance_id,
+                    subscription->subscr_cond.nf_type));
 
-            ogs_error("[%s] Subscription validity expired",
-                subscription_data->id);
-            ogs_sbi_subscription_data_remove(subscription_data);
+            ogs_info("[%s] Subscription validity expired", subscription->id);
+            ogs_sbi_subscription_remove(subscription);
             break;
 
-        case OGS_TIMER_SUBSCRIPTION_PATCH:
-            subscription_data = e->h.sbi.data;
-            ogs_assert(subscription_data);
-
-            ogs_assert(true ==
-                ogs_nnrf_nfm_send_nf_status_update(subscription_data));
-
-            ogs_info("[%s] Need to update Subscription",
-                    subscription_data->id);
-            break;
-
-        case OGS_TIMER_SBI_CLIENT_WAIT:
-            /*
-             * ogs_pollset_poll() receives the time of the expiration
-             * of next timer as an argument. If this timeout is
-             * in very near future (1 millisecond), and if there are
-             * multiple events that need to be processed by ogs_pollset_poll(),
-             * these could take more than 1 millisecond for processing,
-             * resulting in the timer already passed the expiration.
-             *
-             * In case that another NF is under heavy load and responds
-             * to an SBI request with some delay of a few seconds,
-             * it can happen that ogs_pollset_poll() adds SBI responses
-             * to the event list for further processing,
-             * then ogs_timer_mgr_expire() is called which will add
-             * an additional event for timer expiration. When all events are
-             * processed one-by-one, the SBI xact would get deleted twice
-             * in a row, resulting in a crash.
-             *
-             * 1. ogs_pollset_poll()
-             *    message was received and put into an event list,
-             * 2. ogs_timer_mgr_expire()
-             *    add an additional event for timer expiration
-             * 3. message event is processed. (free SBI xact)
-             * 4. timer expiration event is processed. (double-free SBI xact)
-             *
-             * To avoid double-free SBI xact,
-             * we need to check ogs_sbi_xact_cycle()
-             */
-            sbi_xact = ogs_sbi_xact_cycle(e->h.sbi.data);
-            if (!sbi_xact) {
-                ogs_error("SBI transaction has already been removed");
-                break;
-            }
+        case PCF_TIMER_SBI_CLIENT_WAIT:
+            sbi_xact = e->sbi.data;
+            ogs_assert(sbi_xact);
 
             sbi_object = sbi_xact->sbi_object;
             ogs_assert(sbi_object);
@@ -653,7 +591,7 @@ void pcf_state_operational(ogs_fsm_t *s, pcf_event_t *e)
             stream = sbi_xact->assoc_stream;
             ogs_assert(stream);
 
-            service_type = sbi_xact->service_type;
+            target_nf_type = sbi_xact->target_nf_type;
 
             ogs_sbi_xact_remove(sbi_xact);
 
@@ -685,8 +623,7 @@ void pcf_state_operational(ogs_fsm_t *s, pcf_event_t *e)
 
             default:
                 ogs_fatal("Not implemented [%s:%d]",
-                    ogs_sbi_service_type_to_name(service_type),
-                    sbi_object->type);
+                    OpenAPI_nf_type_ToString(target_nf_type), sbi_object->type);
                 ogs_assert_if_reached();
             }
 
@@ -699,7 +636,7 @@ void pcf_state_operational(ogs_fsm_t *s, pcf_event_t *e)
 
         default:
             ogs_error("Unknown timer[%s:%d]",
-                    ogs_timer_get_name(e->h.timer_id), e->h.timer_id);
+                    pcf_timer_get_name(e->timer_id), e->timer_id);
         }
         break;
 

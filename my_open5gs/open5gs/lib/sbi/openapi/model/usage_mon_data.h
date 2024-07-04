@@ -12,6 +12,7 @@
 #include "../include/list.h"
 #include "../include/keyValuePair.h"
 #include "../include/binary.h"
+#include "time_period.h"
 #include "usage_mon_data_scope.h"
 #include "usage_mon_level.h"
 #include "usage_threshold.h"
@@ -26,9 +27,8 @@ typedef struct OpenAPI_usage_mon_data_s {
     OpenAPI_list_t* scopes;
     struct OpenAPI_usage_mon_level_s *um_level;
     struct OpenAPI_usage_threshold_s *allowed_usage;
-    char *reset_time;
+    struct OpenAPI_time_period_s *reset_time;
     char *supp_feat;
-    OpenAPI_list_t *reset_ids;
 } OpenAPI_usage_mon_data_t;
 
 OpenAPI_usage_mon_data_t *OpenAPI_usage_mon_data_create(
@@ -36,9 +36,8 @@ OpenAPI_usage_mon_data_t *OpenAPI_usage_mon_data_create(
     OpenAPI_list_t* scopes,
     OpenAPI_usage_mon_level_t *um_level,
     OpenAPI_usage_threshold_t *allowed_usage,
-    char *reset_time,
-    char *supp_feat,
-    OpenAPI_list_t *reset_ids
+    OpenAPI_time_period_t *reset_time,
+    char *supp_feat
 );
 void OpenAPI_usage_mon_data_free(OpenAPI_usage_mon_data_t *usage_mon_data);
 OpenAPI_usage_mon_data_t *OpenAPI_usage_mon_data_parseFromJSON(cJSON *usage_mon_dataJSON);

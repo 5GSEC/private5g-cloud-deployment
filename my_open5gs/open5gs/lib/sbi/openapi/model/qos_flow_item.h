@@ -1,7 +1,7 @@
 /*
  * qos_flow_item.h
  *
- * Individual QoS flow
+ * 
  */
 
 #ifndef _OpenAPI_qos_flow_item_H_
@@ -13,7 +13,6 @@
 #include "../include/keyValuePair.h"
 #include "../include/binary.h"
 #include "cause.h"
-#include "ng_ap_cause.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,7 +26,6 @@ typedef struct OpenAPI_qos_flow_item_s {
     int current_qos_profile_index;
     bool is_null_qo_s_profile_index;
     int null_qo_s_profile_index;
-    struct OpenAPI_ng_ap_cause_s *ng_ap_cause;
 } OpenAPI_qos_flow_item_t;
 
 OpenAPI_qos_flow_item_t *OpenAPI_qos_flow_item_create(
@@ -36,8 +34,7 @@ OpenAPI_qos_flow_item_t *OpenAPI_qos_flow_item_create(
     bool is_current_qos_profile_index,
     int current_qos_profile_index,
     bool is_null_qo_s_profile_index,
-    int null_qo_s_profile_index,
-    OpenAPI_ng_ap_cause_t *ng_ap_cause
+    int null_qo_s_profile_index
 );
 void OpenAPI_qos_flow_item_free(OpenAPI_qos_flow_item_t *qos_flow_item);
 OpenAPI_qos_flow_item_t *OpenAPI_qos_flow_item_parseFromJSON(cJSON *qos_flow_itemJSON);

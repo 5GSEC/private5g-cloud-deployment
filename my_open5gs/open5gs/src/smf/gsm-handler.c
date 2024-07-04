@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019,2020 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -37,7 +37,6 @@ int gsm_handle_pdu_session_establishment_request(
                 integrity_protection_maximum_data_rate;
     ogs_nas_pdu_session_type_t *pdu_session_type = NULL;
     ogs_nas_ssc_mode_t *ssc_mode = NULL;
-    int r;
 
     ogs_assert(sess);
     ogs_assert(stream);
@@ -62,16 +61,15 @@ int gsm_handle_pdu_session_establishment_request(
 
     if (pdu_session_establishment_request->presencemask &
         OGS_NAS_5GS_PDU_SESSION_ESTABLISHMENT_REQUEST_EXTENDED_PROTOCOL_CONFIGURATION_OPTIONS_PRESENT) {
-        OGS_NAS_STORE_DATA(&sess->nas.ue_epco,
+        OGS_NAS_STORE_DATA(&sess->nas.ue_pco,
             &pdu_session_establishment_request->
                 extended_protocol_configuration_options);
     }
 
-    r = smf_sbi_discover_and_send(OGS_SBI_SERVICE_TYPE_NUDM_SDM, NULL,
+    ogs_assert(true ==
+        smf_sbi_discover_and_send(OpenAPI_nf_type_UDM, NULL,
             smf_nudm_sdm_build_get,
-            sess, stream, 0, (char *)OGS_SBI_RESOURCE_NAME_SM_DATA);
-    ogs_expect(r == OGS_OK);
-    ogs_assert(r != OGS_ERROR);
+            sess, stream, 0, (char *)OGS_SBI_RESOURCE_NAME_SM_DATA));
 
     return OGS_OK;
 }
@@ -192,6 +190,8 @@ int gsm_handle_pdu_session_modification_request(
         ogs_nas_5gs_pdu_session_modification_request_t *
             pdu_session_modification_request)
 {
+    char *strerror = NULL;
+
     int i, j;
 
     uint64_t pfcp_flags = 0;
@@ -475,17 +475,20 @@ int gsm_handle_pdu_session_modification_request(
     }
 
     if (ogs_list_count(&sess->qos_flow_to_modify_list) != 1) {
-        ogs_error("[%s:%d] Invalid modification request [modify:%d]",
-                smf_ue->supi, sess->psi,
+        strerror = ogs_msprintf("[%s:%d] Invalid modification request "
+                "[modify:%d]", smf_ue->supi, sess->psi,
                 ogs_list_count(&sess->qos_flow_to_modify_list));
+        ogs_assert(strerror);
 
+        ogs_error("%s", strerror);
         n1smbuf = gsm_build_pdu_session_modification_reject(sess,
             OGS_5GSM_CAUSE_INVALID_MANDATORY_INFORMATION);
         ogs_assert(n1smbuf);
 
-        smf_sbi_send_sm_context_update_error_n1_n2_message(
-                stream, OGS_SBI_HTTP_STATUS_BAD_REQUEST,
-                n1smbuf, OpenAPI_n2_sm_info_type_NULL, NULL);
+        smf_sbi_send_sm_context_update_error(stream,
+                OGS_SBI_HTTP_STATUS_BAD_REQUEST,
+                strerror, smf_ue->supi, n1smbuf, NULL);
+        ogs_free(strerror);
 
         return OGS_ERROR;
     }

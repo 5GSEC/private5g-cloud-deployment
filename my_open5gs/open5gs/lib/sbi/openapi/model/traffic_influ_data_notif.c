@@ -20,26 +20,18 @@ OpenAPI_traffic_influ_data_notif_t *OpenAPI_traffic_influ_data_notif_create(
 
 void OpenAPI_traffic_influ_data_notif_free(OpenAPI_traffic_influ_data_notif_t *traffic_influ_data_notif)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == traffic_influ_data_notif) {
         return;
     }
-    if (traffic_influ_data_notif->res_uri) {
-        ogs_free(traffic_influ_data_notif->res_uri);
-        traffic_influ_data_notif->res_uri = NULL;
-    }
-    if (traffic_influ_data_notif->traffic_influ_data) {
-        OpenAPI_traffic_influ_data_free(traffic_influ_data_notif->traffic_influ_data);
-        traffic_influ_data_notif->traffic_influ_data = NULL;
-    }
+    OpenAPI_lnode_t *node;
+    ogs_free(traffic_influ_data_notif->res_uri);
+    OpenAPI_traffic_influ_data_free(traffic_influ_data_notif->traffic_influ_data);
     ogs_free(traffic_influ_data_notif);
 }
 
 cJSON *OpenAPI_traffic_influ_data_notif_convertToJSON(OpenAPI_traffic_influ_data_notif_t *traffic_influ_data_notif)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (traffic_influ_data_notif == NULL) {
         ogs_error("OpenAPI_traffic_influ_data_notif_convertToJSON() failed [TrafficInfluDataNotif]");
@@ -47,10 +39,6 @@ cJSON *OpenAPI_traffic_influ_data_notif_convertToJSON(OpenAPI_traffic_influ_data
     }
 
     item = cJSON_CreateObject();
-    if (!traffic_influ_data_notif->res_uri) {
-        ogs_error("OpenAPI_traffic_influ_data_notif_convertToJSON() failed [res_uri]");
-        return NULL;
-    }
     if (cJSON_AddStringToObject(item, "resUri", traffic_influ_data_notif->res_uri) == NULL) {
         ogs_error("OpenAPI_traffic_influ_data_notif_convertToJSON() failed [res_uri]");
         goto end;
@@ -76,27 +64,22 @@ end:
 OpenAPI_traffic_influ_data_notif_t *OpenAPI_traffic_influ_data_notif_parseFromJSON(cJSON *traffic_influ_data_notifJSON)
 {
     OpenAPI_traffic_influ_data_notif_t *traffic_influ_data_notif_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *res_uri = NULL;
-    cJSON *traffic_influ_data = NULL;
-    OpenAPI_traffic_influ_data_t *traffic_influ_data_local_nonprim = NULL;
-    res_uri = cJSON_GetObjectItemCaseSensitive(traffic_influ_data_notifJSON, "resUri");
+    cJSON *res_uri = cJSON_GetObjectItemCaseSensitive(traffic_influ_data_notifJSON, "resUri");
     if (!res_uri) {
         ogs_error("OpenAPI_traffic_influ_data_notif_parseFromJSON() failed [res_uri]");
         goto end;
     }
+
     if (!cJSON_IsString(res_uri)) {
         ogs_error("OpenAPI_traffic_influ_data_notif_parseFromJSON() failed [res_uri]");
         goto end;
     }
 
-    traffic_influ_data = cJSON_GetObjectItemCaseSensitive(traffic_influ_data_notifJSON, "trafficInfluData");
+    cJSON *traffic_influ_data = cJSON_GetObjectItemCaseSensitive(traffic_influ_data_notifJSON, "trafficInfluData");
+
+    OpenAPI_traffic_influ_data_t *traffic_influ_data_local_nonprim = NULL;
     if (traffic_influ_data) {
     traffic_influ_data_local_nonprim = OpenAPI_traffic_influ_data_parseFromJSON(traffic_influ_data);
-    if (!traffic_influ_data_local_nonprim) {
-        ogs_error("OpenAPI_traffic_influ_data_parseFromJSON failed [traffic_influ_data]");
-        goto end;
-    }
     }
 
     traffic_influ_data_notif_local_var = OpenAPI_traffic_influ_data_notif_create (
@@ -106,10 +89,6 @@ OpenAPI_traffic_influ_data_notif_t *OpenAPI_traffic_influ_data_notif_parseFromJS
 
     return traffic_influ_data_notif_local_var;
 end:
-    if (traffic_influ_data_local_nonprim) {
-        OpenAPI_traffic_influ_data_free(traffic_influ_data_local_nonprim);
-        traffic_influ_data_local_nonprim = NULL;
-    }
     return NULL;
 }
 

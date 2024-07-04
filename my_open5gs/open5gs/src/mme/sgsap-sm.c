@@ -40,10 +40,7 @@ void sgsap_state_initial(ogs_fsm_t *s, mme_event_t *e)
 
     vlr->t_conn = ogs_timer_add(ogs_app()->timer_mgr,
             mme_timer_sgs_cli_conn_to_srv, vlr);
-    if (!vlr->t_conn) {
-        ogs_error("ogs_timer_add() failed");
-        return;
-    }
+    ogs_expect_or_return(vlr->t_conn);
 
     OGS_FSM_TRAN(s, &sgsap_state_will_connect);
 }
@@ -87,7 +84,7 @@ void sgsap_state_will_connect(ogs_fsm_t *s, mme_event_t *e)
     case OGS_FSM_EXIT_SIG:
         ogs_timer_stop(vlr->t_conn);
         break;
-    case MME_EVENT_SGSAP_TIMER:
+    case MME_EVT_SGSAP_TIMER:
         switch(e->timer_id) {
         case MME_TIMER_SGS_CLI_CONN_TO_SRV:
             vlr = e->vlr;
@@ -111,7 +108,7 @@ void sgsap_state_will_connect(ogs_fsm_t *s, mme_event_t *e)
             break;
         }
         break;
-    case MME_EVENT_SGSAP_LO_SCTP_COMM_UP:
+    case MME_EVT_SGSAP_LO_SCTP_COMM_UP:
         OGS_FSM_TRAN(s, sgsap_state_connected);
         break;
     default:
@@ -138,11 +135,11 @@ void sgsap_state_connected(ogs_fsm_t *s, mme_event_t *e)
         break;
     case OGS_FSM_EXIT_SIG:
         break;
-    case MME_EVENT_SGSAP_LO_CONNREFUSED:
+    case MME_EVT_SGSAP_LO_CONNREFUSED:
         mme_vlr_close(vlr);
         OGS_FSM_TRAN(s, sgsap_state_will_connect);
         break;
-    case MME_EVENT_SGSAP_MESSAGE:
+    case MME_EVT_SGSAP_MESSAGE:
         pkbuf = e->pkbuf;
         ogs_assert(pkbuf);
         type = *(unsigned char *)(pkbuf->data);

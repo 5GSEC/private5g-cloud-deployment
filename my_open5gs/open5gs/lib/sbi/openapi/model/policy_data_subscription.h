@@ -24,10 +24,8 @@ typedef struct OpenAPI_policy_data_subscription_s {
     char *notif_id;
     OpenAPI_list_t *monitored_resource_uris;
     OpenAPI_list_t *mon_res_items;
-    OpenAPI_list_t *excluded_res_items;
     char *expiry;
     char *supported_features;
-    OpenAPI_list_t *reset_ids;
 } OpenAPI_policy_data_subscription_t;
 
 OpenAPI_policy_data_subscription_t *OpenAPI_policy_data_subscription_create(
@@ -35,10 +33,8 @@ OpenAPI_policy_data_subscription_t *OpenAPI_policy_data_subscription_create(
     char *notif_id,
     OpenAPI_list_t *monitored_resource_uris,
     OpenAPI_list_t *mon_res_items,
-    OpenAPI_list_t *excluded_res_items,
     char *expiry,
-    char *supported_features,
-    OpenAPI_list_t *reset_ids
+    char *supported_features
 );
 void OpenAPI_policy_data_subscription_free(OpenAPI_policy_data_subscription_t *policy_data_subscription);
 OpenAPI_policy_data_subscription_t *OpenAPI_policy_data_subscription_parseFromJSON(cJSON *policy_data_subscriptionJSON);

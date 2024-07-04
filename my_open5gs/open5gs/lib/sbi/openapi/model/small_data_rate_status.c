@@ -34,22 +34,17 @@ OpenAPI_small_data_rate_status_t *OpenAPI_small_data_rate_status_create(
 
 void OpenAPI_small_data_rate_status_free(OpenAPI_small_data_rate_status_t *small_data_rate_status)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == small_data_rate_status) {
         return;
     }
-    if (small_data_rate_status->validity_time) {
-        ogs_free(small_data_rate_status->validity_time);
-        small_data_rate_status->validity_time = NULL;
-    }
+    OpenAPI_lnode_t *node;
+    ogs_free(small_data_rate_status->validity_time);
     ogs_free(small_data_rate_status);
 }
 
 cJSON *OpenAPI_small_data_rate_status_convertToJSON(OpenAPI_small_data_rate_status_t *small_data_rate_status)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (small_data_rate_status == NULL) {
         ogs_error("OpenAPI_small_data_rate_status_convertToJSON() failed [SmallDataRateStatus]");
@@ -99,13 +94,8 @@ end:
 OpenAPI_small_data_rate_status_t *OpenAPI_small_data_rate_status_parseFromJSON(cJSON *small_data_rate_statusJSON)
 {
     OpenAPI_small_data_rate_status_t *small_data_rate_status_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *remain_packets_ul = NULL;
-    cJSON *remain_packets_dl = NULL;
-    cJSON *validity_time = NULL;
-    cJSON *remain_ex_reports_ul = NULL;
-    cJSON *remain_ex_reports_dl = NULL;
-    remain_packets_ul = cJSON_GetObjectItemCaseSensitive(small_data_rate_statusJSON, "remainPacketsUl");
+    cJSON *remain_packets_ul = cJSON_GetObjectItemCaseSensitive(small_data_rate_statusJSON, "remainPacketsUl");
+
     if (remain_packets_ul) {
     if (!cJSON_IsNumber(remain_packets_ul)) {
         ogs_error("OpenAPI_small_data_rate_status_parseFromJSON() failed [remain_packets_ul]");
@@ -113,7 +103,8 @@ OpenAPI_small_data_rate_status_t *OpenAPI_small_data_rate_status_parseFromJSON(c
     }
     }
 
-    remain_packets_dl = cJSON_GetObjectItemCaseSensitive(small_data_rate_statusJSON, "remainPacketsDl");
+    cJSON *remain_packets_dl = cJSON_GetObjectItemCaseSensitive(small_data_rate_statusJSON, "remainPacketsDl");
+
     if (remain_packets_dl) {
     if (!cJSON_IsNumber(remain_packets_dl)) {
         ogs_error("OpenAPI_small_data_rate_status_parseFromJSON() failed [remain_packets_dl]");
@@ -121,15 +112,17 @@ OpenAPI_small_data_rate_status_t *OpenAPI_small_data_rate_status_parseFromJSON(c
     }
     }
 
-    validity_time = cJSON_GetObjectItemCaseSensitive(small_data_rate_statusJSON, "validityTime");
+    cJSON *validity_time = cJSON_GetObjectItemCaseSensitive(small_data_rate_statusJSON, "validityTime");
+
     if (validity_time) {
-    if (!cJSON_IsString(validity_time) && !cJSON_IsNull(validity_time)) {
+    if (!cJSON_IsString(validity_time)) {
         ogs_error("OpenAPI_small_data_rate_status_parseFromJSON() failed [validity_time]");
         goto end;
     }
     }
 
-    remain_ex_reports_ul = cJSON_GetObjectItemCaseSensitive(small_data_rate_statusJSON, "remainExReportsUl");
+    cJSON *remain_ex_reports_ul = cJSON_GetObjectItemCaseSensitive(small_data_rate_statusJSON, "remainExReportsUl");
+
     if (remain_ex_reports_ul) {
     if (!cJSON_IsNumber(remain_ex_reports_ul)) {
         ogs_error("OpenAPI_small_data_rate_status_parseFromJSON() failed [remain_ex_reports_ul]");
@@ -137,7 +130,8 @@ OpenAPI_small_data_rate_status_t *OpenAPI_small_data_rate_status_parseFromJSON(c
     }
     }
 
-    remain_ex_reports_dl = cJSON_GetObjectItemCaseSensitive(small_data_rate_statusJSON, "remainExReportsDl");
+    cJSON *remain_ex_reports_dl = cJSON_GetObjectItemCaseSensitive(small_data_rate_statusJSON, "remainExReportsDl");
+
     if (remain_ex_reports_dl) {
     if (!cJSON_IsNumber(remain_ex_reports_dl)) {
         ogs_error("OpenAPI_small_data_rate_status_parseFromJSON() failed [remain_ex_reports_dl]");
@@ -150,7 +144,7 @@ OpenAPI_small_data_rate_status_t *OpenAPI_small_data_rate_status_parseFromJSON(c
         remain_packets_ul ? remain_packets_ul->valuedouble : 0,
         remain_packets_dl ? true : false,
         remain_packets_dl ? remain_packets_dl->valuedouble : 0,
-        validity_time && !cJSON_IsNull(validity_time) ? ogs_strdup(validity_time->valuestring) : NULL,
+        validity_time ? ogs_strdup(validity_time->valuestring) : NULL,
         remain_ex_reports_ul ? true : false,
         remain_ex_reports_ul ? remain_ex_reports_ul->valuedouble : 0,
         remain_ex_reports_dl ? true : false,

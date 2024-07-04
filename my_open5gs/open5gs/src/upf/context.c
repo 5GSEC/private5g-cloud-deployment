@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -25,7 +25,6 @@ static upf_context_t self;
 int __upf_log_domain;
 
 static OGS_POOL(upf_sess_pool, upf_sess_t);
-static OGS_POOL(upf_n4_seid_pool, ogs_pool_id_t);
 
 static int context_initialized = 0;
 
@@ -45,20 +44,15 @@ void upf_context_init(void)
     ogs_pfcp_self()->up_function_features.empu = 1;
     ogs_pfcp_self()->up_function_features.mnop = 1;
     ogs_pfcp_self()->up_function_features.vtime = 1;
-    ogs_pfcp_self()->up_function_features.frrt = 1;
     ogs_pfcp_self()->up_function_features_len = 4;
 
     ogs_list_init(&self.sess_list);
     ogs_pool_init(&upf_sess_pool, ogs_app()->pool.sess);
-    ogs_pool_init(&upf_n4_seid_pool, ogs_app()->pool.sess);
-    ogs_pool_random_id_generate(&upf_n4_seid_pool);
 
-    self.upf_n4_seid_hash = ogs_hash_make();
-    ogs_assert(self.upf_n4_seid_hash);
-    self.smf_n4_seid_hash = ogs_hash_make();
-    ogs_assert(self.smf_n4_seid_hash);
-    self.smf_n4_f_seid_hash = ogs_hash_make();
-    ogs_assert(self.smf_n4_f_seid_hash);
+    self.seid_hash = ogs_hash_make();
+    ogs_assert(self.seid_hash);
+    self.f_seid_hash = ogs_hash_make();
+    ogs_assert(self.f_seid_hash);
     self.ipv4_hash = ogs_hash_make();
     ogs_assert(self.ipv4_hash);
     self.ipv6_hash = ogs_hash_make();
@@ -67,37 +61,22 @@ void upf_context_init(void)
     context_initialized = 1;
 }
 
-static void free_upf_route_trie_node(struct upf_route_trie_node *node)
-{
-    if (!node)
-        return;
-    free_upf_route_trie_node(node->left);
-    free_upf_route_trie_node(node->right);
-    ogs_free(node);
-}
-
 void upf_context_final(void)
 {
     ogs_assert(context_initialized == 1);
 
     upf_sess_remove_all();
 
-    ogs_assert(self.upf_n4_seid_hash);
-    ogs_hash_destroy(self.upf_n4_seid_hash);
-    ogs_assert(self.smf_n4_seid_hash);
-    ogs_hash_destroy(self.smf_n4_seid_hash);
-    ogs_assert(self.smf_n4_f_seid_hash);
-    ogs_hash_destroy(self.smf_n4_f_seid_hash);
+    ogs_assert(self.seid_hash);
+    ogs_hash_destroy(self.seid_hash);
+    ogs_assert(self.f_seid_hash);
+    ogs_hash_destroy(self.f_seid_hash);
     ogs_assert(self.ipv4_hash);
     ogs_hash_destroy(self.ipv4_hash);
     ogs_assert(self.ipv6_hash);
     ogs_hash_destroy(self.ipv6_hash);
 
-    free_upf_route_trie_node(self.ipv4_framed_routes);
-    free_upf_route_trie_node(self.ipv6_framed_routes);
-
     ogs_pool_final(&upf_sess_pool);
-    ogs_pool_final(&upf_n4_seid_pool);
 
     context_initialized = 0;
 }
@@ -153,8 +132,6 @@ int upf_context_parse_config(void)
                     /* handle config in pfcp library */
                 } else if (!strcmp(upf_key, "subnet")) {
                     /* handle config in pfcp library */
-                } else if (!strcmp(upf_key, "metrics")) {
-                    /* handle config in metrics library */
                 } else
                     ogs_warn("unknown key `%s`", upf_key);
             }
@@ -179,14 +156,10 @@ upf_sess_t *upf_sess_add(ogs_pfcp_f_seid_t *cp_f_seid)
 
     ogs_pfcp_pool_init(&sess->pfcp);
 
-    /* Set UPF-N4-SEID */
-    ogs_pool_alloc(&upf_n4_seid_pool, &sess->upf_n4_seid_node);
-    ogs_assert(sess->upf_n4_seid_node);
+    sess->index = ogs_pool_index(&upf_sess_pool, sess);
+    ogs_assert(sess->index > 0 && sess->index <= ogs_app()->pool.sess);
 
-    sess->upf_n4_seid = *(sess->upf_n4_seid_node);
-
-    ogs_hash_set(self.upf_n4_seid_hash, &sess->upf_n4_seid,
-            sizeof(sess->upf_n4_seid), sess);
+    sess->upf_n4_seid = sess->index;
 
     /* Since F-SEID is composed of ogs_ip_t and uint64-seid,
      * all these values must be put into the structure-smf_n4_f_seid
@@ -195,13 +168,12 @@ upf_sess_t *upf_sess_add(ogs_pfcp_f_seid_t *cp_f_seid)
     ogs_assert(OGS_OK ==
             ogs_pfcp_f_seid_to_ip(cp_f_seid, &sess->smf_n4_f_seid.ip));
 
-    ogs_hash_set(self.smf_n4_f_seid_hash, &sess->smf_n4_f_seid,
+    ogs_hash_set(self.f_seid_hash, &sess->smf_n4_f_seid,
             sizeof(sess->smf_n4_f_seid), sess);
-    ogs_hash_set(self.smf_n4_seid_hash, &sess->smf_n4_f_seid.seid,
+    ogs_hash_set(self.seid_hash, &sess->smf_n4_f_seid.seid,
             sizeof(sess->smf_n4_f_seid.seid), sess);
 
     ogs_list_add(&self.sess_list, sess);
-    upf_metrics_inst_global_inc(UPF_METR_GLOB_GAUGE_UPF_SESSIONNBR);
 
     ogs_info("[Added] Number of UPF-Sessions is now %d",
             ogs_list_count(&self.sess_list));
@@ -218,12 +190,9 @@ int upf_sess_remove(upf_sess_t *sess)
     ogs_list_remove(&self.sess_list, sess);
     ogs_pfcp_sess_clear(&sess->pfcp);
 
-    ogs_hash_set(self.upf_n4_seid_hash, &sess->upf_n4_seid,
-            sizeof(sess->upf_n4_seid), NULL);
-
-    ogs_hash_set(self.smf_n4_seid_hash, &sess->smf_n4_f_seid.seid,
+    ogs_hash_set(self.seid_hash, &sess->smf_n4_f_seid.seid,
             sizeof(sess->smf_n4_f_seid.seid), NULL);
-    ogs_hash_set(self.smf_n4_f_seid_hash, &sess->smf_n4_f_seid,
+    ogs_hash_set(self.f_seid_hash, &sess->smf_n4_f_seid,
             sizeof(sess->smf_n4_f_seid), NULL);
 
     if (sess->ipv4) {
@@ -236,16 +205,9 @@ int upf_sess_remove(upf_sess_t *sess)
         ogs_pfcp_ue_ip_free(sess->ipv6);
     }
 
-    upf_sess_set_ue_ipv4_framed_routes(sess, NULL);
-    upf_sess_set_ue_ipv6_framed_routes(sess, NULL);
-
     ogs_pfcp_pool_final(&sess->pfcp);
 
-    ogs_pool_free(&upf_n4_seid_pool, sess->upf_n4_seid_node);
     ogs_pool_free(&upf_sess_pool, sess);
-    if (sess->apn_dnn)
-        ogs_free(sess->apn_dnn);
-    upf_metrics_inst_global_dec(UPF_METR_GLOB_GAUGE_UPF_SESSIONNBR);
 
     ogs_info("[Removed] Number of UPF-sessions is now %d",
             ogs_list_count(&self.sess_list));
@@ -255,16 +217,21 @@ int upf_sess_remove(upf_sess_t *sess)
 
 void upf_sess_remove_all(void)
 {
-    upf_sess_t *sess = NULL, *next = NULL;
+    upf_sess_t *sess = NULL, *next = NULL;;
 
     ogs_list_for_each_safe(&self.sess_list, next, sess) {
         upf_sess_remove(sess);
     }
 }
 
+upf_sess_t *upf_sess_find(uint32_t index)
+{
+    return ogs_pool_find(&upf_sess_pool, index);
+}
+
 upf_sess_t *upf_sess_find_by_smf_n4_seid(uint64_t seid)
 {
-    return ogs_hash_get(self.smf_n4_seid_hash, &seid, sizeof(seid));
+    return (upf_sess_t *)ogs_hash_get(self.seid_hash, &seid, sizeof(seid));
 }
 
 upf_sess_t *upf_sess_find_by_smf_n4_f_seid(ogs_pfcp_f_seid_t *f_seid)
@@ -278,76 +245,26 @@ upf_sess_t *upf_sess_find_by_smf_n4_f_seid(ogs_pfcp_f_seid_t *f_seid)
     ogs_assert(OGS_OK == ogs_pfcp_f_seid_to_ip(f_seid, &key.ip));
     key.seid = f_seid->seid;
 
-    return ogs_hash_get(self.smf_n4_f_seid_hash, &key, sizeof(key));
+    return (upf_sess_t *)ogs_hash_get(self.f_seid_hash, &key, sizeof(key));
 }
 
 upf_sess_t *upf_sess_find_by_upf_n4_seid(uint64_t seid)
 {
-    return ogs_hash_get(self.upf_n4_seid_hash, &seid, sizeof(seid));
+    return upf_sess_find(seid);
 }
 
 upf_sess_t *upf_sess_find_by_ipv4(uint32_t addr)
 {
-    upf_sess_t *ret;
-    struct upf_route_trie_node *trie = self.ipv4_framed_routes;
-    const int nbits = sizeof(addr) << 3;
-    int i;
-
     ogs_assert(self.ipv4_hash);
-
-    ret = ogs_hash_get(self.ipv4_hash, &addr, OGS_IPV4_LEN);
-    if (ret)
-        return ret;
-
-    for (i =  0; i <= nbits; i++) {
-        int bit = nbits - i - 1;
-
-        if (!trie)
-            break;
-        if (trie->sess)
-            ret = trie->sess;
-        if (i == nbits)
-            break;
-
-        if ((1 << bit) & be32toh(addr))
-            trie = trie->right;
-        else
-            trie = trie->left;
-    }
-    return ret;
+    return (upf_sess_t *)ogs_hash_get(self.ipv4_hash, &addr, OGS_IPV4_LEN);
 }
 
 upf_sess_t *upf_sess_find_by_ipv6(uint32_t *addr6)
 {
-    upf_sess_t *ret = NULL;
-    struct upf_route_trie_node *trie = self.ipv6_framed_routes;
-    int i;
-    const int chunk_size = sizeof(*addr6) << 3;
-
     ogs_assert(self.ipv6_hash);
     ogs_assert(addr6);
-    ret = ogs_hash_get(
+    return (upf_sess_t *)ogs_hash_get(
             self.ipv6_hash, addr6, OGS_IPV6_DEFAULT_PREFIX_LEN >> 3);
-    if (ret)
-        return ret;
-
-    for (i = 0; i <= OGS_IPV6_128_PREFIX_LEN; i++) {
-        int part = i / chunk_size;
-        int bit = (OGS_IPV6_128_PREFIX_LEN - i - 1) % chunk_size;
-
-        if (!trie)
-            break;
-        if (trie->sess)
-            ret = trie->sess;
-        if (i == OGS_IPV6_128_PREFIX_LEN)
-            break;
-
-        if ((1 << bit) & be32toh(addr6[part]))
-            trie = trie->right;
-        else
-            trie = trie->left;
-    }
-    return ret;
 }
 
 upf_sess_t *upf_sess_add_by_message(ogs_pfcp_message_t *message)
@@ -368,10 +285,7 @@ upf_sess_t *upf_sess_add_by_message(ogs_pfcp_message_t *message)
     sess = upf_sess_find_by_smf_n4_f_seid(f_seid);
     if (!sess) {
         sess = upf_sess_add(f_seid);
-        if (!sess) {
-            ogs_error("No Session Context");
-            return NULL;
-        }
+        if (!sess) return NULL;
     }
     ogs_assert(sess);
 
@@ -480,190 +394,12 @@ uint8_t upf_sess_set_ue_ip(upf_sess_t *sess,
                 pdr->dnn ? pdr->dnn : "");
     }
 
-    ogs_info("UE F-SEID[UP:0x%lx CP:0x%lx] "
+    ogs_info("UE F-SEID[CP:0x%lx UP:0x%lx] "
              "APN[%s] PDN-Type[%d] IPv4[%s] IPv6[%s]",
         (long)sess->upf_n4_seid, (long)sess->smf_n4_f_seid.seid,
         pdr->dnn, session_type,
         sess->ipv4 ? OGS_INET_NTOP(&sess->ipv4->addr, buf1) : "",
         sess->ipv6 ? OGS_INET6_NTOP(&sess->ipv6->addr, buf2) : "");
-
-    return cause_value;
-}
-
-/* Remove amd free framed ROUTE from TRIE. It isn't an error if the framed
-   route doesn't exist in TRIE. */
-static void free_framed_route_from_trie(ogs_ipsubnet_t *route)
-{
-    const int chunk_size = sizeof(route->sub[0]) << 3;
-    const int is_ipv4 = route->family == AF_INET;
-    const int nbits = is_ipv4 ? chunk_size : OGS_IPV6_128_PREFIX_LEN;
-    struct upf_route_trie_node **trie =
-        is_ipv4 ? &self.ipv4_framed_routes : &self.ipv6_framed_routes;
-
-    struct upf_route_trie_node **to_free_tries[OGS_IPV6_128_PREFIX_LEN + 1];
-    int free_from = 0;
-    int i = 0;
-
-    for (i = 0; i <= nbits; i++) {
-        int part = i / chunk_size;
-        int bit = (nbits - i - 1) % chunk_size;
-
-        if (!*trie)
-            break;
-        to_free_tries[i] = trie;
-
-        if (i == nbits ||
-            ((1 << bit) & be32toh(route->mask[part])) == 0) {
-            (*trie)->sess = NULL;
-            if ((*trie)->left || (*trie)->right)
-                free_from = i + 1;
-            i++;
-            break;
-        }
-
-        if ((1 << bit) & be32toh(route->sub[part])) {
-            if ((*trie)->left || (*trie)->sess)
-                free_from = i + 1;
-            trie = &(*trie)->right;
-        } else {
-            if ((*trie)->right || (*trie)->sess)
-                free_from = i + 1;
-            trie = &(*trie)->left;
-        }
-    }
-
-    for (i = i - 1; i >= free_from; i--) {
-        trie = to_free_tries[i];
-        ogs_free(*trie);
-        *trie = NULL;
-    }
-}
-
-static void add_framed_route_to_trie(ogs_ipsubnet_t *route, upf_sess_t *sess)
-{
-    const int chunk_size = sizeof(route->sub[0]) << 3;
-    const int is_ipv4 = route->family == AF_INET;
-    const int nbits = is_ipv4 ? chunk_size : OGS_IPV6_128_PREFIX_LEN;
-    struct upf_route_trie_node **trie =
-        is_ipv4 ? &self.ipv4_framed_routes : &self.ipv6_framed_routes;
-    int i = 0;
-
-    for (i = 0; i <= nbits; i++) {
-        int part = i / chunk_size;
-        int bit = (nbits - i - 1) % chunk_size;
-
-        if (!*trie)
-            *trie = ogs_calloc(1, sizeof(**trie));
-
-        if (i == nbits ||
-            ((1 << bit) & be32toh(route->mask[part])) == 0) {
-            (*trie)->sess = sess;
-            break;
-        }
-
-        if ((1 << bit) & be32toh(route->sub[part])) {
-            trie = &(*trie)->right;
-        } else {
-            trie = &(*trie)->left;
-        }
-    }
-}
-
-static int parse_framed_route(ogs_ipsubnet_t *subnet, const char *framed_route)
-{
-    char *mask = ogs_strdup(framed_route);
-    char *addr = strsep(&mask, "/");
-    int rv;
-
-    rv = ogs_ipsubnet(subnet, addr, mask);
-    ogs_free(addr);
-    return rv;
-}
-
-uint8_t upf_sess_set_ue_ipv4_framed_routes(upf_sess_t *sess,
-        char *framed_routes[])
-{
-    int i = 0, j = 0, rv;
-    uint8_t cause_value = OGS_PFCP_CAUSE_REQUEST_ACCEPTED;
-
-    ogs_assert(sess);
-
-    for (i = 0; i < OGS_MAX_NUM_OF_FRAMED_ROUTES_IN_PDI; i++) {
-        if (!sess->ipv4_framed_routes || !sess->ipv4_framed_routes[i].family)
-            break;
-        free_framed_route_from_trie(&sess->ipv4_framed_routes[i]);
-        memset(&sess->ipv4_framed_routes[i], 0,
-               sizeof(sess->ipv4_framed_routes[i]));
-    }
-
-    for (i = 0, j = 0; i < OGS_MAX_NUM_OF_FRAMED_ROUTES_IN_PDI; i++) {
-        if (!framed_routes || !framed_routes[i])
-            break;
-
-        if (sess->ipv4_framed_routes == NULL) {
-            sess->ipv4_framed_routes = ogs_calloc(
-                OGS_MAX_NUM_OF_FRAMED_ROUTES_IN_PDI, sizeof(ogs_ipsubnet_t));
-            ogs_assert(sess->ipv4_framed_routes);
-        }
-
-        rv = parse_framed_route(&sess->ipv4_framed_routes[j], framed_routes[i]);
-
-        if (rv != OGS_OK) {
-            ogs_warn("Ignoring invalid framed route %s", framed_routes[i]);
-            memset(&sess->ipv4_framed_routes[j], 0,
-                   sizeof(sess->ipv4_framed_routes[j]));
-            continue;
-        }
-        add_framed_route_to_trie(&sess->ipv4_framed_routes[j], sess);
-        j++;
-    }
-    if (j == 0 && sess->ipv4_framed_routes) {
-        ogs_free(sess->ipv4_framed_routes);
-        sess->ipv4_framed_routes = NULL;
-    }
-
-    return cause_value;
-}
-
-uint8_t upf_sess_set_ue_ipv6_framed_routes(upf_sess_t *sess,
-        char *framed_routes[])
-{
-    int i = 0, j = 0, rv;
-    uint8_t cause_value = OGS_PFCP_CAUSE_REQUEST_ACCEPTED;
-
-    ogs_assert(sess);
-
-    for (i = 0; i < OGS_MAX_NUM_OF_FRAMED_ROUTES_IN_PDI; i++) {
-        if (!sess->ipv6_framed_routes || !sess->ipv6_framed_routes[i].family)
-            break;
-        free_framed_route_from_trie(&sess->ipv6_framed_routes[i]);
-    }
-
-    for (i = 0, j = 0; i < OGS_MAX_NUM_OF_FRAMED_ROUTES_IN_PDI; i++) {
-        if (!framed_routes || !framed_routes[i])
-            break;
-
-        if (sess->ipv6_framed_routes == NULL) {
-            sess->ipv6_framed_routes = ogs_calloc(
-                OGS_MAX_NUM_OF_FRAMED_ROUTES_IN_PDI, sizeof(ogs_ipsubnet_t));
-            ogs_assert(sess->ipv6_framed_routes);
-        }
-
-        rv = parse_framed_route(&sess->ipv6_framed_routes[j], framed_routes[i]);
-
-        if (rv != OGS_OK) {
-            ogs_warn("Ignoring invalid framed route %s", framed_routes[i]);
-            memset(&sess->ipv6_framed_routes[j], 0,
-                   sizeof(sess->ipv6_framed_routes[j]));
-            continue;
-        }
-        add_framed_route_to_trie(&sess->ipv6_framed_routes[j], sess);
-        j++;
-    }
-    if (j == 0 && sess->ipv6_framed_routes) {
-        ogs_free(sess->ipv6_framed_routes);
-        sess->ipv6_framed_routes = NULL;
-    }
 
     return cause_value;
 }
@@ -677,11 +413,11 @@ void upf_sess_urr_acc_add(upf_sess_t *sess, ogs_pfcp_urr_t *urr, size_t size, bo
     urr_acc->total_octets += size;
     urr_acc->total_pkts++;
     if (is_uplink) {
-        urr_acc->ul_octets += size;
-        urr_acc->ul_pkts++;
-    } else {
         urr_acc->dl_octets += size;
         urr_acc->dl_pkts++;
+    } else {
+        urr_acc->ul_octets += size;
+        urr_acc->ul_pkts++;
     }
 
     urr_acc->time_of_last_packet = ogs_time_now();
@@ -785,7 +521,7 @@ static void upf_sess_urr_acc_timers_cb(void *data)
     ogs_pfcp_sess_t *pfcp_sess = urr->sess;
     upf_sess_t *sess = UPF_SESS(pfcp_sess);
 
-    ogs_info("upf_time_threshold_cb() triggered! urr=%p", urr);
+    ogs_warn("upf_time_threshold_cb() triggered! urr=%p", urr);
 
     if (urr->rep_triggers.quota_validity_time ||
         urr->rep_triggers.time_quota ||
@@ -811,8 +547,7 @@ static void upf_sess_urr_acc_validity_time_setup(upf_sess_t *sess, ogs_pfcp_urr_
     if (!urr_acc->t_validity_time)
         urr_acc->t_validity_time = ogs_timer_add(ogs_app()->timer_mgr,
                                         upf_sess_urr_acc_timers_cb, urr);
-    ogs_timer_start(urr_acc->t_validity_time,
-            ogs_time_from_sec(urr->quota_validity_time));
+    ogs_timer_start(urr_acc->t_validity_time, urr->quota_validity_time * OGS_USEC_PER_SEC);
 }
 static void upf_sess_urr_acc_time_quota_setup(upf_sess_t *sess, ogs_pfcp_urr_t *urr)
 {
@@ -823,7 +558,7 @@ static void upf_sess_urr_acc_time_quota_setup(upf_sess_t *sess, ogs_pfcp_urr_t *
     if (!urr_acc->t_time_quota)
         urr_acc->t_time_quota = ogs_timer_add(ogs_app()->timer_mgr,
                                         upf_sess_urr_acc_timers_cb, urr);
-    ogs_timer_start(urr_acc->t_time_quota, ogs_time_from_sec(urr->time_quota));
+    ogs_timer_start(urr_acc->t_time_quota, urr->time_quota * OGS_USEC_PER_SEC);
 }
 static void upf_sess_urr_acc_time_threshold_setup(upf_sess_t *sess, ogs_pfcp_urr_t *urr)
 {
@@ -834,8 +569,7 @@ static void upf_sess_urr_acc_time_threshold_setup(upf_sess_t *sess, ogs_pfcp_urr
     if (!urr_acc->t_time_threshold)
         urr_acc->t_time_threshold = ogs_timer_add(ogs_app()->timer_mgr,
                                         upf_sess_urr_acc_timers_cb, urr);
-    ogs_timer_start(urr_acc->t_time_threshold,
-            ogs_time_from_sec(urr->time_threshold));
+    ogs_timer_start(urr_acc->t_time_threshold, urr->time_threshold * OGS_USEC_PER_SEC);
 }
 
 void upf_sess_urr_acc_timers_setup(upf_sess_t *sess, ogs_pfcp_urr_t *urr)

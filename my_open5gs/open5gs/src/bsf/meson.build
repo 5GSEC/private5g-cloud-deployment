@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2022 by Sukchan Lee <acetcom@gmail.com>
+# Copyright (C) 2019,2020 by Sukchan Lee <acetcom@gmail.com>
 
 # This file is part of Open5GS.
 
@@ -18,8 +18,12 @@
 libbsf_sources = files('''
     context.c
     event.c
+    timer.c
 
+    nnrf-build.c
     nnrf-handler.c
+    nf-sm.c
+
     nbsf-handler.c
 
     sbi-path.c
@@ -30,13 +34,15 @@ libbsf_sources = files('''
 
 libbsf = static_library('bsf',
     sources : libbsf_sources,
-    dependencies : [libcrypt_dep,
+    dependencies : [libapp_dep,
+                    libcrypt_dep,
                     libsbi_dep],
     install : false)
 
 libbsf_dep = declare_dependency(
     link_with : libbsf,
-    dependencies : [libcrypt_dep,
+    dependencies : [libapp_dep,
+                    libcrypt_dep,
                     libsbi_dep])
 
 bsf_sources = files('''

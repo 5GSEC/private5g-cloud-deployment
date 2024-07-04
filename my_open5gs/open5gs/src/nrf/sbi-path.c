@@ -19,6 +19,34 @@
 
 #include "sbi-path.h"
 
+static int server_cb(ogs_sbi_request_t *request, void *data)
+{
+    nrf_event_t *e = NULL;
+    int rv;
+
+    ogs_assert(request);
+    ogs_assert(data);
+
+    e = nrf_event_new(NRF_EVT_SBI_SERVER);
+    ogs_assert(e);
+
+    e->sbi.request = request;
+    e->sbi.data = data;
+
+    rv = ogs_queue_push(ogs_app()->queue, e);
+    if (rv != OGS_OK) {
+        if (rv != OGS_DONE)
+            ogs_error("ogs_queue_push() failed:%d", (int)rv);
+        else
+            ogs_warn("ogs_queue_push() failed:%d", (int)rv);
+        ogs_sbi_request_free(request);
+        nrf_event_free(e);
+        return OGS_ERROR;
+    }
+
+    return OGS_OK;
+}
+
 static int client_notify_cb(
         int status, ogs_sbi_response_t *response, void *data)
 {
@@ -54,14 +82,25 @@ int nrf_sbi_open(void)
 {
     ogs_sbi_nf_instance_t *nf_instance = NULL;
 
-    /* Initialize SELF NF instance */
-    nf_instance = ogs_sbi_self()->nf_instance;
-    ogs_assert(nf_instance);
+    /* Initialize SCP NF Instance */
+    nf_instance = ogs_sbi_self()->scp_instance;
+    if (nf_instance) {
+        ogs_sbi_client_t *client = NULL;
 
-    /* Build NF instance information. */
-    ogs_sbi_nf_instance_build_default(nf_instance);
+        /* Client callback is only used when NF sends to SCP */
+        client = nf_instance->client;
+        ogs_assert(client);
+        client->cb = client_notify_cb;
+    }
 
-    if (ogs_sbi_server_start_all(ogs_sbi_server_handler) != OGS_OK)
+    /* Timer expiration handler of client wait timer */
+    ogs_sbi_self()->client_wait_expire = nrf_timer_sbi_client_wait_expire;
+
+    /* NF register state in NF state machine */
+    ogs_sbi_self()->nf_state_registered =
+        (ogs_fsm_handler_t)nrf_nf_state_registered;
+
+    if (ogs_sbi_server_start_all(server_cb) != OGS_OK)
         return OGS_ERROR;
 
     return OGS_OK;
@@ -73,84 +112,46 @@ void nrf_sbi_close(void)
     ogs_sbi_server_stop_all();
 }
 
-bool nrf_nnrf_nfm_send_nf_status_notify(
-        ogs_sbi_subscription_data_t *subscription_data,
+bool nrf_nnrf_nfm_send_nf_status_notify(ogs_sbi_subscription_t *subscription,
         OpenAPI_notification_event_type_e event,
         ogs_sbi_nf_instance_t *nf_instance)
 {
-    bool rc;
     ogs_sbi_request_t *request = NULL;
     ogs_sbi_client_t *client = NULL;
 
-    ogs_assert(subscription_data);
-    client = subscription_data->client;
-    if (!client) {
-        ogs_error("No Client");
-        return false;
-    }
+    ogs_assert(subscription);
+    client = subscription->client;
+    ogs_assert(client);
 
     request = nrf_nnrf_nfm_build_nf_status_notify(
-                subscription_data, event, nf_instance);
-    if (!request) {
-        ogs_error("nrf_nnrf_nfm_build_nf_status_notify() failed");
-        return false;
-    }
+                subscription, event, nf_instance);
+    ogs_expect_or_return_val(request, false);
 
-    rc = ogs_sbi_send_request_to_client(
-            client, client_notify_cb, request, NULL);
-    ogs_expect(rc == true);
-
-    ogs_sbi_request_free(request);
-
-    return rc;
+    return ogs_sbi_scp_send_request(client, client_notify_cb, request, NULL);
 }
 
 bool nrf_nnrf_nfm_send_nf_status_notify_all(
         OpenAPI_notification_event_type_e event,
         ogs_sbi_nf_instance_t *nf_instance)
 {
-    bool rc;
-    ogs_sbi_subscription_data_t *subscription_data = NULL;
+    ogs_sbi_subscription_t *subscription = NULL;
 
     ogs_assert(nf_instance);
 
-    ogs_list_for_each(
-            &ogs_sbi_self()->subscription_data_list, subscription_data) {
+    ogs_list_for_each(&ogs_sbi_self()->subscription_list, subscription) {
 
-        if (subscription_data->req_nf_instance_id &&
-            strcmp(subscription_data->req_nf_instance_id, nf_instance->id) == 0)
+        if (subscription->req_nf_instance_id &&
+            strcmp(subscription->req_nf_instance_id, nf_instance->id) == 0)
             continue;
 
-    /* Issue #2630 : The format of subscrCond is invalid. Must be 'oneOf'. */
-        if (subscription_data->subscr_cond.nf_type) {
-
-            if (subscription_data->subscr_cond.nf_type != nf_instance->nf_type)
-                continue;
-
-        } else if (subscription_data->subscr_cond.service_name) {
-
-            ogs_sbi_nf_service_t *nf_service =
-                ogs_sbi_nf_service_find_by_name(nf_instance,
-                    subscription_data->subscr_cond.service_name);
-            if (nf_service == NULL) continue;
-
-            if (subscription_data->req_nf_type &&
-                ogs_sbi_nf_service_is_allowed_nf_type(
-                    nf_service, subscription_data->req_nf_type) == false)
-                continue;
-        }
-
-        if (subscription_data->req_nf_type &&
-            ogs_sbi_nf_instance_is_allowed_nf_type(
-                nf_instance, subscription_data->req_nf_type) == false)
+        if (subscription->subscr_cond.nf_type &&
+            subscription->subscr_cond.nf_type != nf_instance->nf_type)
             continue;
 
-        rc = nrf_nnrf_nfm_send_nf_status_notify(
-                subscription_data, event, nf_instance);
-        if (rc == false) {
-            ogs_error("nrf_nnrf_nfm_send_nf_status_notify() failed");
-            return rc;
-        }
+        ogs_expect_or_return_val(true ==
+            nrf_nnrf_nfm_send_nf_status_notify(
+                subscription, event, nf_instance),
+            false);
     }
 
     return true;

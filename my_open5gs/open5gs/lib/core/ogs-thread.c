@@ -77,10 +77,7 @@ static void *thread_worker(void *arg)
 ogs_thread_t *ogs_thread_create(void (*func)(void *), void *data)
 {
     ogs_thread_t *thread = ogs_calloc(1, sizeof *thread);
-    if (!thread) {
-        ogs_error("ogs_calloc() failed");
-        return NULL;
-    }
+    ogs_expect_or_return_val(thread, NULL);
 
     ogs_thread_mutex_init(&thread->mutex);
     ogs_thread_cond_init(&thread->cond);

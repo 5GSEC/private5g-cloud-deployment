@@ -18,6 +18,7 @@
  */
 
 #include "sbi-path.h"
+#include "nnrf-handler.h"
 #include "nudr-handler.h"
 
 bool udr_nudr_dr_handle_subscription_authentication(
@@ -136,9 +137,10 @@ bool udr_nudr_dr_handle_subscription_authentication(
                 if (node->data) {
                     OpenAPI_patch_item_t *patch_item = node->data;
                     if (OpenAPI_IsString(patch_item->value))
-                        sqn_string = cJSON_GetStringValue(patch_item->value->json);
+                        sqn_string = patch_item->value->valuestring;
                     else
-                        ogs_error("Non-string value in patch not implemented");
+                        ogs_error("Invalid any-type [%d]",
+                                patch_item->value->type);
                 }
             }
 
@@ -195,12 +197,10 @@ bool udr_nudr_dr_handle_subscription_authentication(
     CASE(OGS_SBI_RESOURCE_NAME_AUTHENTICATION_STATUS)
         SWITCH(recvmsg->h.method)
         CASE(OGS_SBI_HTTP_METHOD_PUT)
-        CASE(OGS_SBI_HTTP_METHOD_DELETE)
             OpenAPI_auth_event_t *AuthEvent = NULL;
 
             AuthEvent = recvmsg->AuthEvent;
-            if (!AuthEvent &&
-                !strcmp(recvmsg->h.method, OGS_SBI_HTTP_METHOD_PUT)) {
+            if (!AuthEvent) {
                 ogs_error("[%s] No AuthEvent", supi);
                 ogs_assert(true ==
                     ogs_sbi_server_send_error(
@@ -294,30 +294,6 @@ bool udr_nudr_dr_handle_subscription_context(
                 return false;
             }
 
-            if (Amf3GppAccessRegistration->pei) {
-                char *type = NULL, *value = NULL;
-                char *pei = NULL;
-
-                pei = ogs_strdup(Amf3GppAccessRegistration->pei);
-                ogs_assert(pei);
-
-                type = ogs_id_get_type(pei);
-                ogs_assert(type);
-                value = ogs_id_get_value(pei);
-                ogs_assert(value);
-
-                if (strcmp(type, "imeisv") == 0) {
-                    ogs_assert(OGS_OK == ogs_dbi_update_imeisv(supi, value));
-                } else {
-                    ogs_fatal("Unknown Type = %s", type);
-                    ogs_assert_if_reached();
-                }
-
-                ogs_free(pei);
-                ogs_free(type);
-                ogs_free(value);
-            }
-
             memset(&sendmsg, 0, sizeof(sendmsg));
 
             response = ogs_sbi_build_response(
@@ -342,48 +318,6 @@ bool udr_nudr_dr_handle_subscription_context(
 
             /* TODO: parse PatchItemList */
 
-            memset(&sendmsg, 0, sizeof(sendmsg));
-
-            response = ogs_sbi_build_response(
-                    &sendmsg, OGS_SBI_HTTP_STATUS_NO_CONTENT);
-            ogs_assert(response);
-            ogs_assert(true == ogs_sbi_server_send_response(stream, response));
-
-            return true;
-
-        DEFAULT
-            ogs_error("Invalid HTTP method [%s]", recvmsg->h.method);
-            ogs_assert(true ==
-                ogs_sbi_server_send_error(stream,
-                    OGS_SBI_HTTP_STATUS_MEHTOD_NOT_ALLOWED,
-                    recvmsg, "Invalid HTTP method", recvmsg->h.method));
-        END
-        break;
-    CASE(OGS_SBI_RESOURCE_NAME_SMF_REGISTRATIONS)
-        SWITCH(recvmsg->h.method)
-        CASE(OGS_SBI_HTTP_METHOD_PUT)
-            OpenAPI_smf_registration_t *SmfRegistration;
-
-            SmfRegistration = recvmsg->SmfRegistration;
-            if (!SmfRegistration) {
-                ogs_error("[%s] No SmfRegistration", supi);
-                ogs_assert(true ==
-                    ogs_sbi_server_send_error(
-                        stream, OGS_SBI_HTTP_STATUS_BAD_REQUEST,
-                        recvmsg, "No SmfRegistration", supi));
-                return false;
-            }
-
-            memset(&sendmsg, 0, sizeof(sendmsg));
-
-            response = ogs_sbi_build_response(
-                    &sendmsg, OGS_SBI_HTTP_STATUS_NO_CONTENT);
-            ogs_assert(response);
-            ogs_assert(true == ogs_sbi_server_send_response(stream, response));
-
-            return true;
-
-        CASE(OGS_SBI_HTTP_METHOD_DELETE)
             memset(&sendmsg, 0, sizeof(sendmsg));
 
             response = ogs_sbi_build_response(
@@ -714,7 +648,6 @@ bool udr_nudr_dr_handle_subscription_provisioned(
         OpenAPI_ambr_t *sessionAmbr = NULL;
         OpenAPI_list_t *staticIpAddress = NULL;
         OpenAPI_ip_address_t *ipAddress = NULL;
-        OpenAPI_list_t *FrameRouteList = NULL;
         OpenAPI_lnode_t *node = NULL, *node2 = NULL;
 
         if (!recvmsg->param.single_nssai_presence) {
@@ -895,34 +828,6 @@ bool udr_nudr_dr_handle_subscription_provisioned(
                     session->name, dnnConfiguration);
             ogs_assert(dnnConfigurationMap);
             OpenAPI_list_add(dnnConfigurationList, dnnConfigurationMap);
-
-            if (session->ipv4_framed_routes) {
-                int i;
-                FrameRouteList = OpenAPI_list_create();
-
-                for (i = 0; i < OGS_MAX_NUM_OF_FRAMED_ROUTES_IN_PDI; i++) {
-                    const char *route = session->ipv4_framed_routes[i];
-                    if (!route) break;
-                    OpenAPI_list_add(FrameRouteList,
-                                     OpenAPI_frame_route_info_create(
-                                             ogs_strdup(route), NULL));
-                }
-                dnnConfiguration->ipv4_frame_route_list = FrameRouteList;
-            }
-
-            if (session->ipv6_framed_routes) {
-                int i;
-                FrameRouteList = OpenAPI_list_create();
-
-                for (i = 0; i < OGS_MAX_NUM_OF_FRAMED_ROUTES_IN_PDI; i++) {
-                    const char *route = session->ipv6_framed_routes[i];
-                    if (!route) break;
-                    OpenAPI_list_add(FrameRouteList,
-                                     OpenAPI_frame_route_info_create(
-                                             NULL, ogs_strdup(route)));
-                }
-                dnnConfiguration->ipv6_frame_route_list = FrameRouteList;
-            }
         }
 
         memset(&SessionManagementSubscriptionData, 0,
@@ -999,22 +904,6 @@ bool udr_nudr_dr_handle_subscription_provisioned(
                         }
                         OpenAPI_list_free(staticIpAddress);
                     }
-
-                    FrameRouteList = dnnConfiguration->ipv4_frame_route_list;
-                    OpenAPI_list_for_each(FrameRouteList, node2) {
-                        OpenAPI_frame_route_info_t *frame = node2->data;
-                        if (frame)
-                            ogs_free(frame);
-                    }
-                    OpenAPI_list_free(FrameRouteList);
-
-                    FrameRouteList = dnnConfiguration->ipv6_frame_route_list;
-                    OpenAPI_list_for_each(FrameRouteList, node2) {
-                        OpenAPI_frame_route_info_t *frame = node2->data;
-                        if (frame)
-                            ogs_free(frame);
-                    }
-                    OpenAPI_list_free(FrameRouteList);
 
                     ogs_free(dnnConfiguration);
                 }

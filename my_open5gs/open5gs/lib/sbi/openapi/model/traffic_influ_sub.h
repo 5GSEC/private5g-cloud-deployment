@@ -1,7 +1,7 @@
 /*
  * traffic_influ_sub.h
  *
- * Represents traffic influence subscription data.
+ * 
  */
 
 #ifndef _OpenAPI_traffic_influ_sub_H_
@@ -27,7 +27,6 @@ typedef struct OpenAPI_traffic_influ_sub_s {
     char *notification_uri;
     char *expiry;
     char *supported_features;
-    OpenAPI_list_t *reset_ids;
 } OpenAPI_traffic_influ_sub_t;
 
 OpenAPI_traffic_influ_sub_t *OpenAPI_traffic_influ_sub_create(
@@ -37,8 +36,7 @@ OpenAPI_traffic_influ_sub_t *OpenAPI_traffic_influ_sub_create(
     OpenAPI_list_t *supis,
     char *notification_uri,
     char *expiry,
-    char *supported_features,
-    OpenAPI_list_t *reset_ids
+    char *supported_features
 );
 void OpenAPI_traffic_influ_sub_free(OpenAPI_traffic_influ_sub_t *traffic_influ_sub);
 OpenAPI_traffic_influ_sub_t *OpenAPI_traffic_influ_sub_parseFromJSON(cJSON *traffic_influ_subJSON);

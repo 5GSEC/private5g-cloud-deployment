@@ -21,39 +21,37 @@ libmme_sources = files('''
     mme-context.h
     s1ap-build.h
     s1ap-handler.h
-    s1ap-path.h
+    s1ap-path.h 
     sgsap-build.h
     sgsap-handler.h
     sgsap-conv.h
-    sgsap-path.h
+    sgsap-path.h 
     mme-fd-path.h
-    mme-s6a-handler.h
+    mme-s6a-handler.h 
     nas-security.h
-    nas-path.h
+    nas-path.h 
     emm-handler.h
-    emm-build.h
+    emm-build.h 
     esm-handler.h
-    esm-build.h
-    mme-gn-build.h
-    mme-gn-handler.h
+    esm-build.h 
     mme-gtp-path.h
     mme-s11-build.h
-    mme-s11-handler.h
+    mme-s11-handler.h 
     sbc-message.h
     sbc-handler.h
     mme-sm.h
     mme-path.h
-    metrics.h
+    metrics.h 
 
     mme-init.c
     mme-event.c
     mme-timer.c
-    mme-context.c
+    mme-context.c 
     s1ap-sm.c
     s1ap-build.c
     s1ap-handler.c
     s1ap-sctp.c
-    s1ap-path.c
+    s1ap-path.c 
     sgsap-sm.c
     sgsap-build.c
     sgsap-handler.c
@@ -61,7 +59,7 @@ libmme_sources = files('''
     sgsap-sctp.c
     sgsap-path.c
     mme-fd-path.c
-    mme-s6a-handler.c
+    mme-s6a-handler.c 
     nas-security.c
     nas-path.c
     emm-sm.c
@@ -70,20 +68,19 @@ libmme_sources = files('''
     esm-sm.c
     esm-handler.c
     esm-build.c
-    mme-gn-build.c
-    mme-gn-handler.c
     mme-gtp-path.c
     mme-s11-build.c
     mme-s11-handler.c
     mme-sm.c
-    mme-path.c
-    sbc-handler.c
+    mme-path.c 
+    sbc-handler.c 
     metrics.c
 '''.split())
 
 libmme = static_library('mme',
     sources : libmme_sources,
-    dependencies : [libmetrics_dep,
+    dependencies : [libapp_dep,
+                    libmetrics_dep,
                     libsctp_dep,
                     libs1ap_dep,
                     libnas_eps_dep,
@@ -93,7 +90,8 @@ libmme = static_library('mme',
 
 libmme_dep = declare_dependency(
     link_with : libmme,
-    dependencies : [libmetrics_dep,
+    dependencies : [libapp_dep,
+                    libmetrics_dep,
                     libsctp_dep,
                     libs1ap_dep,
                     libnas_eps_dep,

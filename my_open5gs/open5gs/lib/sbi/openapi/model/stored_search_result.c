@@ -18,25 +18,20 @@ OpenAPI_stored_search_result_t *OpenAPI_stored_search_result_create(
 
 void OpenAPI_stored_search_result_free(OpenAPI_stored_search_result_t *stored_search_result)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == stored_search_result) {
         return;
     }
-    if (stored_search_result->nf_instances) {
-        OpenAPI_list_for_each(stored_search_result->nf_instances, node) {
-            OpenAPI_nf_profile_free(node->data);
-        }
-        OpenAPI_list_free(stored_search_result->nf_instances);
-        stored_search_result->nf_instances = NULL;
+    OpenAPI_lnode_t *node;
+    OpenAPI_list_for_each(stored_search_result->nf_instances, node) {
+        OpenAPI_nf_profile_free(node->data);
     }
+    OpenAPI_list_free(stored_search_result->nf_instances);
     ogs_free(stored_search_result);
 }
 
 cJSON *OpenAPI_stored_search_result_convertToJSON(OpenAPI_stored_search_result_t *stored_search_result)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (stored_search_result == NULL) {
         ogs_error("OpenAPI_stored_search_result_convertToJSON() failed [StoredSearchResult]");
@@ -44,22 +39,22 @@ cJSON *OpenAPI_stored_search_result_convertToJSON(OpenAPI_stored_search_result_t
     }
 
     item = cJSON_CreateObject();
-    if (!stored_search_result->nf_instances) {
-        ogs_error("OpenAPI_stored_search_result_convertToJSON() failed [nf_instances]");
-        return NULL;
-    }
     cJSON *nf_instancesList = cJSON_AddArrayToObject(item, "nfInstances");
     if (nf_instancesList == NULL) {
         ogs_error("OpenAPI_stored_search_result_convertToJSON() failed [nf_instances]");
         goto end;
     }
-    OpenAPI_list_for_each(stored_search_result->nf_instances, node) {
-        cJSON *itemLocal = OpenAPI_nf_profile_convertToJSON(node->data);
-        if (itemLocal == NULL) {
-            ogs_error("OpenAPI_stored_search_result_convertToJSON() failed [nf_instances]");
-            goto end;
+
+    OpenAPI_lnode_t *nf_instances_node;
+    if (stored_search_result->nf_instances) {
+        OpenAPI_list_for_each(stored_search_result->nf_instances, nf_instances_node) {
+            cJSON *itemLocal = OpenAPI_nf_profile_convertToJSON(nf_instances_node->data);
+            if (itemLocal == NULL) {
+                ogs_error("OpenAPI_stored_search_result_convertToJSON() failed [nf_instances]");
+                goto end;
+            }
+            cJSON_AddItemToArray(nf_instancesList, itemLocal);
         }
-        cJSON_AddItemToArray(nf_instancesList, itemLocal);
     }
 
 end:
@@ -69,34 +64,36 @@ end:
 OpenAPI_stored_search_result_t *OpenAPI_stored_search_result_parseFromJSON(cJSON *stored_search_resultJSON)
 {
     OpenAPI_stored_search_result_t *stored_search_result_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *nf_instances = NULL;
-    OpenAPI_list_t *nf_instancesList = NULL;
-    nf_instances = cJSON_GetObjectItemCaseSensitive(stored_search_resultJSON, "nfInstances");
+    cJSON *nf_instances = cJSON_GetObjectItemCaseSensitive(stored_search_resultJSON, "nfInstances");
     if (!nf_instances) {
         ogs_error("OpenAPI_stored_search_result_parseFromJSON() failed [nf_instances]");
         goto end;
     }
-        cJSON *nf_instances_local = NULL;
-        if (!cJSON_IsArray(nf_instances)) {
+
+    OpenAPI_list_t *nf_instancesList;
+    cJSON *nf_instances_local_nonprimitive;
+    if (!cJSON_IsArray(nf_instances)){
+        ogs_error("OpenAPI_stored_search_result_parseFromJSON() failed [nf_instances]");
+        goto end;
+    }
+
+    nf_instancesList = OpenAPI_list_create();
+
+    cJSON_ArrayForEach(nf_instances_local_nonprimitive, nf_instances ) {
+        if (!cJSON_IsObject(nf_instances_local_nonprimitive)) {
             ogs_error("OpenAPI_stored_search_result_parseFromJSON() failed [nf_instances]");
             goto end;
         }
+        OpenAPI_nf_profile_t *nf_instancesItem = OpenAPI_nf_profile_parseFromJSON(nf_instances_local_nonprimitive);
 
-        nf_instancesList = OpenAPI_list_create();
-
-        cJSON_ArrayForEach(nf_instances_local, nf_instances) {
-            if (!cJSON_IsObject(nf_instances_local)) {
-                ogs_error("OpenAPI_stored_search_result_parseFromJSON() failed [nf_instances]");
-                goto end;
-            }
-            OpenAPI_nf_profile_t *nf_instancesItem = OpenAPI_nf_profile_parseFromJSON(nf_instances_local);
-            if (!nf_instancesItem) {
-                ogs_error("No nf_instancesItem");
-                goto end;
-            }
-            OpenAPI_list_add(nf_instancesList, nf_instancesItem);
+        if (!nf_instancesItem) {
+            ogs_error("No nf_instancesItem");
+            OpenAPI_list_free(nf_instancesList);
+            goto end;
         }
+
+        OpenAPI_list_add(nf_instancesList, nf_instancesItem);
+    }
 
     stored_search_result_local_var = OpenAPI_stored_search_result_create (
         nf_instancesList
@@ -104,13 +101,6 @@ OpenAPI_stored_search_result_t *OpenAPI_stored_search_result_parseFromJSON(cJSON
 
     return stored_search_result_local_var;
 end:
-    if (nf_instancesList) {
-        OpenAPI_list_for_each(nf_instancesList, node) {
-            OpenAPI_nf_profile_free(node->data);
-        }
-        OpenAPI_list_free(nf_instancesList);
-        nf_instancesList = NULL;
-    }
     return NULL;
 }
 

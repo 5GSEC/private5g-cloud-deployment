@@ -26,7 +26,6 @@ bool ausf_nausf_auth_handle_authenticate(ausf_ue_t *ausf_ue,
 {
     OpenAPI_authentication_info_t *AuthenticationInfo = NULL;
     char *serving_network_name = NULL;
-    int r;
 
     ogs_assert(ausf_ue);
     ogs_assert(stream);
@@ -37,7 +36,7 @@ bool ausf_nausf_auth_handle_authenticate(ausf_ue_t *ausf_ue,
         ogs_error("[%s] No AuthenticationInfo", ausf_ue->suci);
         ogs_assert(true ==
             ogs_sbi_server_send_error(stream, OGS_SBI_HTTP_STATUS_BAD_REQUEST,
-                recvmsg, "No AuthenticationInfo", ausf_ue->suci));
+                recvmsg, "[%s] No AuthenticationInfo", ausf_ue->suci));
         return false;
     }
 
@@ -46,7 +45,7 @@ bool ausf_nausf_auth_handle_authenticate(ausf_ue_t *ausf_ue,
         ogs_error("[%s] No servingNetworkName", ausf_ue->suci);
         ogs_assert(true ==
             ogs_sbi_server_send_error(stream, OGS_SBI_HTTP_STATUS_BAD_REQUEST,
-                recvmsg, "No servingNetworkName", ausf_ue->suci));
+                recvmsg, "[%s] No servingNetworkName", ausf_ue->suci));
         return false;
     }
 
@@ -55,12 +54,10 @@ bool ausf_nausf_auth_handle_authenticate(ausf_ue_t *ausf_ue,
     ausf_ue->serving_network_name = ogs_strdup(serving_network_name);
     ogs_assert(ausf_ue->serving_network_name);
 
-    r = ausf_sbi_discover_and_send(
-            OGS_SBI_SERVICE_TYPE_NUDM_UEAU, NULL,
+    ogs_assert(true ==
+        ausf_sbi_discover_and_send(OpenAPI_nf_type_UDM, NULL,
             ausf_nudm_ueau_build_get,
-            ausf_ue, stream, AuthenticationInfo->resynchronization_info);
-    ogs_expect(r == OGS_OK);
-    ogs_assert(r != OGS_ERROR);
+            ausf_ue, stream, AuthenticationInfo->resynchronization_info));
 
     return true;
 }
@@ -71,7 +68,6 @@ bool ausf_nausf_auth_handle_authenticate_confirmation(ausf_ue_t *ausf_ue,
     OpenAPI_confirmation_data_t *ConfirmationData = NULL;
     char *res_star_string = NULL;
     uint8_t res_star[OGS_KEYSTRLEN(OGS_MAX_RES_LEN)];
-    int r;
 
     ogs_assert(ausf_ue);
     ogs_assert(stream);
@@ -82,7 +78,7 @@ bool ausf_nausf_auth_handle_authenticate_confirmation(ausf_ue_t *ausf_ue,
         ogs_error("[%s] No ConfirmationData", ausf_ue->suci);
         ogs_assert(true ==
             ogs_sbi_server_send_error(stream, OGS_SBI_HTTP_STATUS_BAD_REQUEST,
-                recvmsg, "No ConfirmationData", ausf_ue->suci));
+                recvmsg, "[%s] No ConfirmationData", ausf_ue->suci));
         return false;
     }
 
@@ -91,7 +87,7 @@ bool ausf_nausf_auth_handle_authenticate_confirmation(ausf_ue_t *ausf_ue,
         ogs_error("[%s] No ConfirmationData.resStar", ausf_ue->suci);
         ogs_assert(true ==
             ogs_sbi_server_send_error(stream, OGS_SBI_HTTP_STATUS_BAD_REQUEST,
-                recvmsg, "No ConfirmationData.resStar", ausf_ue->suci));
+                recvmsg, "[%s] No ConfirmationData.resStar", ausf_ue->suci));
         return false;
     }
 
@@ -107,31 +103,10 @@ bool ausf_nausf_auth_handle_authenticate_confirmation(ausf_ue_t *ausf_ue,
         ausf_ue->auth_result = OpenAPI_auth_result_AUTHENTICATION_SUCCESS;
     }
 
-    r = ausf_sbi_discover_and_send(
-            OGS_SBI_SERVICE_TYPE_NUDM_UEAU, NULL,
+    ogs_assert(true ==
+        ausf_sbi_discover_and_send(OpenAPI_nf_type_UDM, NULL,
             ausf_nudm_ueau_build_result_confirmation_inform,
-            ausf_ue, stream, NULL);
-    ogs_expect(r == OGS_OK);
-    ogs_assert(r != OGS_ERROR);
-
-    return true;
-}
-
-bool ausf_nausf_auth_handle_authenticate_delete(ausf_ue_t *ausf_ue,
-        ogs_sbi_stream_t *stream, ogs_sbi_message_t *recvmsg)
-{
-    int r;
-
-    ogs_assert(ausf_ue);
-    ogs_assert(stream);
-    ogs_assert(recvmsg);
-
-    r = ausf_sbi_discover_and_send(
-            OGS_SBI_SERVICE_TYPE_NUDM_UEAU, NULL,
-            ausf_nudm_ueau_build_auth_removal_ind,
-            ausf_ue, stream, NULL);
-    ogs_expect(r == OGS_OK);
-    ogs_assert(r != OGS_ERROR);
+            ausf_ue, stream, NULL));
 
     return true;
 }

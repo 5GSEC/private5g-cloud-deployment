@@ -145,7 +145,7 @@ class Edit extends Component {
 
     return (
       <Form 
-        visible={isLoading ? false : visible}
+        visible={visible}
         title={(action === 'update') ? 'Edit Account' : 'Create Account'}
         width="480px"
         height="400px"

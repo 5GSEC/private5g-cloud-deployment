@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -80,30 +80,35 @@ extern "C" {
 #define OGS_SBI_API_V2                              "v2"
 #define OGS_SBI_API_V2_0_0                          "2.0.0"
 
+#define OGS_SBI_SERVICE_NAME_NNRF_NFM               "nnrf-nfm"
+#define OGS_SBI_SERVICE_NAME_NNRF_DISC              "nnrf-disc"
 #define OGS_SBI_RESOURCE_NAME_NF_INSTANCES          "nf-instances"
 #define OGS_SBI_RESOURCE_NAME_SUBSCRIPTIONS         "subscriptions"
 #define OGS_SBI_RESOURCE_NAME_NF_STATUS_NOTIFY      "nf-status-notify"
 
+#define OGS_SBI_SERVICE_NAME_NAUSF_AUTH             "nausf-auth"
 #define OGS_SBI_RESOURCE_NAME_UE_AUTHENTICATIONS    "ue-authentications"
 #define OGS_SBI_RESOURCE_NAME_5G_AKA                "5g-aka"
 #define OGS_SBI_RESOURCE_NAME_5G_AKA_CONFIRMATION   "5g-aka-confirmation"
 #define OGS_SBI_RESOURCE_NAME_EAP_SESSION           "eap-session"
 
+#define OGS_SBI_SERVICE_NAME_NUDM_SDM               "nudm-sdm"
 #define OGS_SBI_RESOURCE_NAME_AM_DATA               "am-data"
 #define OGS_SBI_RESOURCE_NAME_SM_DATA               "sm-data"
 #define OGS_SBI_RESOURCE_NAME_SMF_SELECT_DATA       "smf-select-data"
 #define OGS_SBI_RESOURCE_NAME_UE_CONTEXT_IN_SMF_DATA "ue-context-in-smf-data"
 #define OGS_SBI_RESOURCE_NAME_SMF_SELECTION_SUBSCRIPTION_DATA \
                                             "smf-selection-subscription-data"
-#define OGS_SBI_RESOURCE_NAME_SDM_SUBSCRIPTIONS     "sdm-subscriptions"
 
+#define OGS_SBI_SERVICE_NAME_NUDM_UEAU              "nudm-ueau"
 #define OGS_SBI_RESOURCE_NAME_SECURITY_INFORMATION  "security-information"
 #define OGS_SBI_RESOURCE_NAME_GENERATE_AUTH_DATA    "generate-auth-data"
 #define OGS_SBI_RESOURCE_NAME_AUTH_EVENTS           "auth-events"
+#define OGS_SBI_SERVICE_NAME_NUDM_UECM              "nudm-uecm"
 #define OGS_SBI_RESOURCE_NAME_REGISTRATIONS         "registrations"
 #define OGS_SBI_RESOURCE_NAME_AMF_3GPP_ACCESS       "amf-3gpp-access"
-#define OGS_SBI_RESOURCE_NAME_SMF_REGISTRATIONS     "smf-registrations"
 
+#define OGS_SBI_SERVICE_NAME_NUDR_DR                "nudr-dr"
 #define OGS_SBI_RESOURCE_NAME_SUBSCRIPTION_DATA     "subscription-data"
 #define OGS_SBI_RESOURCE_NAME_AUTHENTICATION_DATA   "authentication-data"
 #define OGS_SBI_RESOURCE_NAME_AUTHENTICATION_SUBSCRIPTION \
@@ -115,49 +120,51 @@ extern "C" {
 #define OGS_SBI_RESOURCE_NAME_UES                   "ues"
 #define OGS_SBI_RESOURCE_NAME_AM_DATA               "am-data"
 
+#define OGS_SBI_SERVICE_NAME_NSMF_PDUSESSION        "nsmf-pdusession"
 #define OGS_SBI_RESOURCE_NAME_SM_CONTEXTS           "sm-contexts"
+#define OGS_SBI_SERVICE_NAME_NSMF_EVENT_EXPOSURE    "nsmf-event-exposure"
 #define OGS_SBI_RESOURCE_NAME_MODIFY                "modify"
 #define OGS_SBI_RESOURCE_NAME_RELEASE               "release"
 
+#define OGS_SBI_SERVICE_NAME_NSMF_CALLBACK          "nsmf-callback"
 #define OGS_SBI_RESOURCE_NAME_SM_POLICY_NOTIFY      "sm-policy-notify"
 #define OGS_SBI_RESOURCE_NAME_N1_N2_FAILURE_NOTIFY  "n1-n2-failure-notify"
 
+#define OGS_SBI_SERVICE_NAME_NAMF_COMM              "namf-comm"
 #define OGS_SBI_RESOURCE_NAME_UE_CONTEXTS           "ue-contexts"
 #define OGS_SBI_RESOURCE_NAME_N1_N2_MESSAGES        "n1-n2-messages"
 
+#define OGS_SBI_SERVICE_NAME_NAMF_CALLBACK          "namf-callback"
 #define OGS_SBI_RESOURCE_NAME_SM_CONTEXT_STATUS     "sm-context-status"
 #define OGS_SBI_RESOURCE_NAME_AM_POLICY_NOTIFY      "am-policy-notify"
 #define OGS_SBI_RESOURCE_NAME_DEREG_NOTIFY          "dereg-notify"
-#define OGS_SBI_RESOURCE_NAME_SDMSUBSCRIPTION_NOTIFY \
-                                            "sdmsubscription-notify"
 
+#define OGS_SBI_SERVICE_NAME_NPCF_AM_POLICY_CONTROL "npcf-am-policy-control"
 #define OGS_SBI_RESOURCE_NAME_POLICIES              "policies"
+#define OGS_SBI_SERVICE_NAME_NPCF_SMPOLICYCONTROL   "npcf-smpolicycontrol"
 #define OGS_SBI_RESOURCE_NAME_SM_POLICIES           "sm-policies"
 #define OGS_SBI_RESOURCE_NAME_DELETE                "delete"
+#define OGS_SBI_SERVICE_NAME_NPCF_POLICYAUTHORIZATION \
+                                                    "npcf-policyauthorization"
 #define OGS_SBI_RESOURCE_NAME_APP_SESSIONS          "app-sessions"
 #define OGS_SBI_RESOURCE_NAME_NOTIFY                "notify"
+#define OGS_SBI_SERVICE_NAME_NPCF_CALLBACK          "npcf-callback"
 #define OGS_SBI_RESOURCE_NAME_UPDATE                "update"
 #define OGS_SBI_RESOURCE_NAME_TERMINATE             "terminate"
 
+#define OGS_SBI_SERVICE_NAME_NNSSF_NSSELECTION      "nnssf-nsselection"
 #define OGS_SBI_RESOURCE_NAME_NETWORK_SLICE_INFORMATION \
                                                     "network-slice-information"
 
+#define OGS_SBI_SERVICE_NAME_NBSF_MANAGEMENT        "nbsf-management"
 #define OGS_SBI_RESOURCE_NAME_PCF_BINDINGS          "pcfBindings"
 
-#define OGS_SBI_PATCH_PATH_NF_STATUS                "/nfStatus"
-#define OGS_SBI_PATCH_PATH_LOAD                     "/load"
-#define OGS_SBI_PATCH_PATH_VALIDITY_TIME            "/validityTime"
-
+#define OGS_SBI_SERVICE_NAME_NAF_EVENTEXPOSURE      "naf-eventexposure"
 
 #define OGS_SBI_FEATURES_IS_SET(__fEATURES, __n) \
     (__fEATURES & (1 << ((__n)-1)))
 #define OGS_SBI_FEATURES_SET(__fEATURES, __n) \
     __fEATURES |= (1 << ((__n)-1))
-
-#define OGS_SBI_NNRF_NFM_SERVICE_MAP 1
-#define OGS_SBI_NNRF_NFM_EMPTY_OBJECTS_NRF_INFO 2
-
-#define OGS_SBI_NNRF_DISC_SERVICE_MAP 6
 
 #define OGS_SBI_NPCF_AM_POLICY_CONTROL_SLICE_SUPPORT 1
 #define OGS_SBI_NPCF_AM_POLICY_CONTROL_PENDING_TRANSACTION 2
@@ -240,11 +247,8 @@ extern "C" {
 #define OGS_SBI_NBSF_MANAGEMENT_ES3XX 4
 #define OGS_SBI_NBSF_MANAGEMENT_EXTENDED_SAME_PCF 5
 
-#define OGS_SBI_SCHEME                              ":scheme"
-#define OGS_SBI_AUTHORITY                           ":authority"
 #define OGS_SBI_ACCEPT                              "Accept"
 #define OGS_SBI_ACCEPT_ENCODING                     "Accept-Encoding"
-#define OGS_SBI_USER_AGENT                          "User-Agent"
 #define OGS_SBI_CONTENT_TYPE                        "Content-Type"
 #define OGS_SBI_LOCATION                            "Location"
 #define OGS_SBI_EXPECT                              "Expect"
@@ -279,8 +283,6 @@ extern "C" {
     OGS_SBI_CUSTOM_DISCOVERY_COMMON OGS_SBI_PARAM_REQUESTER_NF_INSTANCE_ID
 #define OGS_SBI_CUSTOM_DISCOVERY_SERVICE_NAMES  \
     OGS_SBI_CUSTOM_DISCOVERY_COMMON OGS_SBI_PARAM_SERVICE_NAMES
-#define OGS_SBI_CUSTOM_DISCOVERY_REQUESTER_FEATURES  \
-    OGS_SBI_CUSTOM_DISCOVERY_COMMON OGS_SBI_PARAM_REQUESTER_FEATURES
 #define OGS_SBI_CUSTOM_PRODUCER_ID       \
     OGS_SBI_CUSTOM_3GPP_COMMON "Producer-Id"
 #define OGS_SBI_CUSTOM_OCI               \
@@ -295,17 +297,12 @@ extern "C" {
     OGS_SBI_CUSTOM_3GPP_COMMON "Access-Scope"
 #define OGS_SBI_CUSTOM_ACCESS_TOKEN      \
     OGS_SBI_CUSTOM_3GPP_COMMON "Access-Token"
-#define OGS_SBI_OPTIONAL_CUSTOM_SENDER_TIMESTAMP      \
-    OGS_SBI_CUSTOM_3GPP_COMMON "Sender-Timestamp"
-#define OGS_SBI_OPTIONAL_CUSTOM_MAX_RSP_TIME      \
-    OGS_SBI_CUSTOM_3GPP_COMMON "Max-Rsp-Time"
 
 #define OGS_SBI_PARAM_TARGET_NF_TYPE                "target-nf-type"
 #define OGS_SBI_PARAM_REQUESTER_NF_TYPE             "requester-nf-type"
 #define OGS_SBI_PARAM_TARGET_NF_INSTANCE_ID         "target-nf-instance-id"
 #define OGS_SBI_PARAM_REQUESTER_NF_INSTANCE_ID      "requester-nf-instance-id"
 #define OGS_SBI_PARAM_SERVICE_NAMES                 "service-names"
-#define OGS_SBI_PARAM_REQUESTER_FEATURES            "requester-features"
 
 #define OGS_SBI_PARAM_NF_ID                         "nf-id"
 #define OGS_SBI_PARAM_NF_TYPE                       "nf-type"
@@ -341,39 +338,6 @@ extern "C" {
 #define OGS_SBI_CONTENT_5GNAS_SM_ID                 "5gnas-sm"
 #define OGS_SBI_CONTENT_NGAP_SM_ID                  "ngap-sm"
 
-#define OGS_SBI_CALLBACK_NSMF_PDUSESSION_UPDATE \
-    "Nsmf_PDUSession_Update"
-#define OGS_SBI_CALLBACK_NSMF_PDUSESSION_STATUS_NOTIFY \
-    "Nsmf_PDUSession_StatusNotify"
-#define OGS_SBI_CALLBACK_NUDM_SDM_NOTIFICATION \
-    "Nudm_SDM_Notification"
-#define OGS_SBI_CALLBACK_NUDM_UECM_DEREGISTRATION_NOTIFICATION \
-    "Nudm_UECM_DeregistrationNotification"
-#define OGS_SBI_CALLBACK_NUDM_UECM_PCSCF_RESTORATION_NOTIFICATION \
-    "Nudm_UECM_PCSCFRestorationNotification"
-#define OGS_SBI_CALLBACK_NNRF_NFMANAGEMENT_NF_STATUS_NOTIFY \
-    "Nnrf_NFManagement_NFStatusNotify"
-#define OGS_SBI_CALLBACK_NAMF_EVENTEXPOSURE_NOTIFY \
-    "Namf_EventExposure_Notify"
-#define OGS_SBI_CALLBACK_NPCF_UEPOLICYCONTROL_UPDATE_NOTIFY \
-    "Npcf_UEPolicyControl_UpdateNotify"
-#define OGS_SBI_CALLBACK_NNSSF_NSSAIAVAILABILITY_NOTIFICATION \
-    "Nnssf_NSSAIAvailability_Notification"
-#define OGS_SBI_CALLBACK_NAMF_COMMUNICATION_AMF_STATUS_CHANGE_NOTIFY \
-    "Namf_Communication_AMFStatusChangeNotify"
-#define OGS_SBI_CALLBACK_NGMLC_LOCATION_EVENT_NOTIFY \
-    "Ngmlc_Location_EventNotify"
-#define OGS_SBI_CALLBACK_NCHF_CONVERGEDCHARGING_NOTIFY \
-    "Nchf_ConvergedCharging_Notify"
-#define OGS_SBI_CALLBACK_NNSSAAF_NSSAA_RE_AUTHENTICATION \
-    "Nnssaaf_NSSAA_ReAuthentication"
-#define OGS_SBI_CALLBACK_NNSSAAF_NSSAA_REVOCATION \
-    "Nnssaaf_NSSAA_Revocation"
-#define OGS_SBI_CALLBACK_N5G_DDNMF_DISCOVERY_MONITOR_UPDATE_RESULT \
-    "N5g-ddnmf_Discovery_MonitorUpdateResult"
-#define OGS_SBI_CALLBACK_N5G_DDNMF_DISCOVERY_MATCH_INFORMATION \
-    "N5g-ddnmf_Discovery_MatchInformation"
-
 typedef struct ogs_sbi_header_s {
     char *method;
     char *uri;
@@ -405,9 +369,7 @@ typedef struct ogs_sbi_discovery_option_s {
     char *requester_nf_instance_id;
 
     int num_of_service_names;
-    char *service_names[OGS_SBI_MAX_NUM_OF_SERVICE_TYPE];
-
-    uint64_t requester_features;
+    char *service_names[OGS_MAX_NUM_OF_NF_SERVICE];
 } ogs_sbi_discovery_option_t;
 
 typedef struct ogs_sbi_message_s {
@@ -419,11 +381,6 @@ typedef struct ogs_sbi_message_s {
         char *content_type;
         char *location;
         char *cache_control;
-
-        struct {
-            char *callback;
-            char *nrf_uri;
-        } custom;
     } http;
 
     struct {
@@ -508,9 +465,6 @@ typedef struct ogs_sbi_message_s {
     OpenAPI_sm_policy_notification_t *SmPolicyNotification;
     OpenAPI_termination_notification_t *TerminationNotification;
     OpenAPI_deregistration_data_t *DeregistrationData;
-    OpenAPI_sdm_subscription_t *SDMSubscription;
-    OpenAPI_modification_notification_t *ModificationNotification;
-    OpenAPI_smf_registration_t *SmfRegistration;
 
     ogs_sbi_links_t *links;
 
@@ -591,15 +545,9 @@ void ogs_sbi_discovery_option_set_target_nf_instance_id(
 void ogs_sbi_discovery_option_set_requester_nf_instance_id(
         ogs_sbi_discovery_option_t *discovery_option,
         char *requester_nf_instance_id);
-
 void ogs_sbi_discovery_option_add_service_names(
         ogs_sbi_discovery_option_t *discovery_option,
         char *service_name);
-char *ogs_sbi_discovery_option_build_service_names(
-        ogs_sbi_discovery_option_t *discovery_option);
-void ogs_sbi_discovery_option_parse_service_names(
-        ogs_sbi_discovery_option_t *discovery_option,
-        char *service_names);
 
 #ifdef __cplusplus
 }

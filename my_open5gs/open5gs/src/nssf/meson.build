@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2022 by Sukchan Lee <acetcom@gmail.com>
+# Copyright (C) 2019,2020 by Sukchan Lee <acetcom@gmail.com>
 
 # This file is part of Open5GS.
 
@@ -18,6 +18,11 @@
 libnssf_sources = files('''
     context.c
     event.c
+    timer.c
+
+    nnrf-build.c
+    nnrf-handler.c
+    nf-sm.c
 
     nnssf-handler.c
 
@@ -29,12 +34,14 @@ libnssf_sources = files('''
 
 libnssf = static_library('nssf',
     sources : libnssf_sources,
-    dependencies : libsbi_dep,
+    dependencies : [libapp_dep,
+                    libsbi_dep],
     install : false)
 
 libnssf_dep = declare_dependency(
     link_with : libnssf,
-    dependencies : libsbi_dep)
+    dependencies : [libapp_dep,
+                    libsbi_dep])
 
 nssf_sources = files('''
     app.c

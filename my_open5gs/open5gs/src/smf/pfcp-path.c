@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -74,7 +74,8 @@ static void pfcp_node_fsm_init(ogs_pfcp_node_t *node, bool try_to_assoicate)
         ogs_assert(node->t_association);
     }
 
-    ogs_fsm_init(&node->sm, smf_pfcp_state_initial, smf_pfcp_state_final, &e);
+    ogs_fsm_create(&node->sm, smf_pfcp_state_initial, smf_pfcp_state_final);
+    ogs_fsm_init(&node->sm, &e);
 }
 
 static void pfcp_node_fsm_fini(ogs_pfcp_node_t *node)
@@ -87,6 +88,7 @@ static void pfcp_node_fsm_fini(ogs_pfcp_node_t *node)
     e.pfcp_node = node;
 
     ogs_fsm_fini(&node->sm, &e);
+    ogs_fsm_delete(&node->sm);
 
     if (node->t_association)
         ogs_timer_delete(node->t_association);
@@ -120,7 +122,7 @@ static void pfcp_recv_cb(short when, ogs_socket_t fd, void *data)
     ogs_pkbuf_trim(pkbuf, size);
 
     h = (ogs_pfcp_header_t *)pkbuf->data;
-    if (h->version != OGS_PFCP_VERSION) {
+    if (h->version > OGS_PFCP_VERSION) {
         ogs_pfcp_header_t rsp;
 
         ogs_error("Not supported version[%d]", h->version);
@@ -145,12 +147,7 @@ static void pfcp_recv_cb(short when, ogs_socket_t fd, void *data)
     node = ogs_pfcp_node_find(&ogs_pfcp_self()->pfcp_peer_list, &from);
     if (!node) {
         node = ogs_pfcp_node_add(&ogs_pfcp_self()->pfcp_peer_list, &from);
-        if (!node) {
-            ogs_error("No memory: ogs_pfcp_node_add() failed");
-            ogs_pkbuf_free(e->pkbuf);
-            ogs_event_free(e);
-            return;
-        }
+        ogs_assert(node);
 
         node->sock = data;
         pfcp_node_fsm_init(node, false);
@@ -162,7 +159,7 @@ static void pfcp_recv_cb(short when, ogs_socket_t fd, void *data)
     if (rv != OGS_OK) {
         ogs_error("ogs_queue_push() failed:%d", (int)rv);
         ogs_pkbuf_free(e->pkbuf);
-        ogs_event_free(e);
+        smf_event_free(e);
     }
 }
 
@@ -201,9 +198,6 @@ void smf_pfcp_close(void)
     ogs_list_for_each(&ogs_pfcp_self()->pfcp_peer_list, pfcp_node)
         pfcp_node_fsm_fini(pfcp_node);
 
-    ogs_freeaddrinfo(ogs_pfcp_self()->pfcp_advertise);
-    ogs_freeaddrinfo(ogs_pfcp_self()->pfcp_advertise6);
-
     ogs_socknode_remove_all(&ogs_pfcp_self()->pfcp_list);
     ogs_socknode_remove_all(&ogs_pfcp_self()->pfcp_list6);
 }
@@ -216,8 +210,6 @@ static void sess_5gc_timeout(ogs_pfcp_xact_t *xact, void *data)
     uint8_t type;
     int trigger;
     char *strerror = NULL;
-    smf_event_t *e = NULL;
-    int rv;
 
     ogs_assert(xact);
     ogs_assert(data);
@@ -232,19 +224,7 @@ static void sess_5gc_timeout(ogs_pfcp_xact_t *xact, void *data)
 
     switch (type) {
     case OGS_PFCP_SESSION_ESTABLISHMENT_REQUEST_TYPE:
-        ogs_warn("No PFCP session establishment response");
-
-        e = smf_event_new(SMF_EVT_N4_TIMER);
-        ogs_assert(e);
-        e->sess = sess;
-        e->h.timer_id = SMF_TIMER_PFCP_NO_ESTABLISHMENT_RESPONSE;
-        e->pfcp_node = sess->pfcp_node;
-
-        rv = ogs_queue_push(ogs_app()->queue, e);
-        if (rv != OGS_OK) {
-            ogs_error("ogs_queue_push() failed:%d", (int)rv);
-            ogs_event_free(e);
-        }
+        ogs_error("No PFCP session establishment response");
         break;
     case OGS_PFCP_SESSION_MODIFICATION_REQUEST_TYPE:
         strerror = ogs_msprintf("[%s:%d] No PFCP session modification response",
@@ -252,10 +232,10 @@ static void sess_5gc_timeout(ogs_pfcp_xact_t *xact, void *data)
         ogs_assert(strerror);
 
         ogs_error("%s", strerror);
-        if (stream) {
-            smf_sbi_send_sm_context_update_error_log(
-                stream, OGS_SBI_HTTP_STATUS_GATEWAY_TIMEOUT, strerror, NULL);
-        }
+        ogs_assert(stream);
+        smf_sbi_send_sm_context_update_error(stream,
+                OGS_SBI_HTTP_STATUS_GATEWAY_TIMEOUT,
+                strerror, NULL, NULL, NULL);
         ogs_free(strerror);
         break;
     case OGS_PFCP_SESSION_DELETION_REQUEST_TYPE:
@@ -356,16 +336,10 @@ int smf_pfcp_send_modify_list(
     h.seid = sess->upf_n4_seid;
 
     n4buf = (*modify_list)(h.type, sess, xact);
-    if (!n4buf) {
-        ogs_error("modify_list() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(n4buf, OGS_ERROR);
 
     rv = ogs_pfcp_xact_update_tx(xact, &h, n4buf);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_pfcp_xact_update_tx() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, OGS_ERROR);
 
     if (duration) {
         ogs_pfcp_xact_delayed_commit(xact, duration);
@@ -380,7 +354,7 @@ int smf_pfcp_send_modify_list(
 }
 
 int smf_5gc_pfcp_send_session_establishment_request(
-        smf_sess_t *sess, uint64_t flags)
+        smf_sess_t *sess, ogs_sbi_stream_t *stream)
 {
     int rv;
     ogs_pkbuf_t *n4buf = NULL;
@@ -388,61 +362,23 @@ int smf_5gc_pfcp_send_session_establishment_request(
     ogs_pfcp_xact_t *xact = NULL;
 
     ogs_assert(sess);
+    ogs_assert(stream);
 
     xact = ogs_pfcp_xact_local_create(sess->pfcp_node, sess_5gc_timeout, sess);
-    if (!xact) {
-        ogs_error("ogs_pfcp_xact_local_create() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(xact, OGS_ERROR);
 
+    xact->assoc_stream = stream;
     xact->local_seid = sess->smf_n4_seid;
-    xact->create_flags = flags;
 
     memset(&h, 0, sizeof(ogs_pfcp_header_t));
     h.type = OGS_PFCP_SESSION_ESTABLISHMENT_REQUEST_TYPE;
-
-/*
- * 7.2.2.4.2 Conditions for Sending SEID=0 in PFCP Header
- *
- * If a peer's SEID is not available, the SEID field shall still be present
- * in the header and its value shall be set to "0" in the following messages:
- *
- * - PFCP Session Establishment Request message on Sxa/Sxb/Sxc/N4;
- *
- * - If a node receives a message for which it has no session, i.e.
- *   if SEID in the PFCP header is not known, it shall respond
- *   with "Session context not found" cause in the corresponding
- *   response message to the sender, the SEID used in the PFCP header
- *   in the response message shall be then set to "0";
- *
- * - If a node receives a request message containing protocol error,
- *   e.g. Mandatory IE missing, which requires the receiver
- *   to reject the message as specified in clause 7.6, it shall reject
- *   the request message. For the response message, the node should look up
- *   the remote peer's SEID and accordingly set SEID in the PFCP header
- *   and the message cause code. As an implementation option,
- *   the node may not look up the remote peer's SEID and
- *   set the PFCP header SEID to "0" in the response message.
- *   However in this case, the cause value shall not be set
- *   to "Session not found".
- *
- * - When the UP function sends PFCP Session Report Request message
- *   over N4 towards another SMF or another PFCP entity in the SMF
- *   as specified in clause 5.22.2 and clause 5.22.3.
- */
     h.seid = sess->upf_n4_seid;
 
-    n4buf = smf_n4_build_session_establishment_request(h.type, sess, xact);
-    if (!n4buf) {
-        ogs_error("smf_n4_build_session_establishment_request() failed");
-        return OGS_ERROR;
-    }
+    n4buf = smf_n4_build_session_establishment_request(h.type, sess);
+    ogs_expect_or_return_val(n4buf, OGS_ERROR);
 
     rv = ogs_pfcp_xact_update_tx(xact, &h, n4buf);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_pfcp_xact_update_tx() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, OGS_ERROR);
 
     rv = ogs_pfcp_xact_commit(xact);
     ogs_expect(rv == OGS_OK);
@@ -463,10 +399,7 @@ int smf_5gc_pfcp_send_all_pdr_modification_request(
         ogs_assert(stream);
 
     xact = ogs_pfcp_xact_local_create(sess->pfcp_node, sess_5gc_timeout, sess);
-    if (!xact) {
-        ogs_error("ogs_pfcp_xact_local_create() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(xact, OGS_ERROR);
 
     xact->assoc_stream = stream;
     xact->local_seid = sess->smf_n4_seid;
@@ -493,10 +426,7 @@ int smf_5gc_pfcp_send_qos_flow_list_modification_request(
     ogs_assert(sess);
 
     xact = ogs_pfcp_xact_local_create(sess->pfcp_node, sess_5gc_timeout, sess);
-    if (!xact) {
-        ogs_error("ogs_pfcp_xact_local_create() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(xact, OGS_ERROR);
 
     xact->assoc_stream = stream;
     xact->local_seid = sess->smf_n4_seid;
@@ -521,10 +451,7 @@ int smf_5gc_pfcp_send_session_deletion_request(
     ogs_assert(trigger);
 
     xact = ogs_pfcp_xact_local_create(sess->pfcp_node, sess_5gc_timeout, sess);
-    if (!xact) {
-        ogs_error("ogs_pfcp_xact_local_create() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(xact, OGS_ERROR);
 
     xact->assoc_stream = stream;
     xact->delete_trigger = trigger;
@@ -535,16 +462,10 @@ int smf_5gc_pfcp_send_session_deletion_request(
     h.seid = sess->upf_n4_seid;
 
     n4buf = smf_n4_build_session_deletion_request(h.type, sess);
-    if (!n4buf) {
-        ogs_error("smf_n4_build_session_deletion_request() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(n4buf, OGS_ERROR);
 
     rv = ogs_pfcp_xact_update_tx(xact, &h, n4buf);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_pfcp_xact_update_tx() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, OGS_ERROR);
 
     rv = ogs_pfcp_xact_commit(xact);
     ogs_expect(rv == OGS_OK);
@@ -553,7 +474,7 @@ int smf_5gc_pfcp_send_session_deletion_request(
 }
 
 int smf_epc_pfcp_send_session_establishment_request(
-        smf_sess_t *sess, void *gtp_xact, uint64_t flags)
+        smf_sess_t *sess, void *gtp_xact)
 {
     int rv;
     ogs_pkbuf_t *n4buf = NULL;
@@ -563,61 +484,21 @@ int smf_epc_pfcp_send_session_establishment_request(
     ogs_assert(sess);
 
     xact = ogs_pfcp_xact_local_create(sess->pfcp_node, sess_epc_timeout, sess);
-    if (!xact) {
-        ogs_error("ogs_pfcp_xact_local_create() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(xact, OGS_ERROR);
 
     xact->epc = true; /* EPC PFCP transaction */
     xact->assoc_xact = gtp_xact;
     xact->local_seid = sess->smf_n4_seid;
-    xact->create_flags = flags;
 
     memset(&h, 0, sizeof(ogs_pfcp_header_t));
     h.type = OGS_PFCP_SESSION_ESTABLISHMENT_REQUEST_TYPE;
-
-/*
- * 7.2.2.4.2 Conditions for Sending SEID=0 in PFCP Header
- *
- * If a peer's SEID is not available, the SEID field shall still be present
- * in the header and its value shall be set to "0" in the following messages:
- *
- * - PFCP Session Establishment Request message on Sxa/Sxb/Sxc/N4;
- *
- * - If a node receives a message for which it has no session, i.e.
- *   if SEID in the PFCP header is not known, it shall respond
- *   with "Session context not found" cause in the corresponding
- *   response message to the sender, the SEID used in the PFCP header
- *   in the response message shall be then set to "0";
- *
- * - If a node receives a request message containing protocol error,
- *   e.g. Mandatory IE missing, which requires the receiver
- *   to reject the message as specified in clause 7.6, it shall reject
- *   the request message. For the response message, the node should look up
- *   the remote peer's SEID and accordingly set SEID in the PFCP header
- *   and the message cause code. As an implementation option,
- *   the node may not look up the remote peer's SEID and
- *   set the PFCP header SEID to "0" in the response message.
- *   However in this case, the cause value shall not be set
- *   to "Session not found".
- *
- * - When the UP function sends PFCP Session Report Request message
- *   over N4 towards another SMF or another PFCP entity in the SMF
- *   as specified in clause 5.22.2 and clause 5.22.3.
- */
     h.seid = sess->upf_n4_seid;
 
-    n4buf = smf_n4_build_session_establishment_request(h.type, sess, xact);
-    if (!n4buf) {
-        ogs_error("smf_n4_build_session_establishment_request() failed");
-        return OGS_ERROR;
-    }
+    n4buf = smf_n4_build_session_establishment_request(h.type, sess);
+    ogs_expect_or_return_val(n4buf, OGS_ERROR);
 
     rv = ogs_pfcp_xact_update_tx(xact, &h, n4buf);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_pfcp_xact_update_tx() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, OGS_ERROR);
 
     rv = ogs_pfcp_xact_commit(xact);
     ogs_expect(rv == OGS_OK);
@@ -636,10 +517,7 @@ int smf_epc_pfcp_send_all_pdr_modification_request(
     ogs_assert(sess);
 
     xact = ogs_pfcp_xact_local_create(sess->pfcp_node, sess_epc_timeout, sess);
-    if (!xact) {
-        ogs_error("ogs_pfcp_xact_local_create() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(xact, OGS_ERROR);
 
     xact->epc = true; /* EPC PFCP transaction */
     xact->assoc_xact = gtp_xact;
@@ -650,10 +528,7 @@ int smf_epc_pfcp_send_all_pdr_modification_request(
     xact->gtp_cause = gtp_cause;
     if (gtpbuf) {
         xact->gtpbuf = ogs_pkbuf_copy(gtpbuf);
-        if (!xact->gtpbuf) {
-            ogs_error("ogs_pkbuf_copy() failed");
-            return OGS_ERROR;
-        }
+        ogs_expect_or_return_val(xact->gtpbuf, OGS_ERROR);
     }
 
     ogs_list_init(&sess->pdr_to_modify_list);
@@ -681,10 +556,7 @@ int smf_epc_pfcp_send_one_bearer_modification_request(
 
     xact = ogs_pfcp_xact_local_create(
             sess->pfcp_node, bearer_epc_timeout, bearer);
-    if (!xact) {
-        ogs_error("ogs_pfcp_xact_local_create() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(xact, OGS_ERROR);
 
     xact->epc = true; /* EPC PFCP transaction */
     xact->assoc_xact = gtp_xact;
@@ -715,10 +587,7 @@ int smf_epc_pfcp_send_session_deletion_request(
     ogs_assert(sess);
 
     xact = ogs_pfcp_xact_local_create(sess->pfcp_node, sess_epc_timeout, sess);
-    if (!xact) {
-        ogs_error("ogs_pfcp_xact_local_create() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(xact, OGS_ERROR);
 
     xact->epc = true; /* EPC PFCP transaction */
 
@@ -751,16 +620,10 @@ int smf_epc_pfcp_send_session_deletion_request(
     h.seid = sess->upf_n4_seid;
 
     n4buf = smf_n4_build_session_deletion_request(h.type, sess);
-    if (!n4buf) {
-        ogs_error("smf_n4_build_session_deletion_request() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(n4buf, OGS_ERROR);
 
     rv = ogs_pfcp_xact_update_tx(xact, &h, n4buf);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_pfcp_xact_update_tx() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, OGS_ERROR);
 
     rv = ogs_pfcp_xact_commit(xact);
     ogs_expect(rv == OGS_OK);
@@ -783,14 +646,9 @@ int smf_epc_pfcp_send_deactivation(smf_sess_t *sess, uint8_t gtp_cause)
         /* Handover from Non-3GPP to 3GPP */
         wlan_sess = smf_sess_find_by_apn(
                 smf_ue, sess->session.name, OGS_GTP2_RAT_TYPE_WLAN);
-        if (!wlan_sess) {
-            ogs_error("smf_sess_find_by_apn() failed");
-            return OGS_ERROR;
-        }
-        if (ogs_list_first(&wlan_sess->bearer_list) == NULL) {
-            ogs_error("No Bearer List in WLAN Session");
-            return OGS_ERROR;
-        }
+        ogs_expect_or_return_val(wlan_sess, OGS_ERROR);
+        ogs_expect_or_return_val(
+                ogs_list_first(&wlan_sess->bearer_list), OGS_ERROR);
 
         /* Deactivate WLAN Session */
         rv = smf_epc_pfcp_send_all_pdr_modification_request(
@@ -798,11 +656,7 @@ int smf_epc_pfcp_send_deactivation(smf_sess_t *sess, uint8_t gtp_cause)
                 OGS_PFCP_MODIFY_DL_ONLY|OGS_PFCP_MODIFY_DEACTIVATE,
                 OGS_NAS_PROCEDURE_TRANSACTION_IDENTITY_UNASSIGNED,
                 OGS_GTP2_CAUSE_ACCESS_CHANGED_FROM_NON_3GPP_TO_3GPP);
-        if (rv != OGS_OK) {
-            ogs_error("smf_epc_pfcp_send_all_pdr_modification_requestO() "
-                    "failed");
-            return OGS_ERROR;
-        }
+        ogs_expect_or_return_val(rv == OGS_OK, rv);
         break;
 
     case OGS_GTP2_CAUSE_RAT_CHANGED_FROM_3GPP_TO_NON_3GPP:
@@ -810,10 +664,8 @@ int smf_epc_pfcp_send_deactivation(smf_sess_t *sess, uint8_t gtp_cause)
         eutran_sess = smf_sess_find_by_apn(
                 smf_ue, sess->session.name, OGS_GTP2_RAT_TYPE_EUTRAN);
         if (eutran_sess) {
-            if (ogs_list_first(&eutran_sess->bearer_list) == NULL) {
-                ogs_error("No Bearer List in E-URAN Session");
-                return OGS_ERROR;
-            }
+            ogs_expect_or_return_val(
+                    ogs_list_first(&eutran_sess->bearer_list), OGS_ERROR);
 
             /* Deactivate EUTRAN Session */
             rv = smf_epc_pfcp_send_all_pdr_modification_request(
@@ -821,11 +673,7 @@ int smf_epc_pfcp_send_deactivation(smf_sess_t *sess, uint8_t gtp_cause)
                     OGS_PFCP_MODIFY_DL_ONLY|OGS_PFCP_MODIFY_DEACTIVATE,
                     OGS_NAS_PROCEDURE_TRANSACTION_IDENTITY_UNASSIGNED,
                     OGS_GTP2_CAUSE_RAT_CHANGED_FROM_3GPP_TO_NON_3GPP);
-            if (rv != OGS_OK) {
-                ogs_error("smf_epc_pfcp_send_all_pdr_modification_request() "
-                        "failed");
-                return OGS_ERROR;
-            }
+            ogs_expect_or_return_val(rv == OGS_OK, rv);
         }
         break;
 
@@ -844,21 +692,18 @@ int smf_pfcp_send_session_report_response(
     ogs_pkbuf_t *sxabuf = NULL;
     ogs_pfcp_header_t h;
 
+    ogs_assert(xact);
+    xact->local_seid = sess->smf_n4_seid;
+
     memset(&h, 0, sizeof(ogs_pfcp_header_t));
     h.type = OGS_PFCP_SESSION_REPORT_RESPONSE_TYPE;
     h.seid = sess->upf_n4_seid;
 
     sxabuf = ogs_pfcp_build_session_report_response(h.type, cause);
-    if (!sxabuf) {
-        ogs_error("ogs_pfcp_build_session_report_response() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(sxabuf, OGS_ERROR);
 
     rv = ogs_pfcp_xact_update_tx(xact, &h, sxabuf);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_pfcp_xact_update_tx() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, OGS_ERROR);
 
     rv = ogs_pfcp_xact_commit(xact);
     ogs_expect(rv == OGS_OK);

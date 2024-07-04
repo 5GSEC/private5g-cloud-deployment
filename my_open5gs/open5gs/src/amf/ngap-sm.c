@@ -39,8 +39,6 @@ void ngap_state_final(ogs_fsm_t *s, amf_event_t *e)
 
 void ngap_state_operational(ogs_fsm_t *s, amf_event_t *e)
 {
-    int r;
-
     amf_gnb_t *gnb = NULL;
     ogs_pkbuf_t *pkbuf = NULL;
 
@@ -57,12 +55,12 @@ void ngap_state_operational(ogs_fsm_t *s, amf_event_t *e)
     gnb = e->gnb;
     ogs_assert(gnb);
 
-    switch (e->h.id) {
+    switch (e->id) {
     case OGS_FSM_ENTRY_SIG:
         break;
     case OGS_FSM_EXIT_SIG:
         break;
-    case AMF_EVENT_NGAP_MESSAGE:
+    case AMF_EVT_NGAP_MESSAGE:
         pdu = e->ngap.message;
         ogs_assert(pdu);
             
@@ -147,9 +145,11 @@ void ngap_state_operational(ogs_fsm_t *s, amf_event_t *e)
             case NGAP_ProcedureCode_id_PDUSessionResourceRelease:
                 ngap_handle_pdu_session_resource_release_response(gnb, pdu);
                 break;
+#if 0
             case NGAP_ProcedureCode_id_UEContextModification:
                 ngap_handle_ue_context_modification_response(gnb, pdu);
                 break;
+#endif
             case NGAP_ProcedureCode_id_UEContextRelease:
                 ngap_handle_ue_context_release_complete(gnb, pdu);
                 break;
@@ -170,9 +170,11 @@ void ngap_state_operational(ogs_fsm_t *s, amf_event_t *e)
             case NGAP_ProcedureCode_id_InitialContextSetup :
                 ngap_handle_initial_context_setup_failure(gnb, pdu);
                 break;
+#if 0
             case NGAP_ProcedureCode_id_UEContextModification:
                 ngap_handle_ue_context_modification_failure(gnb, pdu);
                 break;
+#endif
             case NGAP_ProcedureCode_id_HandoverResourceAllocation :
                 ngap_handle_handover_failure(gnb, pdu);
                 break;
@@ -188,21 +190,18 @@ void ngap_state_operational(ogs_fsm_t *s, amf_event_t *e)
         }
 
         break;
-    case AMF_EVENT_NGAP_TIMER:
-        switch (e->h.timer_id) {
+    case AMF_EVT_NGAP_TIMER:
+        switch (e->timer_id) {
         case AMF_TIMER_NG_DELAYED_SEND:
             ogs_assert(e->ran_ue);
             ogs_assert(e->pkbuf);
 
-            r = ngap_send_to_ran_ue(e->ran_ue, e->pkbuf);
-            ogs_expect(r == OGS_OK);
-            ogs_assert(r != OGS_ERROR);
-
+            ogs_expect(OGS_OK == ngap_send_to_ran_ue(e->ran_ue, e->pkbuf));
             ogs_timer_delete(e->timer);
             break;
         default:
             ogs_error("Unknown timer[%s:%d]",
-                    amf_timer_get_name(e->h.timer_id), e->h.timer_id);
+                    amf_timer_get_name(e->timer_id), e->timer_id);
             break;
         }
         break;
@@ -219,7 +218,7 @@ void ngap_state_exception(ogs_fsm_t *s, amf_event_t *e)
 
     amf_sm_debug(e);
 
-    switch (e->h.id) {
+    switch (e->id) {
     case OGS_FSM_ENTRY_SIG:
         break;
     case OGS_FSM_EXIT_SIG:

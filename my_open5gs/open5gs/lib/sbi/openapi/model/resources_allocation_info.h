@@ -1,7 +1,7 @@
 /*
  * resources_allocation_info.h
  *
- * Describes the status of the PCC rule(s) related to certain media components.
+ * describes the status of the PCC rule(s) related to certain media components.
  */
 
 #ifndef _OpenAPI_resources_allocation_info_H_

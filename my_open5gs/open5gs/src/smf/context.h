@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -56,10 +56,10 @@ typedef enum {
     SMF_CTF_ENABLED_AUTO = 0,
     SMF_CTF_ENABLED_YES,
     SMF_CTF_ENABLED_NO,
-} smf_ctf_enabled_mode_e;
+} smf_ctf_enabled_mode;
 
 typedef struct smf_ctf_config_s {
-    smf_ctf_enabled_mode_e enabled;
+    smf_ctf_enabled_mode enabled;
 } smf_ctf_config_t;
 
 int smf_ctf_config_init(smf_ctf_config_t *ctf_config);
@@ -88,17 +88,9 @@ typedef struct smf_context_s {
     ogs_hash_t      *imsi_hash;     /* hash table (IMSI) */
     ogs_hash_t      *ipv4_hash;     /* hash table (IPv4 Address) */
     ogs_hash_t      *ipv6_hash;     /* hash table (IPv6 Address) */
-    ogs_hash_t      *smf_n4_seid_hash; /* hash table (SMF-N4-SEID) */
     ogs_hash_t      *n1n2message_hash; /* hash table (N1N2Message Location) */
 
     uint16_t        mtu;            /* MTU to advertise in PCO */
-
-    struct  {
-        const char *integrity_protection_indication;
-        const char *confidentiality_protection_indication;
-        const char *maximum_integrity_protected_data_rate_uplink;
-        const char *maximum_integrity_protected_data_rate_downlink;
-    } security_indication;
 
 #define SMF_UE_IS_LAST_SESSION(__sMF) \
      ((__sMF) && (ogs_list_count(&(__sMF)->sess_list)) == 1)
@@ -134,14 +126,27 @@ typedef struct smf_ue_s {
     ogs_list_t sess_list;
 } smf_ue_t;
 
+#define SMF_NF_INSTANCE_CLEAR(_cAUSE, _nFInstance) \
+    do { \
+        ogs_assert(_nFInstance); \
+        if ((_nFInstance)->reference_count == 1) { \
+            ogs_info("[%s] (%s) NF removed", (_nFInstance)->id, (_cAUSE)); \
+            smf_nf_fsm_fini((_nFInstance)); \
+        } else { \
+            /* There is an assocation with other context */ \
+            ogs_info("[%s:%d] (%s) NF suspended", \
+                    _nFInstance->id, _nFInstance->reference_count, (_cAUSE)); \
+            OGS_FSM_TRAN(&_nFInstance->sm, smf_nf_state_de_registered); \
+            ogs_fsm_dispatch(&_nFInstance->sm, NULL); \
+        } \
+        ogs_sbi_nf_instance_remove(_nFInstance); \
+    } while(0)
 #define SMF_SESS_CLEAR(__sESS) \
     do { \
         smf_ue_t *smf_ue = NULL; \
         ogs_assert(__sESS); \
-        smf_ue = (__sESS)->smf_ue; \
+        smf_ue = __sESS->smf_ue; \
         ogs_assert(smf_ue); \
-        smf_metrics_inst_by_slice_add(&(__sESS)->plmn_id, \
-                &(__sESS)->s_nssai, SMF_METR_GAUGE_SM_SESSIONNBR, -1); \
         if (SMF_UE_IS_LAST_SESSION(smf_ue)) \
             smf_ue_remove(smf_ue); \
         else \
@@ -176,6 +181,8 @@ typedef struct smf_bearer_s {
     ogs_lnode_t     to_modify_node;
     ogs_lnode_t     to_delete_node;
 
+    uint32_t        index;
+
     ogs_pfcp_pdr_t  *dl_pdr;
     ogs_pfcp_pdr_t  *ul_pdr;
     ogs_pfcp_far_t  *dl_far;
@@ -183,7 +190,6 @@ typedef struct smf_bearer_s {
     ogs_pfcp_urr_t  *urr;
     ogs_pfcp_qer_t  *qer;
 
-#define SMF_IS_QOF_FLOW(__bEARER) ((__bEARER)->qfi_node)
     uint8_t         *qfi_node;      /* Pool-Node for 5GC-QFI */
     uint8_t         qfi;            /* 5G Core QFI */
     uint8_t         ebi;            /* EPC EBI */
@@ -216,10 +222,7 @@ typedef struct smf_bearer_s {
 #define SMF_SESS(pfcp_sess) ogs_container_of(pfcp_sess, smf_sess_t, pfcp)
 typedef struct smf_sess_s {
     ogs_sbi_object_t sbi;
-
-    uint32_t        index;              /* An index of this node */
-    ogs_pool_id_t   *smf_n4_seid_node;  /* A node of SMF-N4-SEID */
-
+    uint32_t        index;          /**< An index of this node */
     ogs_fsm_t       sm;             /* A state machine */
     struct {
         bool gx_ccr_init_in_flight; /* Waiting for Gx CCA */
@@ -240,12 +243,12 @@ typedef struct smf_sess_s {
 
     uint64_t        smpolicycontrol_features; /* SBI features */
 
-    uint32_t        smf_n4_teid;    /* SMF-N4-TEID is derived from NODE */
+    uint32_t        smf_n4_teid;    /* SMF-N4-TEID is derived from INDEX */
 
     uint32_t        sgw_s5c_teid;   /* SGW-S5C-TEID is received from SGW */
     ogs_ip_t        sgw_s5c_ip;     /* SGW-S5C IPv4/IPv6 */
 
-    uint64_t        smf_n4_seid;    /* SMF SEID is dervied from NODE */
+    uint64_t        smf_n4_seid;    /* SMF SEID is dervied from INDEX */
     uint64_t        upf_n4_seid;    /* UPF SEID is received from Peer */
 
     uint32_t        upf_n3_teid;    /* UPF-N3 TEID */
@@ -281,8 +284,6 @@ typedef struct smf_sess_s {
     /* PCF sends the RESPONSE
      * of [POST] /npcf-smpolocycontrol/v1/policies */
     char *policy_association_id;
-
-    OpenAPI_up_cnx_state_e up_cnx_state;
 
     /* PLMN ID & NID */
     ogs_plmn_id_t   plmn_id;
@@ -327,7 +328,6 @@ typedef struct smf_sess_s {
     struct {
         uint8_t version; /* GTPC version */
         ogs_tlv_octet_t ue_pco;
-        ogs_tlv_octet_t ue_epco;
         ogs_tlv_octet_t user_location_information;
         ogs_tlv_octet_t ue_timezone;
         ogs_tlv_octet_t charging_characteristics;
@@ -357,7 +357,7 @@ typedef struct smf_sess_s {
     } gy;
 
     struct {
-        ogs_nas_extended_protocol_configuration_options_t ue_epco;
+        ogs_nas_extended_protocol_configuration_options_t ue_pco;
     } nas; /* Saved from NAS-5GS */
 
     struct {
@@ -367,6 +367,7 @@ typedef struct smf_sess_s {
 
     /* Paging */
     struct {
+        bool ue_requested_pdu_session_establishment_done;
         char *n1n2message_location;
     } paging;
 
@@ -375,15 +376,9 @@ typedef struct smf_sess_s {
 #define SMF_NGAP_STATE_DELETE_TRIGGER_UE_REQUESTED              1
 #define SMF_NGAP_STATE_DELETE_TRIGGER_PCF_INITIATED             2
 #define SMF_NGAP_STATE_ERROR_INDICATION_RECEIVED_FROM_5G_AN     3
-#define SMF_NGAP_STATE_DELETE_TRIGGER_SMF_INITIATED             4
     struct {
         int pdu_session_resource_release;
     } ngap_state;
-
-#define SMF_UECM_STATE_NONE                                     0
-#define SMF_UECM_STATE_REGISTERED                               1
-#define SMF_UECM_STATE_DEREGISTERED_BY_AMF                      2
-#define SMF_UECM_STATE_DEREGISTERED_BY_N1_N2_RELEASE            3
 
     /* Handover */
     struct {
@@ -423,9 +418,6 @@ typedef struct smf_sess_s {
     ogs_pfcp_node_t *pfcp_node;
 
     smf_ue_t *smf_ue;
-
-    bool n1_released;
-    bool n2_released;
 } smf_sess_t;
 
 void smf_context_init(void);
@@ -472,6 +464,9 @@ smf_sess_t *smf_sess_find_by_ipv4(uint32_t addr);
 smf_sess_t *smf_sess_find_by_ipv6(uint32_t *addr6);
 smf_sess_t *smf_sess_find_by_paging_n1n2message_location(
         char *n1n2message_location);
+smf_sess_t *smf_sess_find_by_error_indication_report(
+        smf_ue_t *smf_ue,
+        ogs_pfcp_tlv_error_indication_report_t *error_indication_report);
 
 void smf_sess_create_indirect_data_forwarding(smf_sess_t *sess);
 bool smf_sess_have_indirect_data_forwarding(smf_sess_t *sess);
@@ -526,14 +521,6 @@ void smf_pf_identifier_pool_final(smf_bearer_t *bearer);
 
 void smf_pf_precedence_pool_init(smf_sess_t *sess);
 void smf_pf_precedence_pool_final(smf_sess_t *sess);
-
-int smf_integrity_protection_indication_value2enum(const char *value);
-int smf_confidentiality_protection_indication_value2enum(const char *value);
-int smf_maximum_integrity_protected_data_rate_uplink_value2enum(
-        const char *value);
-int smf_maximum_integrity_protected_data_rate_downlink_value2enum(
-        const char *value);
-int smf_instance_get_load(void);
 
 #ifdef __cplusplus
 }

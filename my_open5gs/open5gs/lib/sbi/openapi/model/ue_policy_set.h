@@ -32,7 +32,6 @@ typedef struct OpenAPI_ue_policy_set_s {
     char *pei;
     OpenAPI_list_t *os_ids;
     char *supp_feat;
-    OpenAPI_list_t *reset_ids;
 } OpenAPI_ue_policy_set_t;
 
 OpenAPI_ue_policy_set_t *OpenAPI_ue_policy_set_create(
@@ -45,8 +44,7 @@ OpenAPI_ue_policy_set_t *OpenAPI_ue_policy_set_create(
     int andsp_ind,
     char *pei,
     OpenAPI_list_t *os_ids,
-    char *supp_feat,
-    OpenAPI_list_t *reset_ids
+    char *supp_feat
 );
 void OpenAPI_ue_policy_set_free(OpenAPI_ue_policy_set_t *ue_policy_set);
 OpenAPI_ue_policy_set_t *OpenAPI_ue_policy_set_parseFromJSON(cJSON *ue_policy_setJSON);

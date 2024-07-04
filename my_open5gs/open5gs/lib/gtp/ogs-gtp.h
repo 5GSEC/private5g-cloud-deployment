@@ -20,9 +20,10 @@
 #ifndef OGS_GTP_H
 #define OGS_GTP_H
 
+#include "ogs-core.h"
 #include "ipfw/ogs-ipfw.h"
-#include "proto/ogs-proto.h"
-#include "app/ogs-app.h"
+#include "ogs-app.h"
+#include "ogs-nas-common.h"
 
 #define OGS_GTPV1_U_UDP_PORT            2152
 #define OGS_GTPV2_C_UDP_PORT            2123

@@ -73,20 +73,6 @@ static void _gtpv1v2_c_recv_cb(short when, ogs_socket_t fd, void *data)
 
     ogs_pkbuf_trim(pkbuf, size);
 
-    gnode = ogs_gtp_node_find_by_addr(&smf_self()->sgw_s5c_list, &from);
-    if (!gnode) {
-        gnode = ogs_gtp_node_add_by_addr(&smf_self()->sgw_s5c_list, &from);
-        if (!gnode) {
-            ogs_error("Failed to create new gnode(%s:%u), mempool full, ignoring msg!",
-                      OGS_ADDR(&from, frombuf), OGS_PORT(&from));
-            ogs_pkbuf_free(pkbuf);
-            return;
-        }
-        gnode->sock = data;
-        smf_gtp_node_new(gnode);
-        smf_metrics_inst_global_inc(SMF_METR_GLOB_GAUGE_GTP_PEERS_ACTIVE);
-    }
-
     gtp_ver = ((ogs_gtp2_header_t *)pkbuf->data)->version;
     switch (gtp_ver) {
     case 1:
@@ -100,6 +86,20 @@ static void _gtpv1v2_c_recv_cb(short when, ogs_socket_t fd, void *data)
         ogs_pkbuf_free(pkbuf);
         return;
     }
+
+    gnode = ogs_gtp_node_find_by_addr(&smf_self()->sgw_s5c_list, &from);
+    if (!gnode) {
+        gnode = ogs_gtp_node_add_by_addr(&smf_self()->sgw_s5c_list, &from);
+        if (!gnode) {
+            ogs_error("Failed to create new gnode(%s:%u), mempool full, ignoring msg!",
+                      OGS_ADDR(&from, frombuf), OGS_PORT(&from));
+            ogs_pkbuf_free(pkbuf);
+            return;
+        }
+        gnode->sock = data;
+        smf_gtp_node_new(gnode);
+        smf_metrics_inst_global_inc(SMF_METR_GLOB_GAUGE_GTP_PEERS_ACTIVE);
+    }
     ogs_assert(e);
     e->gnode = gnode->data_ptr; /* smf_gtp_node_t */
     e->pkbuf = pkbuf;
@@ -108,7 +108,7 @@ static void _gtpv1v2_c_recv_cb(short when, ogs_socket_t fd, void *data)
     if (rv != OGS_OK) {
         ogs_error("ogs_queue_push() failed:%d", (int)rv);
         ogs_pkbuf_free(e->pkbuf);
-        ogs_event_free(e);
+        smf_event_free(e);
     }
 }
 
@@ -122,7 +122,9 @@ static void _gtpv1_u_recv_cb(short when, ogs_socket_t fd, void *data)
     ogs_sockaddr_t from;
 
     ogs_gtp2_header_t *gtp_h = NULL;
-    ogs_gtp2_header_desc_t header_desc;
+
+    uint32_t teid;
+    uint8_t qfi;
 
     ogs_assert(fd != INVALID_SOCKET);
 
@@ -149,13 +151,7 @@ static void _gtpv1_u_recv_cb(short when, ogs_socket_t fd, void *data)
         goto cleanup;
     }
 
-    len = ogs_gtpu_parse_header(&header_desc, pkbuf);
-    if (len < 0) {
-        ogs_error("[DROP] Cannot decode GTPU packet");
-        ogs_log_hexdump(OGS_LOG_ERROR, pkbuf->data, pkbuf->len);
-        goto cleanup;
-    }
-    if (header_desc.type == OGS_GTPU_MSGTYPE_ECHO_REQ) {
+    if (gtp_h->type == OGS_GTPU_MSGTYPE_ECHO_REQ) {
         ogs_pkbuf_t *echo_rsp;
 
         ogs_debug("[RECV] Echo Request from [%s]", OGS_ADDR(&from, buf));
@@ -176,27 +172,58 @@ static void _gtpv1_u_recv_cb(short when, ogs_socket_t fd, void *data)
         }
         goto cleanup;
     }
-    if (header_desc.type != OGS_GTPU_MSGTYPE_END_MARKER &&
-        pkbuf->len <= len) {
-        ogs_error("[DROP] Small GTPU packet(type:%d len:%d)",
-                header_desc.type, len);
+
+    teid = be32toh(gtp_h->teid);
+
+    ogs_debug("[RECV] GPU-U Type [%d] from [%s] : TEID[0x%x]",
+            gtp_h->type, OGS_ADDR(&from, buf), teid);
+
+    qfi = 0;
+    if (gtp_h->flags & OGS_GTPU_FLAGS_E) {
+        /*
+         * TS29.281
+         * 5.2.1 General format of the GTP-U Extension Header
+         * Figure 5.2.1-3: Definition of Extension Header Type
+         *
+         * Note 4 : For a GTP-PDU with several Extension Headers, the PDU
+         *          Session Container should be the first Extension Header
+         */
+        ogs_gtp2_extension_header_t *extension_header =
+            (ogs_gtp2_extension_header_t *)(pkbuf->data + OGS_GTPV1U_HEADER_LEN);
+        ogs_assert(extension_header);
+        if (extension_header->type ==
+                OGS_GTP2_EXTENSION_HEADER_TYPE_PDU_SESSION_CONTAINER) {
+            if (extension_header->pdu_type ==
+                OGS_GTP2_EXTENSION_HEADER_PDU_TYPE_UL_PDU_SESSION_INFORMATION) {
+                    ogs_debug("   QFI [0x%x]",
+                            extension_header->qos_flow_identifier);
+                    qfi = extension_header->qos_flow_identifier;
+            }
+        }
+    }
+
+    /* Remove GTP header and send packets to TUN interface */
+    len = ogs_gtpu_header_len(pkbuf);
+    if (len < 0) {
+        ogs_error("[DROP] Cannot decode GTPU packet");
         ogs_log_hexdump(OGS_LOG_ERROR, pkbuf->data, pkbuf->len);
         goto cleanup;
     }
-
-    ogs_debug("[RECV] GPU-U Type [%d] from [%s] : TEID[0x%x]",
-            header_desc.type, OGS_ADDR(&from, buf), header_desc.teid);
-
-    /* Remove GTP header and send packets to TUN interface */
+    if (gtp_h->type != OGS_GTPU_MSGTYPE_END_MARKER &&
+        pkbuf->len <= len) {
+        ogs_error("[DROP] Small GTPU packet(type:%d len:%d)", gtp_h->type, len);
+        ogs_log_hexdump(OGS_LOG_ERROR, pkbuf->data, pkbuf->len);
+        goto cleanup;
+    }
     ogs_assert(ogs_pkbuf_pull(pkbuf, len));
 
-    if (header_desc.type == OGS_GTPU_MSGTYPE_GPDU) {
+    if (gtp_h->type == OGS_GTPU_MSGTYPE_GPDU) {
         smf_sess_t *sess = NULL;
         ogs_pfcp_far_t *far = NULL;
 
-        far = ogs_pfcp_far_find_by_teid(header_desc.teid);
+        far = ogs_pfcp_far_find_by_teid(teid);
         if (!far) {
-            ogs_error("No FAR for TEID [%d]", header_desc.teid);
+            ogs_error("No FAR for TEID [%d]", teid);
             goto cleanup;
         }
 
@@ -205,8 +232,8 @@ static void _gtpv1_u_recv_cb(short when, ogs_socket_t fd, void *data)
             goto cleanup;
         }
 
-        if (header_desc.qos_flow_identifier) {
-            ogs_error("QFI[%d] Found", header_desc.qos_flow_identifier);
+        if (qfi) {
+            ogs_error("QFI[%d] Found", qfi);
             goto cleanup;
         }
 
@@ -220,7 +247,7 @@ static void _gtpv1_u_recv_cb(short when, ogs_socket_t fd, void *data)
             send_router_advertisement(sess, ip6_h->ip6_src.s6_addr);
         }
     } else {
-        ogs_error("[DROP] Invalid GTPU Type [%d]", header_desc.type);
+        ogs_error("[DROP] Invalid GTPU Type [%d]", gtp_h->type);
         ogs_log_hexdump(OGS_LOG_ERROR, pkbuf->data, pkbuf->len);
     }
 
@@ -304,16 +331,10 @@ int smf_gtp1_send_create_pdp_context_response(
     h.teid = sess->sgw_s5c_teid;
 
     pkbuf = smf_gn_build_create_pdp_context_response(h.type, sess);
-    if (!pkbuf) {
-        ogs_error("smf_gn_build_create_pdp_context_response() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(pkbuf, OGS_ERROR);
 
     rv = ogs_gtp1_xact_update_tx(xact, &h, pkbuf);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_gtp1_xact_update_tx() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, OGS_ERROR);
 
     rv = ogs_gtp_xact_commit(xact);
     ogs_expect(rv == OGS_OK);
@@ -336,16 +357,10 @@ int smf_gtp1_send_delete_pdp_context_response(
     h.teid = sess->sgw_s5c_teid;
 
     pkbuf = smf_gn_build_delete_pdp_context_response(h.type, sess);
-    if (!pkbuf) {
-        ogs_error("smf_gn_build_delete_pdp_context_response() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(pkbuf, OGS_ERROR);
 
     rv = ogs_gtp1_xact_update_tx(xact, &h, pkbuf);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_gtp1_xact_update_tx() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, OGS_ERROR);
 
     rv = ogs_gtp_xact_commit(xact);
     ogs_expect(rv == OGS_OK);
@@ -375,17 +390,11 @@ int smf_gtp1_send_update_pdp_context_request(
 
     pkbuf = smf_gn_build_update_pdp_context_request(
                 h.type, bearer, pti, cause_value);
-    if (!pkbuf) {
-        ogs_error("smf_gn_build_update_pdp_context_request() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(pkbuf, OGS_ERROR);
 
     xact = ogs_gtp1_xact_local_create(
             sess->gnode, &h, pkbuf, bearer_timeout, bearer);
-    if (!xact) {
-        ogs_error("ogs_gtp1_xact_local_create() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(xact, OGS_ERROR);
 
     rv = ogs_gtp_xact_commit(xact);
     ogs_expect(rv == OGS_OK);
@@ -415,16 +424,10 @@ int smf_gtp1_send_update_pdp_context_response(
 
     pkbuf = smf_gn_build_update_pdp_context_response(
                 h.type, sess, bearer);
-    if (!pkbuf) {
-        ogs_error("smf_gn_build_update_pdp_context_response() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(pkbuf, OGS_ERROR);
 
     rv = ogs_gtp1_xact_update_tx(xact, &h, pkbuf);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_gtp1_xact_update_tx() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, OGS_ERROR);
 
     rv = ogs_gtp_xact_commit(xact);
     ogs_expect(rv == OGS_OK);
@@ -447,16 +450,10 @@ int smf_gtp2_send_create_session_response(
     h.teid = sess->sgw_s5c_teid;
 
     pkbuf = smf_s5c_build_create_session_response(h.type, sess);
-    if (!pkbuf) {
-        ogs_error("smf_s5c_build_create_session_response() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(pkbuf, OGS_ERROR);
 
     rv = ogs_gtp_xact_update_tx(xact, &h, pkbuf);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_gtp_xact_update_tx() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, OGS_ERROR);
 
     rv = ogs_gtp_xact_commit(xact);
     ogs_expect(rv == OGS_OK);
@@ -482,16 +479,10 @@ int smf_gtp2_send_modify_bearer_response(
 
     pkbuf = smf_s5c_build_modify_bearer_response(
                 h.type, sess, req, sgw_relocation);
-    if (!pkbuf) {
-        ogs_error("smf_s5c_build_modify_bearer_response() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(pkbuf, OGS_ERROR);
 
     rv = ogs_gtp_xact_update_tx(xact, &h, pkbuf);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_gtp_xact_update_tx() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, OGS_ERROR);
 
     rv = ogs_gtp_xact_commit(xact);
     ogs_expect(rv == OGS_OK);
@@ -514,16 +505,10 @@ int smf_gtp2_send_delete_session_response(
     h.teid = sess->sgw_s5c_teid;
 
     pkbuf = smf_s5c_build_delete_session_response(h.type, sess);
-    if (!pkbuf) {
-        ogs_error("smf_s5c_build_delete_session_response() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(pkbuf, OGS_ERROR);
 
     rv = ogs_gtp_xact_update_tx(xact, &h, pkbuf);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_gtp_xact_update_tx() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, OGS_ERROR);
 
     rv = ogs_gtp_xact_commit(xact);
     ogs_expect(rv == OGS_OK);
@@ -552,17 +537,11 @@ int smf_gtp2_send_delete_bearer_request(
 
     pkbuf = smf_s5c_build_delete_bearer_request(
                 h.type, bearer, pti, cause_value);
-    if (!pkbuf) {
-        ogs_error("smf_s5c_build_delete_bearer_request() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(pkbuf, OGS_ERROR);
 
     xact = ogs_gtp_xact_local_create(
             sess->gnode, &h, pkbuf, bearer_timeout, bearer);
-    if (!xact) {
-        ogs_error("ogs_gtp_xact_local_create() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(xact, OGS_ERROR);
     xact->local_teid = sess->smf_n4_teid;
 
     rv = ogs_gtp_xact_commit(xact);
@@ -624,10 +603,7 @@ static void send_router_advertisement(smf_sess_t *sess, uint8_t *ip6_dst)
     if (ogs_gtp_self()->link_local_addr) {
         OGS_ADDR(ogs_gtp_self()->link_local_addr, ipstr);
         rv = ogs_ipsubnet(&src_ipsub, ipstr, NULL);
-        if (rv != OGS_OK) {
-            ogs_error("ogs_ipsubnet() failed");
-            return;
-        }
+        ogs_expect_or_return(rv == OGS_OK);
     } else {
         /* For the case of loopback used for GTPU link-local address is not
          * available, hence set the source IP to fe80::1
@@ -691,18 +667,20 @@ static void send_router_advertisement(smf_sess_t *sess, uint8_t *ip6_dst)
 
     ogs_list_for_each(&sess->pfcp.pdr_list, pdr) {
         if (pdr->src_if == OGS_PFCP_INTERFACE_CP_FUNCTION && pdr->gnode) {
-            ogs_gtp2_header_desc_t header_desc;
+            ogs_gtp2_header_t gtp_hdesc;
+            ogs_gtp2_extension_header_t ext_hdesc;
             ogs_pkbuf_t *newbuf = NULL;
 
-            memset(&header_desc, 0, sizeof(header_desc));
+            memset(&gtp_hdesc, 0, sizeof(gtp_hdesc));
+            memset(&ext_hdesc, 0, sizeof(ext_hdesc));
 
-            header_desc.type = OGS_GTPU_MSGTYPE_GPDU;
-            header_desc.teid = pdr->f_teid.teid;
+            gtp_hdesc.type = OGS_GTPU_MSGTYPE_GPDU;
+            gtp_hdesc.teid = pdr->f_teid.teid;
 
             newbuf = ogs_pkbuf_copy(pkbuf);
             ogs_assert(newbuf);
 
-            ogs_gtp2_send_user_plane(pdr->gnode, &header_desc, newbuf);
+            ogs_gtp2_send_user_plane(pdr->gnode, &gtp_hdesc, &ext_hdesc, newbuf);
 
             ogs_debug("      Send Router Advertisement");
             break;

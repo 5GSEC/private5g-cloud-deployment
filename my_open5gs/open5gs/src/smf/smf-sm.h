@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -31,6 +31,16 @@ void smf_state_final(ogs_fsm_t *s, smf_event_t *e);
 void smf_state_operational(ogs_fsm_t *s, smf_event_t *e);
 void smf_state_exception(ogs_fsm_t *s, smf_event_t *e);
 
+void smf_nf_fsm_init(ogs_sbi_nf_instance_t *nf_instance);
+void smf_nf_fsm_fini(ogs_sbi_nf_instance_t *nf_instance);
+
+void smf_nf_state_initial(ogs_fsm_t *s, smf_event_t *e);
+void smf_nf_state_final(ogs_fsm_t *s, smf_event_t *e);
+void smf_nf_state_will_register(ogs_fsm_t *s, smf_event_t *e);
+void smf_nf_state_registered(ogs_fsm_t *s, smf_event_t *e);
+void smf_nf_state_de_registered(ogs_fsm_t *s, smf_event_t *e);
+void smf_nf_state_exception(ogs_fsm_t *s, smf_event_t *e);
+
 void smf_gsm_state_initial(ogs_fsm_t *s, smf_event_t *e);
 void smf_gsm_state_final(ogs_fsm_t *s, smf_event_t *e);
 void smf_gsm_state_wait_epc_auth_initial(ogs_fsm_t *s, smf_event_t *e);
@@ -40,9 +50,7 @@ void smf_gsm_state_operational(ogs_fsm_t *s, smf_event_t *e);
 void smf_gsm_state_wait_pfcp_deletion(ogs_fsm_t *s, smf_event_t *e);
 void smf_gsm_state_wait_epc_auth_release(ogs_fsm_t *s, smf_event_t *e);
 void smf_gsm_state_wait_5gc_n1_n2_release(ogs_fsm_t *s, smf_event_t *e);
-void smf_gsm_state_5gc_n1_n2_reject(ogs_fsm_t *s, smf_event_t *e);
-void smf_gsm_state_5gc_session_will_deregister(ogs_fsm_t *s, smf_event_t *e);
-void smf_gsm_state_epc_session_will_release(ogs_fsm_t *s, smf_event_t *e);
+void smf_gsm_state_session_will_release(ogs_fsm_t *s, smf_event_t *e);
 void smf_gsm_state_exception(ogs_fsm_t *s, smf_event_t *e);
 
 void smf_pfcp_state_initial(ogs_fsm_t *s, smf_event_t *e);

@@ -20,7 +20,7 @@
 #ifndef OGS_TUN_H
 #define OGS_TUN_H
 
-#include "proto/ogs-proto.h"
+#include "ogs-core.h"
 
 #ifdef __cplusplus
 extern "C" {

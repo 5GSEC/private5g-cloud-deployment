@@ -18,22 +18,17 @@ OpenAPI_nf_instance_id_cond_t *OpenAPI_nf_instance_id_cond_create(
 
 void OpenAPI_nf_instance_id_cond_free(OpenAPI_nf_instance_id_cond_t *nf_instance_id_cond)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == nf_instance_id_cond) {
         return;
     }
-    if (nf_instance_id_cond->nf_instance_id) {
-        ogs_free(nf_instance_id_cond->nf_instance_id);
-        nf_instance_id_cond->nf_instance_id = NULL;
-    }
+    OpenAPI_lnode_t *node;
+    ogs_free(nf_instance_id_cond->nf_instance_id);
     ogs_free(nf_instance_id_cond);
 }
 
 cJSON *OpenAPI_nf_instance_id_cond_convertToJSON(OpenAPI_nf_instance_id_cond_t *nf_instance_id_cond)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (nf_instance_id_cond == NULL) {
         ogs_error("OpenAPI_nf_instance_id_cond_convertToJSON() failed [NfInstanceIdCond]");
@@ -41,10 +36,6 @@ cJSON *OpenAPI_nf_instance_id_cond_convertToJSON(OpenAPI_nf_instance_id_cond_t *
     }
 
     item = cJSON_CreateObject();
-    if (!nf_instance_id_cond->nf_instance_id) {
-        ogs_error("OpenAPI_nf_instance_id_cond_convertToJSON() failed [nf_instance_id]");
-        return NULL;
-    }
     if (cJSON_AddStringToObject(item, "nfInstanceId", nf_instance_id_cond->nf_instance_id) == NULL) {
         ogs_error("OpenAPI_nf_instance_id_cond_convertToJSON() failed [nf_instance_id]");
         goto end;
@@ -57,13 +48,12 @@ end:
 OpenAPI_nf_instance_id_cond_t *OpenAPI_nf_instance_id_cond_parseFromJSON(cJSON *nf_instance_id_condJSON)
 {
     OpenAPI_nf_instance_id_cond_t *nf_instance_id_cond_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *nf_instance_id = NULL;
-    nf_instance_id = cJSON_GetObjectItemCaseSensitive(nf_instance_id_condJSON, "nfInstanceId");
+    cJSON *nf_instance_id = cJSON_GetObjectItemCaseSensitive(nf_instance_id_condJSON, "nfInstanceId");
     if (!nf_instance_id) {
         ogs_error("OpenAPI_nf_instance_id_cond_parseFromJSON() failed [nf_instance_id]");
         goto end;
     }
+
     if (!cJSON_IsString(nf_instance_id)) {
         ogs_error("OpenAPI_nf_instance_id_cond_parseFromJSON() failed [nf_instance_id]");
         goto end;

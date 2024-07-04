@@ -13,7 +13,6 @@
 #include "../include/keyValuePair.h"
 #include "../include/binary.h"
 #include "data_ind.h"
-#include "dnn_snssai_information.h"
 #include "snssai.h"
 
 #ifdef __cplusplus
@@ -31,9 +30,6 @@ typedef struct OpenAPI_data_filter_s {
     OpenAPI_list_t *ue_ipv4s;
     OpenAPI_list_t *ue_ipv6s;
     OpenAPI_list_t *ue_macs;
-    bool is_any_ue_ind;
-    int any_ue_ind;
-    OpenAPI_list_t *dnn_snssai_infos;
 } OpenAPI_data_filter_t;
 
 OpenAPI_data_filter_t *OpenAPI_data_filter_create(
@@ -45,10 +41,7 @@ OpenAPI_data_filter_t *OpenAPI_data_filter_create(
     OpenAPI_list_t *app_ids,
     OpenAPI_list_t *ue_ipv4s,
     OpenAPI_list_t *ue_ipv6s,
-    OpenAPI_list_t *ue_macs,
-    bool is_any_ue_ind,
-    int any_ue_ind,
-    OpenAPI_list_t *dnn_snssai_infos
+    OpenAPI_list_t *ue_macs
 );
 void OpenAPI_data_filter_free(OpenAPI_data_filter_t *data_filter);
 OpenAPI_data_filter_t *OpenAPI_data_filter_parseFromJSON(cJSON *data_filterJSON);

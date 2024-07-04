@@ -17,9 +17,7 @@
 #include "notification_item.h"
 #include "operator_specific_data_container.h"
 #include "plmn_id_1.h"
-#include "slice_policy_data.h"
 #include "sm_policy_data.h"
-#include "snssai.h"
 #include "sponsor_connectivity_data.h"
 #include "ue_policy_set.h"
 #include "usage_mon_data.h"
@@ -47,8 +45,6 @@ typedef struct OpenAPI_policy_data_change_notification_s {
     OpenAPI_list_t *del_resources;
     char *notif_id;
     OpenAPI_list_t *reported_fragments;
-    struct OpenAPI_slice_policy_data_s *slice_policy_data;
-    struct OpenAPI_snssai_s *snssai;
 } OpenAPI_policy_data_change_notification_t;
 
 OpenAPI_policy_data_change_notification_t *OpenAPI_policy_data_change_notification_create(
@@ -68,9 +64,7 @@ OpenAPI_policy_data_change_notification_t *OpenAPI_policy_data_change_notificati
     OpenAPI_plmn_id_1_t *plmn_id,
     OpenAPI_list_t *del_resources,
     char *notif_id,
-    OpenAPI_list_t *reported_fragments,
-    OpenAPI_slice_policy_data_t *slice_policy_data,
-    OpenAPI_snssai_t *snssai
+    OpenAPI_list_t *reported_fragments
 );
 void OpenAPI_policy_data_change_notification_free(OpenAPI_policy_data_change_notification_t *policy_data_change_notification);
 OpenAPI_policy_data_change_notification_t *OpenAPI_policy_data_change_notification_parseFromJSON(cJSON *policy_data_change_notificationJSON);

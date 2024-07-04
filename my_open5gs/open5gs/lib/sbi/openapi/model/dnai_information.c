@@ -26,22 +26,17 @@ OpenAPI_dnai_information_t *OpenAPI_dnai_information_create(
 
 void OpenAPI_dnai_information_free(OpenAPI_dnai_information_t *dnai_information)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == dnai_information) {
         return;
     }
-    if (dnai_information->dnai) {
-        ogs_free(dnai_information->dnai);
-        dnai_information->dnai = NULL;
-    }
+    OpenAPI_lnode_t *node;
+    ogs_free(dnai_information->dnai);
     ogs_free(dnai_information);
 }
 
 cJSON *OpenAPI_dnai_information_convertToJSON(OpenAPI_dnai_information_t *dnai_information)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (dnai_information == NULL) {
         ogs_error("OpenAPI_dnai_information_convertToJSON() failed [DnaiInformation]");
@@ -49,10 +44,6 @@ cJSON *OpenAPI_dnai_information_convertToJSON(OpenAPI_dnai_information_t *dnai_i
     }
 
     item = cJSON_CreateObject();
-    if (!dnai_information->dnai) {
-        ogs_error("OpenAPI_dnai_information_convertToJSON() failed [dnai]");
-        return NULL;
-    }
     if (cJSON_AddStringToObject(item, "dnai", dnai_information->dnai) == NULL) {
         ogs_error("OpenAPI_dnai_information_convertToJSON() failed [dnai]");
         goto end;
@@ -79,21 +70,19 @@ end:
 OpenAPI_dnai_information_t *OpenAPI_dnai_information_parseFromJSON(cJSON *dnai_informationJSON)
 {
     OpenAPI_dnai_information_t *dnai_information_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *dnai = NULL;
-    cJSON *no_dnai_change_ind = NULL;
-    cJSON *no_local_psa_change_ind = NULL;
-    dnai = cJSON_GetObjectItemCaseSensitive(dnai_informationJSON, "dnai");
+    cJSON *dnai = cJSON_GetObjectItemCaseSensitive(dnai_informationJSON, "dnai");
     if (!dnai) {
         ogs_error("OpenAPI_dnai_information_parseFromJSON() failed [dnai]");
         goto end;
     }
+
     if (!cJSON_IsString(dnai)) {
         ogs_error("OpenAPI_dnai_information_parseFromJSON() failed [dnai]");
         goto end;
     }
 
-    no_dnai_change_ind = cJSON_GetObjectItemCaseSensitive(dnai_informationJSON, "noDnaiChangeInd");
+    cJSON *no_dnai_change_ind = cJSON_GetObjectItemCaseSensitive(dnai_informationJSON, "noDnaiChangeInd");
+
     if (no_dnai_change_ind) {
     if (!cJSON_IsBool(no_dnai_change_ind)) {
         ogs_error("OpenAPI_dnai_information_parseFromJSON() failed [no_dnai_change_ind]");
@@ -101,7 +90,8 @@ OpenAPI_dnai_information_t *OpenAPI_dnai_information_parseFromJSON(cJSON *dnai_i
     }
     }
 
-    no_local_psa_change_ind = cJSON_GetObjectItemCaseSensitive(dnai_informationJSON, "noLocalPsaChangeInd");
+    cJSON *no_local_psa_change_ind = cJSON_GetObjectItemCaseSensitive(dnai_informationJSON, "noLocalPsaChangeInd");
+
     if (no_local_psa_change_ind) {
     if (!cJSON_IsBool(no_local_psa_change_ind)) {
         ogs_error("OpenAPI_dnai_information_parseFromJSON() failed [no_local_psa_change_ind]");

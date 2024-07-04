@@ -32,18 +32,16 @@ OpenAPI_usage_threshold_rm_t *OpenAPI_usage_threshold_rm_create(
 
 void OpenAPI_usage_threshold_rm_free(OpenAPI_usage_threshold_rm_t *usage_threshold_rm)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == usage_threshold_rm) {
         return;
     }
+    OpenAPI_lnode_t *node;
     ogs_free(usage_threshold_rm);
 }
 
 cJSON *OpenAPI_usage_threshold_rm_convertToJSON(OpenAPI_usage_threshold_rm_t *usage_threshold_rm)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (usage_threshold_rm == NULL) {
         ogs_error("OpenAPI_usage_threshold_rm_convertToJSON() failed [UsageThresholdRm]");
@@ -86,12 +84,8 @@ end:
 OpenAPI_usage_threshold_rm_t *OpenAPI_usage_threshold_rm_parseFromJSON(cJSON *usage_threshold_rmJSON)
 {
     OpenAPI_usage_threshold_rm_t *usage_threshold_rm_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *duration = NULL;
-    cJSON *total_volume = NULL;
-    cJSON *downlink_volume = NULL;
-    cJSON *uplink_volume = NULL;
-    duration = cJSON_GetObjectItemCaseSensitive(usage_threshold_rmJSON, "duration");
+    cJSON *duration = cJSON_GetObjectItemCaseSensitive(usage_threshold_rmJSON, "duration");
+
     if (duration) {
     if (!cJSON_IsNumber(duration)) {
         ogs_error("OpenAPI_usage_threshold_rm_parseFromJSON() failed [duration]");
@@ -99,7 +93,8 @@ OpenAPI_usage_threshold_rm_t *OpenAPI_usage_threshold_rm_parseFromJSON(cJSON *us
     }
     }
 
-    total_volume = cJSON_GetObjectItemCaseSensitive(usage_threshold_rmJSON, "totalVolume");
+    cJSON *total_volume = cJSON_GetObjectItemCaseSensitive(usage_threshold_rmJSON, "totalVolume");
+
     if (total_volume) {
     if (!cJSON_IsNumber(total_volume)) {
         ogs_error("OpenAPI_usage_threshold_rm_parseFromJSON() failed [total_volume]");
@@ -107,7 +102,8 @@ OpenAPI_usage_threshold_rm_t *OpenAPI_usage_threshold_rm_parseFromJSON(cJSON *us
     }
     }
 
-    downlink_volume = cJSON_GetObjectItemCaseSensitive(usage_threshold_rmJSON, "downlinkVolume");
+    cJSON *downlink_volume = cJSON_GetObjectItemCaseSensitive(usage_threshold_rmJSON, "downlinkVolume");
+
     if (downlink_volume) {
     if (!cJSON_IsNumber(downlink_volume)) {
         ogs_error("OpenAPI_usage_threshold_rm_parseFromJSON() failed [downlink_volume]");
@@ -115,7 +111,8 @@ OpenAPI_usage_threshold_rm_t *OpenAPI_usage_threshold_rm_parseFromJSON(cJSON *us
     }
     }
 
-    uplink_volume = cJSON_GetObjectItemCaseSensitive(usage_threshold_rmJSON, "uplinkVolume");
+    cJSON *uplink_volume = cJSON_GetObjectItemCaseSensitive(usage_threshold_rmJSON, "uplinkVolume");
+
     if (uplink_volume) {
     if (!cJSON_IsNumber(uplink_volume)) {
         ogs_error("OpenAPI_usage_threshold_rm_parseFromJSON() failed [uplink_volume]");

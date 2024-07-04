@@ -20,18 +20,16 @@ OpenAPI_geographical_coordinates_t *OpenAPI_geographical_coordinates_create(
 
 void OpenAPI_geographical_coordinates_free(OpenAPI_geographical_coordinates_t *geographical_coordinates)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == geographical_coordinates) {
         return;
     }
+    OpenAPI_lnode_t *node;
     ogs_free(geographical_coordinates);
 }
 
 cJSON *OpenAPI_geographical_coordinates_convertToJSON(OpenAPI_geographical_coordinates_t *geographical_coordinates)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (geographical_coordinates == NULL) {
         ogs_error("OpenAPI_geographical_coordinates_convertToJSON() failed [GeographicalCoordinates]");
@@ -56,24 +54,23 @@ end:
 OpenAPI_geographical_coordinates_t *OpenAPI_geographical_coordinates_parseFromJSON(cJSON *geographical_coordinatesJSON)
 {
     OpenAPI_geographical_coordinates_t *geographical_coordinates_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *lon = NULL;
-    cJSON *lat = NULL;
-    lon = cJSON_GetObjectItemCaseSensitive(geographical_coordinatesJSON, "lon");
+    cJSON *lon = cJSON_GetObjectItemCaseSensitive(geographical_coordinatesJSON, "lon");
     if (!lon) {
         ogs_error("OpenAPI_geographical_coordinates_parseFromJSON() failed [lon]");
         goto end;
     }
+
     if (!cJSON_IsNumber(lon)) {
         ogs_error("OpenAPI_geographical_coordinates_parseFromJSON() failed [lon]");
         goto end;
     }
 
-    lat = cJSON_GetObjectItemCaseSensitive(geographical_coordinatesJSON, "lat");
+    cJSON *lat = cJSON_GetObjectItemCaseSensitive(geographical_coordinatesJSON, "lat");
     if (!lat) {
         ogs_error("OpenAPI_geographical_coordinates_parseFromJSON() failed [lat]");
         goto end;
     }
+
     if (!cJSON_IsNumber(lat)) {
         ogs_error("OpenAPI_geographical_coordinates_parseFromJSON() failed [lat]");
         goto end;

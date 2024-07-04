@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -157,6 +157,7 @@ void sgwc_sxa_handle_session_establishment_response(
 
     ogs_debug("Session Establishment Response");
 
+    ogs_assert(sess);
     ogs_assert(pfcp_xact);
     ogs_assert(pfcp_rsp);
     ogs_assert(recv_message);
@@ -170,11 +171,6 @@ void sgwc_sxa_handle_session_establishment_response(
     ogs_pfcp_xact_commit(pfcp_xact);
 
     cause_value = OGS_GTP2_CAUSE_REQUEST_ACCEPTED;
-
-    if (!sess) {
-        ogs_error("No Context");
-        cause_value = OGS_GTP2_CAUSE_CONTEXT_NOT_FOUND;
-    }
 
     if (pfcp_rsp->up_f_seid.presence == 0) {
         ogs_error("No UP F-SEID");
@@ -376,18 +372,12 @@ void sgwc_sxa_handle_session_establishment_response(
         }
 
         pkbuf = ogs_gtp2_build_msg(&send_message);
-        if (!pkbuf) {
-            ogs_error("ogs_gtp2_build_msg() failed");
-            return;
-        }
+        ogs_expect_or_return(pkbuf);
 
         ogs_assert(sess->gnode);
         s5c_xact = ogs_gtp_xact_local_create(
                 sess->gnode, &send_message.h, pkbuf, sess_timeout, sess);
-        if (!s5c_xact) {
-            ogs_error("ogs_gtp_xact_local_create() failed");
-            return;
-        }
+        ogs_expect_or_return(s5c_xact);
         s5c_xact->local_teid = sess->sgw_s5c_teid;
 
         s5c_xact->modify_action = OGS_GTP_MODIFY_IN_PATH_SWITCH_REQUEST;
@@ -420,18 +410,12 @@ void sgwc_sxa_handle_session_establishment_response(
         }
 
         pkbuf = ogs_gtp2_build_msg(recv_message);
-        if (!pkbuf) {
-            ogs_error("ogs_gtp2_build_msg() failed");
-            return;
-        }
+        ogs_expect_or_return(pkbuf);
 
         ogs_assert(sess->gnode);
         s5c_xact = ogs_gtp_xact_local_create(
                 sess->gnode, &recv_message->h, pkbuf, sess_timeout, sess);
-        if (!s5c_xact) {
-            ogs_error("ogs_gtp_xact_local_create() failed");
-            return;
-        }
+        ogs_expect_or_return(s5c_xact);
         s5c_xact->local_teid = sess->sgw_s5c_teid;
     }
 
@@ -465,6 +449,7 @@ void sgwc_sxa_handle_session_modification_response(
 
     ogs_debug("Session Modification Response");
 
+    ogs_assert(sess);
     ogs_assert(pfcp_xact);
     ogs_assert(pfcp_rsp);
 
@@ -474,31 +459,12 @@ void sgwc_sxa_handle_session_modification_response(
     cause_value = OGS_GTP2_CAUSE_REQUEST_ACCEPTED;
 
     if (flags & OGS_PFCP_MODIFY_SESSION) {
-        if (!sess) {
-            ogs_error("No Context");
-
-            sess = pfcp_xact->data;
-            ogs_assert(sess);
-
-            cause_value = OGS_GTP2_CAUSE_CONTEXT_NOT_FOUND;
-        }
-
         sgwc_ue = sess->sgwc_ue;
         ogs_assert(sgwc_ue);
 
     } else {
         bearer = pfcp_xact->data;
         ogs_assert(bearer);
-
-        if (!sess) {
-            ogs_error("No Context");
-
-            sess = bearer->sess;
-            ogs_assert(sess);
-
-            cause_value = OGS_GTP2_CAUSE_CONTEXT_NOT_FOUND;
-        }
-
         sgwc_ue = bearer->sgwc_ue;
         ogs_assert(sgwc_ue);
     }
@@ -697,16 +663,10 @@ void sgwc_sxa_handle_session_modification_response(
                 send_message.h.teid = sgwc_ue->mme_s11_teid;
 
                 pkbuf = ogs_gtp2_build_msg(&send_message);
-                if (!pkbuf) {
-                    ogs_error("ogs_gtp2_build_msg() failed");
-                    return;
-                }
+                ogs_expect_or_return(pkbuf);
 
                 rv = ogs_gtp_xact_update_tx(s11_xact, &send_message.h, pkbuf);
-                if (rv != OGS_OK) {
-                    ogs_error("ogs_gtp_xact_update_tx() failed");
-                    return;
-                }
+                ogs_expect_or_return(rv == OGS_OK);
 
                 rv = ogs_gtp_xact_commit(s11_xact);
                 ogs_expect(rv == OGS_OK);
@@ -723,16 +683,10 @@ void sgwc_sxa_handle_session_modification_response(
                 recv_message->h.teid = sess->pgw_s5c_teid;
 
                 pkbuf = ogs_gtp2_build_msg(recv_message);
-                if (!pkbuf) {
-                    ogs_error("ogs_gtp2_build_msg() failed");
-                    return;
-                }
+                ogs_expect_or_return(pkbuf);
 
                 rv = ogs_gtp_xact_update_tx(s5c_xact, &recv_message->h, pkbuf);
-                if (rv != OGS_OK) {
-                    ogs_error("ogs_gtp_xact_update_tx() failed");
-                    return;
-                }
+                ogs_expect_or_return(rv == OGS_OK);
 
                 rv = ogs_gtp_xact_commit(s5c_xact);
                 ogs_expect(rv == OGS_OK);
@@ -772,19 +726,13 @@ void sgwc_sxa_handle_session_modification_response(
             recv_message->h.teid = sgwc_ue->mme_s11_teid;
 
             pkbuf = ogs_gtp2_build_msg(recv_message);
-            if (!pkbuf) {
-                ogs_error("ogs_gtp2_build_msg() failed");
-                return;
-            }
+            ogs_expect_or_return(pkbuf);
 
             ogs_assert(sgwc_ue->gnode);
             ogs_assert(bearer);
             s11_xact = ogs_gtp_xact_local_create(sgwc_ue->gnode,
                     &recv_message->h, pkbuf, bearer_timeout, bearer);
-            if (!s11_xact) {
-                ogs_error("ogs_gtp_xact_local_create() failed");
-                return;
-            }
+            ogs_expect_or_return(s11_xact);
             s11_xact->local_teid = sgwc_ue->sgw_s11_teid;
 
             ogs_gtp_xact_associate(s5c_xact, s11_xact);
@@ -839,16 +787,10 @@ void sgwc_sxa_handle_session_modification_response(
             recv_message->h.teid = sess->pgw_s5c_teid;
 
             pkbuf = ogs_gtp2_build_msg(recv_message);
-            if (!pkbuf) {
-                ogs_error("ogs_gtp2_build_msg() failed");
-                return;
-            }
+            ogs_expect_or_return(pkbuf);
 
             rv = ogs_gtp_xact_update_tx(s5c_xact, &recv_message->h, pkbuf);
-            if (rv != OGS_OK) {
-                ogs_error("ogs_gtp_xact_update_tx() failed");
-                return;
-            }
+            ogs_expect_or_return(rv == OGS_OK);
 
             rv = ogs_gtp_xact_commit(s5c_xact);
             ogs_expect(rv == OGS_OK);
@@ -965,16 +907,10 @@ void sgwc_sxa_handle_session_modification_response(
                 send_message.h.teid = sgwc_ue->mme_s11_teid;
 
                 pkbuf = ogs_gtp2_build_msg(&send_message);
-                if (!pkbuf) {
-                    ogs_error("ogs_gtp2_build_msg() failed");
-                    return;
-                }
+                ogs_expect_or_return(pkbuf);
 
                 rv = ogs_gtp_xact_update_tx(s11_xact, &send_message.h, pkbuf);
-                if (rv != OGS_OK) {
-                    ogs_error("ogs_gtp_xact_update_tx() failed");
-                    return;
-                }
+                ogs_expect_or_return(rv == OGS_OK);
 
                 rv = ogs_gtp_xact_commit(s11_xact);
                 ogs_expect(rv == OGS_OK);
@@ -1049,16 +985,10 @@ void sgwc_sxa_handle_session_modification_response(
             recv_message->h.teid = sgwc_ue->mme_s11_teid;
 
             pkbuf = ogs_gtp2_build_msg(recv_message);
-            if (!pkbuf) {
-                ogs_error("ogs_gtp2_build_msg() failed");
-                return;
-            }
+            ogs_expect_or_return(pkbuf);
 
             rv = ogs_gtp_xact_update_tx(s11_xact, &recv_message->h, pkbuf);
-            if (rv != OGS_OK) {
-                ogs_error("ogs_gtp_xact_update_tx() failed");
-                return;
-            }
+            ogs_expect_or_return(rv == OGS_OK);
 
             rv = ogs_gtp_xact_commit(s11_xact);
             ogs_expect(rv == OGS_OK);
@@ -1086,19 +1016,13 @@ void sgwc_sxa_handle_session_modification_response(
                     recv_message->h.teid = sess->pgw_s5c_teid;
 
                     pkbuf = ogs_gtp2_build_msg(recv_message);
-                    if (!pkbuf) {
-                        ogs_error("ogs_gtp2_build_msg() failed");
-                        return;
-                    }
+                    ogs_expect_or_return(pkbuf);
 
                     ogs_assert(sess->gnode);
                     s5c_xact = ogs_gtp_xact_local_create(
                             sess->gnode, &recv_message->h, pkbuf,
                             sess_timeout, sess);
-                    if (!s5c_xact) {
-                        ogs_error("ogs_gtp_xact_local_create() failed");
-                        return;
-                    }
+                    ogs_expect_or_return(s5c_xact);
                     s5c_xact->local_teid = sess->sgw_s5c_teid;
 
                     ogs_gtp_xact_associate(s11_xact, s5c_xact);
@@ -1171,17 +1095,11 @@ void sgwc_sxa_handle_session_modification_response(
                     send_message.h.teid = sgwc_ue->mme_s11_teid;
 
                     pkbuf = ogs_gtp2_build_msg(&send_message);
-                    if (!pkbuf) {
-                        ogs_error("ogs_gtp2_build_msg() failed");
-                        return;
-                    }
+                    ogs_expect_or_return(pkbuf);
 
                     rv = ogs_gtp_xact_update_tx(
                             s11_xact, &send_message.h, pkbuf);
-                    if (rv != OGS_OK) {
-                        ogs_error("ogs_gtp_xact_update_tx() failed");
-                        return;
-                    }
+                    ogs_expect_or_return(rv == OGS_OK);
 
                     rv = ogs_gtp_xact_commit(s11_xact);
                     ogs_expect(rv == OGS_OK);
@@ -1236,16 +1154,10 @@ void sgwc_sxa_handle_session_modification_response(
                 send_message.h.teid = sgwc_ue->mme_s11_teid;
 
                 pkbuf = ogs_gtp2_build_msg(&send_message);
-                if (!pkbuf) {
-                    ogs_error("ogs_gtp2_build_msg() failed");
-                    return;
-                }
+                ogs_expect_or_return(pkbuf);
 
                 rv = ogs_gtp_xact_update_tx(s11_xact, &send_message.h, pkbuf);
-                if (rv != OGS_OK) {
-                    ogs_error("ogs_gtp_xact_update_tx() failed");
-                    return;
-                }
+                ogs_expect_or_return(rv == OGS_OK);
 
                 rv = ogs_gtp_xact_commit(s11_xact);
                 ogs_expect(rv == OGS_OK);
@@ -1273,15 +1185,11 @@ void sgwc_sxa_handle_session_deletion_response(
 
     ogs_debug("Session Deletion Response");
 
+    ogs_assert(sess);
     ogs_assert(pfcp_xact);
     ogs_assert(pfcp_rsp);
 
     cause_value = OGS_GTP2_CAUSE_REQUEST_ACCEPTED;
-
-    if (!sess) {
-        ogs_error("No Context");
-        cause_value = OGS_GTP2_CAUSE_CONTEXT_NOT_FOUND;
-    }
 
     if (pfcp_rsp->cause.presence) {
         if (pfcp_rsp->cause.u8 != OGS_PFCP_CAUSE_REQUEST_ACCEPTED) {
@@ -1297,7 +1205,10 @@ void sgwc_sxa_handle_session_deletion_response(
 
     ogs_pfcp_xact_commit(pfcp_xact);
 
-    if (!gtp_message) goto cleanup;
+    if (!gtp_message) {
+        ogs_error("No GTP Message");
+        goto cleanup;
+    }
 
     if (gtp_message->h.type == OGS_GTP2_DELETE_SESSION_REQUEST_TYPE) {
         /*
@@ -1361,26 +1272,17 @@ void sgwc_sxa_handle_session_deletion_response(
         gtp_message->h.teid = teid;
 
         pkbuf = ogs_gtp2_build_msg(gtp_message);
-        if (!pkbuf) {
-            ogs_error("ogs_gtp2_build_msg() failed");
-            return;
-        }
+        ogs_expect_or_return(pkbuf);
 
         rv = ogs_gtp_xact_update_tx(gtp_xact, &gtp_message->h, pkbuf);
-        if (rv != OGS_OK) {
-            ogs_error("ogs_gtp_xact_update_tx() failed");
-            return;
-        }
+        ogs_expect_or_return(rv == OGS_OK);
 
         rv = ogs_gtp_xact_commit(gtp_xact);
         ogs_expect(rv == OGS_OK);
     }
 
 cleanup:
-    if (sgwc_sess_cycle(sess))
-        sgwc_sess_remove(sess);
-    else
-        ogs_error("Session has already been removed");
+    sgwc_sess_remove(sess);
 }
 
 void sgwc_sxa_handle_session_report_request(
@@ -1390,7 +1292,6 @@ void sgwc_sxa_handle_session_report_request(
     sgwc_ue_t *sgwc_ue = NULL;
     sgwc_bearer_t *bearer = NULL;
     sgwc_tunnel_t *tunnel = NULL;
-    ogs_pfcp_far_t *far = NULL;
 
     ogs_pfcp_report_type_t report_type;
     uint8_t cause_value = 0;
@@ -1398,20 +1299,11 @@ void sgwc_sxa_handle_session_report_request(
 
     ogs_debug("Session Report Request");
 
+    ogs_assert(sess);
     ogs_assert(pfcp_xact);
     ogs_assert(pfcp_req);
 
     cause_value = OGS_GTP2_CAUSE_REQUEST_ACCEPTED;
-
-    /************************
-     * Check Session Context
-     *
-     * - Session could be deleted before a message is received from SMF.
-     ************************/
-    if (!sess) {
-        ogs_error("No Context");
-        cause_value = OGS_PFCP_CAUSE_SESSION_CONTEXT_NOT_FOUND;
-    }
 
     if (pfcp_req->report_type.presence == 0) {
         ogs_error("No Report Type");
@@ -1471,44 +1363,22 @@ void sgwc_sxa_handle_session_report_request(
         ogs_error("Cannot find the PDR-ID[%d]", pdr_id);
 
     } else if (report_type.error_indication_report) {
-        far = ogs_pfcp_far_find_by_pfcp_session_report(
-                &sess->pfcp, &pfcp_req->error_indication_report);
-        if (far) {
-            tunnel = sgwc_tunnel_find_by_far_id(sess, far->id);
-            ogs_assert(tunnel);
-            bearer = tunnel->bearer;
-            ogs_assert(bearer);
-            if (far->dst_if == OGS_PFCP_INTERFACE_ACCESS) {
-                ogs_warn("[%s] Error Indication from eNB", sgwc_ue->imsi_bcd);
-                ogs_list_for_each(&sgwc_ue->sess_list, sess) {
-                    ogs_assert(OGS_OK ==
-                        sgwc_pfcp_send_session_modification_request(sess,
-                    /* We only use the `assoc_xact` parameter temporarily here
-                     * to pass the `bearer` context. */
-                            (ogs_gtp_xact_t *)bearer,
-                            NULL,
-                            OGS_PFCP_MODIFY_DL_ONLY|OGS_PFCP_MODIFY_DEACTIVATE|
-                            OGS_PFCP_MODIFY_ERROR_INDICATION));
-                }
-            } else if (far->dst_if == OGS_PFCP_INTERFACE_CORE) {
-                if (sgwc_default_bearer_in_sess(sess) == bearer) {
-                    ogs_error("[%s] Error Indication(Default Bearer) from SMF",
-                                sgwc_ue->imsi_bcd);
-                    ogs_assert(OGS_OK ==
-                        sgwc_pfcp_send_session_deletion_request(
-                            sess, NULL, NULL));
-                } else {
-                    ogs_error("[%s] Error Indication(Dedicated Bearer) "
-                            "from SMF", sgwc_ue->imsi_bcd);
-                    ogs_assert(OGS_OK ==
-                        sgwc_pfcp_send_bearer_modification_request(
-                            bearer, NULL, NULL, OGS_PFCP_MODIFY_REMOVE));
-                }
-            } else {
-                ogs_error("Error Indication Ignored for Indirect Tunnel");
-            }
-        } else
-            ogs_error("Cannot find Session in Error Indication");
+        bearer = sgwc_bearer_find_by_error_indication_report(
+                sess, &pfcp_req->error_indication_report);
+
+        if (!bearer) return;
+
+        ogs_list_for_each(&sgwc_ue->sess_list, sess) {
+
+            ogs_assert(OGS_OK ==
+                sgwc_pfcp_send_session_modification_request(sess,
+                /* We only use the `assoc_xact` parameter temporarily here
+                 * to pass the `bearer` context. */
+                    (ogs_gtp_xact_t *)bearer,
+                    NULL,
+                    OGS_PFCP_MODIFY_DL_ONLY|OGS_PFCP_MODIFY_DEACTIVATE|
+                    OGS_PFCP_MODIFY_ERROR_INDICATION));
+        }
 
     } else {
         ogs_error("Not supported Report Type[%d]", report_type.value);

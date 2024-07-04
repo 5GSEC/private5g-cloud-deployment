@@ -32,10 +32,10 @@ typedef struct ogs_cluster_s {
     unsigned char *buffer;
     unsigned int size;
 
-    unsigned int reference_count;
+    unsigned int ref;
 } ogs_cluster_t;
 
-#if OGS_USE_TALLOC == 1
+#if OGS_USE_TALLOC
 typedef void ogs_pkbuf_pool_t;
 #else
 typedef struct ogs_pkbuf_pool_s ogs_pkbuf_pool_t;
@@ -69,7 +69,6 @@ typedef struct ogs_pkbuf_config_s {
     int cluster_1024_pool;
     int cluster_2048_pool;
     int cluster_8192_pool;
-    int cluster_32768_pool;
     int cluster_big_pool;
 } ogs_pkbuf_config_t;
 

@@ -715,7 +715,7 @@ class Edit extends Component {
 
     return (
       <Form 
-        visible={isLoading ? false : visible}
+        visible={visible}
         title={(action === 'update') ? 'Edit Profile' : 'Create Profile'}
         schema={this.state.schema}
         uiSchema={this.state.uiSchema}

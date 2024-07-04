@@ -26,8 +26,6 @@ typedef struct OpenAPI_nssai_s {
     OpenAPI_list_t *single_nssais;
     char *provisioning_time;
     OpenAPI_list_t* additional_snssai_data;
-    bool is_suppress_nssrg_ind;
-    int suppress_nssrg_ind;
 } OpenAPI_nssai_t;
 
 OpenAPI_nssai_t *OpenAPI_nssai_create(
@@ -35,9 +33,7 @@ OpenAPI_nssai_t *OpenAPI_nssai_create(
     OpenAPI_list_t *default_single_nssais,
     OpenAPI_list_t *single_nssais,
     char *provisioning_time,
-    OpenAPI_list_t* additional_snssai_data,
-    bool is_suppress_nssrg_ind,
-    int suppress_nssrg_ind
+    OpenAPI_list_t* additional_snssai_data
 );
 void OpenAPI_nssai_free(OpenAPI_nssai_t *nssai);
 OpenAPI_nssai_t *OpenAPI_nssai_parseFromJSON(cJSON *nssaiJSON);

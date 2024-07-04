@@ -22,7 +22,6 @@
 
 abts_suite *test_qos_flow(abts_suite *suite);
 abts_suite *test_session(abts_suite *suite);
-abts_suite *test_simple(abts_suite *suite);
 abts_suite *test_af(abts_suite *suite);
 abts_suite *test_video(abts_suite *suite);
 
@@ -31,7 +30,6 @@ const struct testlist {
 } alltests[] = {
     {test_qos_flow},
     {test_session},
-    {test_simple},
     {test_af},
     {test_video},
     {NULL},

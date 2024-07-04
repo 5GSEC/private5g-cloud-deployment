@@ -28,12 +28,6 @@
 extern "C" {
 #endif
 
-typedef enum {
-    OGS_SBI_TLS_ENABLED_AUTO = 0,
-    OGS_SBI_TLS_ENABLED_YES,
-    OGS_SBI_TLS_ENABLED_NO,
-} ogs_sbi_tls_enabled_mode_e;
-
 typedef struct ogs_app_context_s {
     const char *version;
 
@@ -41,8 +35,6 @@ typedef struct ogs_app_context_s {
     void *document;
 
     const char *db_uri;
-    int use_mongodb_change_stream;
-
     struct {
         const char *file;
         const char *level;
@@ -94,12 +86,24 @@ typedef struct ogs_app_context_s {
     } sockopt;
 
     struct {
+        int heartbit_interval;
+        int sack_delay;
+        int rto_initial;
+        int rto_min;
+        int rto_max;
+        int max_num_of_ostreams;
+        int max_num_of_istreams;
+        int max_attempts;
+        int max_initial_timeout;
+    } sctp;
+
+    struct {
         int udp_port;
     } usrsctp;
 
     struct {
         uint64_t ue;
-        uint64_t peer;
+        uint64_t gnb;
         uint64_t gtp_peer;
     } max;
 
@@ -120,10 +124,8 @@ typedef struct ogs_app_context_s {
         uint64_t socket;
         uint64_t subscription;
         uint64_t xact;
-        uint64_t stream;
 
         uint64_t nf;
-        uint64_t gtp_node;
 
         uint64_t csmap;
 
@@ -177,17 +179,6 @@ typedef struct ogs_app_context_s {
     struct metrics {
         uint64_t max_specs;
     } metrics;
-
-    struct {
-        struct {
-            bool no_tls;
-            bool no_verify;
-            const char *cacert;
-            const char *cert;
-            const char *key;
-        } server, client;
-    } sbi;
-
 } ogs_app_context_t;
 
 int ogs_app_context_init(void);

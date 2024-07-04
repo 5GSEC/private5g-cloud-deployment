@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -253,8 +253,8 @@ uint8_t smf_s5c_handle_create_session_request(
     ogs_assert(OGS_PFCP_CAUSE_REQUEST_ACCEPTED == smf_sess_set_ue_ip(sess));
 
     ogs_info("UE IMSI[%s] APN[%s] IPv4[%s] IPv6[%s]",
-        smf_ue->imsi_bcd,
-        sess->session.name,
+	    smf_ue->imsi_bcd,
+	    sess->session.name,
         sess->ipv4 ? OGS_INET_NTOP(&sess->ipv4->addr, buf1) : "",
         sess->ipv6 ? OGS_INET6_NTOP(&sess->ipv6->addr, buf2) : "");
 
@@ -347,13 +347,8 @@ uint8_t smf_s5c_handle_create_session_request(
         sess->session.ambr.uplink = be32toh(ambr->uplink) * 1000;
     }
 
-    /* ePCO */
-    if (req->extended_protocol_configuration_options.presence) {
-        OGS_TLV_STORE_DATA(&sess->gtp.ue_epco,
-                &req->extended_protocol_configuration_options);
-
     /* PCO */
-    } else if (req->protocol_configuration_options.presence) {
+    if (req->protocol_configuration_options.presence) {
         OGS_TLV_STORE_DATA(&sess->gtp.ue_pco,
                 &req->protocol_configuration_options);
     }
@@ -413,34 +408,6 @@ uint8_t smf_s5c_handle_delete_session_request(
             ogs_error("No S6b Diameter Peer");
             return OGS_GTP2_CAUSE_REMOTE_PEER_NOT_RESPONDING;
         }
-    }
-
-    /* PCO
-     * 3GPP TS 29.274 version 10.5.0, Table 7.2.9.1-1
-     * If the UE includes the PCO IE, then the MME/SGSN shall copy
-     * the content of this IE transparently from the PCO IE included by the UE.
-     * If SGW receives the PCO IE, SGW shall forward it to PGW.
-     */
-    if (req->protocol_configuration_options.presence) {
-        OGS_TLV_STORE_DATA(&sess->gtp.ue_pco,
-                &req->protocol_configuration_options);
-    } else {
-        /*
-         * Clear contents to reflect whether PCO IE was included or not as part
-         * of session deletion procedure
-         */
-        OGS_TLV_CLEAR_DATA(&sess->gtp.ue_pco);
-    }
-
-    if (req->extended_protocol_configuration_options.presence) {
-        OGS_TLV_STORE_DATA(&sess->gtp.ue_epco,
-                &req->extended_protocol_configuration_options);
-    } else {
-        /*
-         * Clear contents to reflect whether PCO IE was included or not as part
-         * of session deletion procedure
-         */
-        OGS_TLV_CLEAR_DATA(&sess->gtp.ue_epco);
     }
 
     ogs_debug("    SGW_S5C_TEID[0x%x] SMF_N4_TEID[0x%x]",
@@ -724,7 +691,7 @@ void smf_s5c_handle_create_bearer_response(
     ogs_assert(cause);
     cause_value = cause->value;
     if (cause_value != OGS_GTP2_CAUSE_REQUEST_ACCEPTED) {
-        ogs_error("GTP Bearer Cause [VALUE:%d]", cause_value);
+        ogs_error("GTP Failed [Bearer-CAUSE:%d]", cause_value);
         ogs_assert(OGS_OK ==
             smf_epc_pfcp_send_one_bearer_modification_request(
                 bearer, NULL, OGS_PFCP_MODIFY_REMOVE,
@@ -737,7 +704,7 @@ void smf_s5c_handle_create_bearer_response(
     ogs_assert(cause);
     cause_value = cause->value;
     if (cause_value != OGS_GTP2_CAUSE_REQUEST_ACCEPTED) {
-        ogs_error("GTP Cause [Value:%d]", cause_value);
+        ogs_error("GTP Failed [CAUSE:%d]", cause_value);
         ogs_assert(OGS_OK ==
             smf_epc_pfcp_send_one_bearer_modification_request(
                 bearer, NULL, OGS_PFCP_MODIFY_REMOVE,
@@ -755,10 +722,7 @@ void smf_s5c_handle_create_bearer_response(
     /* Find the Bearer by PGW-S5U-TEID */
     ogs_assert(pgw_s5u_teid);
     bearer = smf_bearer_find_by_pgw_s5u_teid(sess, be32toh(pgw_s5u_teid->teid));
-    if (!bearer) {
-        ogs_error("smf_bearer_find_by_pgw_s5u_teid() failed");
-        return;
-    }
+    ogs_expect_or_return(bearer);
 
     /* Set EBI */
     bearer->ebi = rsp->bearer_contexts.eps_bearer_id.u8;
@@ -856,7 +820,7 @@ void smf_s5c_handle_update_bearer_response(
     ogs_assert(cause);
     cause_value = cause->value;
     if (cause_value != OGS_GTP2_CAUSE_REQUEST_ACCEPTED) {
-        ogs_error("GTP Bearer Cause [VALUE:%d]", cause_value);
+        ogs_error("GTP Failed [Bearer-CAUSE:%d]", cause_value);
         return;
     }
 
@@ -864,7 +828,7 @@ void smf_s5c_handle_update_bearer_response(
     ogs_assert(cause);
     cause_value = cause->value;
     if (cause_value != OGS_GTP2_CAUSE_REQUEST_ACCEPTED) {
-        ogs_error("GTP Cause [Value:%d]", cause_value);
+        ogs_error("GTP Failed [CAUSE:%d]", cause_value);
         return;
     }
 
@@ -944,7 +908,7 @@ bool smf_s5c_handle_delete_bearer_response(
             cause_value = cause->value;
             if (cause->value == OGS_GTP2_CAUSE_REQUEST_ACCEPTED) {
             } else {
-                ogs_error("GTP Cause [Value:%d]", cause_value);
+                ogs_error("GTP Failed [CAUSE:%d]", cause_value);
             }
         } else {
             ogs_error("No Cause");
@@ -984,13 +948,13 @@ bool smf_s5c_handle_delete_bearer_response(
 
                 if (cause_value == OGS_GTP2_CAUSE_REQUEST_ACCEPTED) {
                 } else {
-                    ogs_error("GTP Cause [Value:%d]", cause_value);
+                    ogs_error("GTP Failed [CAUSE:%d]", cause_value);
                 }
             } else {
                 ogs_error("No Cause");
             }
         } else {
-            ogs_error("GTP Cause [Value:%d]", cause_value);
+            ogs_error("GTP Failed [CAUSE:%d]", cause_value);
         }
     } else {
         ogs_error("No Cause");
@@ -1399,16 +1363,10 @@ void smf_s5c_handle_bearer_resource_command(
         pkbuf = smf_s5c_build_update_bearer_request(
                 h.type, bearer, cmd->procedure_transaction_id.u8,
                 tft_update ? &tft : NULL, qos_update);
-        if (!pkbuf) {
-            ogs_error("smf_s5c_build_update_bearer_request() failed");
-            return;
-        }
+        ogs_expect_or_return(pkbuf);
 
         rv = ogs_gtp_xact_update_tx(xact, &h, pkbuf);
-        if (rv != OGS_OK) {
-            ogs_error("ogs_gtp_xact_update_tx() failed");
-            return;
-        }
+        ogs_expect_or_return(rv == OGS_OK);
 
         if (tft_update)
             xact->update_flags |= OGS_GTP_MODIFY_TFT_UPDATE;

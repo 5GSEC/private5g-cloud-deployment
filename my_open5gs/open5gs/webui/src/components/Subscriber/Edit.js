@@ -808,7 +808,7 @@ class Edit extends Component {
 
     return (
       <Form 
-        visible={isLoading ? false : visible}
+        visible={visible}
         title={(action === 'update') ? 'Edit Subscriber' : 'Create Subscriber'}
         schema={this.state.schema}
         uiSchema={this.state.uiSchema}

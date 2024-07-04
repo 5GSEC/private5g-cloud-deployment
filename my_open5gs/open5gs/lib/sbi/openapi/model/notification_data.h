@@ -16,7 +16,6 @@
 #include "condition_event_type.h"
 #include "nf_profile.h"
 #include "notification_event_type.h"
-#include "subscription_context.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,7 +28,6 @@ typedef struct OpenAPI_notification_data_s {
     struct OpenAPI_nf_profile_s *nf_profile;
     OpenAPI_list_t *profile_changes;
     OpenAPI_condition_event_type_e condition_event;
-    struct OpenAPI_subscription_context_s *subscription_context;
 } OpenAPI_notification_data_t;
 
 OpenAPI_notification_data_t *OpenAPI_notification_data_create(
@@ -37,8 +35,7 @@ OpenAPI_notification_data_t *OpenAPI_notification_data_create(
     char *nf_instance_uri,
     OpenAPI_nf_profile_t *nf_profile,
     OpenAPI_list_t *profile_changes,
-    OpenAPI_condition_event_type_e condition_event,
-    OpenAPI_subscription_context_t *subscription_context
+    OpenAPI_condition_event_type_e condition_event
 );
 void OpenAPI_notification_data_free(OpenAPI_notification_data_t *notification_data);
 OpenAPI_notification_data_t *OpenAPI_notification_data_parseFromJSON(cJSON *notification_dataJSON);

@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2022 by Sukchan Lee <acetcom@gmail.com>
+# Copyright (C) 2019,2020 by Sukchan Lee <acetcom@gmail.com>
 
 # This file is part of Open5GS.
 
@@ -18,14 +18,17 @@
 libudm_sources = files('''
     context.c
     event.c
+    timer.c
 
+    nnrf-build.c
     nnrf-handler.c
+    nf-sm.c
+
     nudm-handler.c
 
     nudr-build.c
     nudr-handler.c
     ue-sm.c
-    sess-sm.c
 
     sbi-path.c
     udm-sm.c
@@ -35,12 +38,16 @@ libudm_sources = files('''
 
 libudm = static_library('udm',
     sources : libudm_sources,
-    dependencies : libsbi_dep,
+    dependencies : [libapp_dep,
+                    libcrypt_dep,
+                    libsbi_dep],
     install : false)
 
 libudm_dep = declare_dependency(
     link_with : libudm,
-    dependencies : libsbi_dep)
+    dependencies : [libapp_dep,
+                    libcrypt_dep,
+                    libsbi_dep])
 
 udm_sources = files('''
     app.c

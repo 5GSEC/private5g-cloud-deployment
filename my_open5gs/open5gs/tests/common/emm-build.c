@@ -198,7 +198,7 @@ ogs_pkbuf_t *testemm_build_attach_request(
     if (test_ue->attach_request_param.additional_update_type) {
         attach_request->presencemask |=
             OGS_NAS_EPS_ATTACH_REQUEST_ADDITIONAL_UPDATE_TYPE_PRESENT;
-        additional_update_type->additional_update_type_value = 1;
+        additional_update_type->autv = 1;
     }
 
     if (test_ue->attach_request_param.ue_usage_setting) {
@@ -295,16 +295,14 @@ ogs_pkbuf_t *testemm_build_authentication_response(test_ue_t *test_ue)
     message.emm.h.protocol_discriminator = OGS_NAS_PROTOCOL_DISCRIMINATOR_EMM;
     message.emm.h.message_type = OGS_NAS_EPS_AUTHENTICATION_RESPONSE;
 
-    ogs_hex_from_string(
-            test_ue->k_string, test_ue->k, sizeof(test_ue->k));
-    ogs_hex_from_string(
-            test_ue->opc_string, test_ue->opc, sizeof(test_ue->opc));
+    OGS_HEX(test_ue->k_string, strlen(test_ue->k_string), test_ue->k);
+    OGS_HEX(test_ue->opc_string, strlen(test_ue->opc_string), test_ue->opc);
 
     milenage_f2345(test_ue->opc, test_ue->k, test_ue->rand,
             res, ck, ik, ak, NULL);
 
-    for (i = 0; i < 6; i++)
-        sqn[i] = test_ue->autn[i] ^ ak[i];
+	for (i = 0; i < 6; i++)
+		sqn[i] = test_ue->autn[i] ^ ak[i];
 
     ogs_nas_from_plmn_id(&nas_plmn_id, &test_ue->e_tai.plmn_id);
     ogs_auc_kasme(ck, ik, &nas_plmn_id, sqn, ak, test_ue->kasme);
@@ -348,10 +346,8 @@ ogs_pkbuf_t *testemm_build_authentication_failure(
         authentication_failure->presencemask |=
             OGS_NAS_EPS_AUTHENTICATION_FAILURE_AUTHENTICATION_FAILURE_PARAMETER_PRESENT;
 
-        ogs_hex_from_string(
-                test_ue->k_string, test_ue->k, sizeof(test_ue->k));
-        ogs_hex_from_string(
-                test_ue->opc_string, test_ue->opc, sizeof(test_ue->opc));
+        OGS_HEX(test_ue->k_string, strlen(test_ue->k_string), test_ue->k);
+        OGS_HEX(test_ue->opc_string, strlen(test_ue->opc_string), test_ue->opc);
 
         milenage_f2345(test_ue->opc, test_ue->k, test_ue->rand,
                 NULL, NULL, NULL, NULL, ak);
@@ -734,7 +730,7 @@ ogs_pkbuf_t *testemm_build_tau_request(
     if (test_ue->tau_request_param.additional_update_type) {
         tau_request->presencemask |=
             OGS_NAS_EPS_TRACKING_AREA_UPDATE_REQUEST_ADDITIONAL_UPDATE_TYPE_PRESENT;
-        additional_update_type->additional_update_type_value = 1;
+        additional_update_type->autv = 1;
     }
 
     if (test_ue->tau_request_param.ue_usage_setting) {
@@ -881,7 +877,7 @@ ogs_pkbuf_t *testemm_build_uplink_nas_transport(test_ue_t *test_ue)
     ogs_nas_eps_message_container_t *nas_message_container =
         &uplink_nas_transport->nas_message_container;
 
-    char hexbuf[OGS_HUGE_LEN];
+    char hexbuf[OGS_MAX_SDU_LEN];
     const char *payload =
         "390167000300"
         "0581005155f55d11 030c914477680205 490000055ad2e2b1 252d467ff6de6c47"
@@ -899,7 +895,7 @@ ogs_pkbuf_t *testemm_build_uplink_nas_transport(test_ue_t *test_ue)
     message.emm.h.protocol_discriminator = OGS_NAS_PROTOCOL_DISCRIMINATOR_EMM;
     message.emm.h.message_type = OGS_NAS_EPS_UPLINK_NAS_TRANSPORT;
 
-    ogs_hex_from_string(payload, hexbuf, sizeof(hexbuf));
+    OGS_HEX(payload, strlen(payload), hexbuf);
     nas_message_container->length = 106;
     memcpy(nas_message_container->buffer,
             hexbuf, nas_message_container->length);

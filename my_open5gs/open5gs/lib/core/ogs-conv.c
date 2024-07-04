@@ -29,7 +29,7 @@
 
 #include "ogs-core.h"
 
-int ogs_ascii_to_hex(char *in, int in_len, void *out, int out_len)
+void *ogs_ascii_to_hex(char *in, int in_len, void *out, int out_len)
 {
     int i = 0, j = 0, k = 0, hex;
     uint8_t *out_p = out;
@@ -49,21 +49,20 @@ int ogs_ascii_to_hex(char *in, int in_len, void *out, int out_len)
         i++;
     }
 
-    return j;
+    return out;
 }
 
 void *ogs_hex_to_ascii(void *in, int in_len, void *out, int out_len)
 {
-    char *p, *last;
+    char *p;
     int i = 0, l, off = 0;
 
     p = out;
-    last = p + out_len;
     p[0] = 0;
 
     l = (in_len - off) > out_len ? out_len : in_len - off;
     for (i = 0; i < l; i++) {
-        p = ogs_slprintf(p, last, "%02x", ((char*)in)[off+i] & 0xff);
+        p += sprintf(p, "%02x", ((char*)in)[off+i] & 0xff);
     }
 
     return out;
@@ -191,16 +190,10 @@ char *ogs_uint64_to_string(uint64_t x)
     char *str, *p, *dup;
 
     str = ogs_uint64_to_0string(x);
-    if (!str) {
-        ogs_error("ogs_uint64_to_0string[%lld] failed", (long long)x);
-        return NULL;
-    }
+    ogs_expect_or_return_val(str, NULL);
 
     p = ogs_left_trimcharacter(str, '0');
-    if (!p) {
-        ogs_error("ogs_left_trimcharacter[%s] failld", str);
-        return NULL;
-    }
+    ogs_expect_or_return_val(p, NULL);
 
     dup = ogs_strdup(p);
     ogs_free(str);
@@ -240,15 +233,24 @@ uint64_t ogs_uint64_from_string(char *str)
     return x;
 }
 
-double *ogs_alloc_double(double value)
+void ogs_extract_digit_from_string(char *digit, char *string)
 {
-    double *mem = (double *)ogs_calloc(1, sizeof(double));
-    if (!mem) {
-        ogs_error("No memory");
-        return NULL;
+    bool extracting = false;
+    int i = 0;
+
+    ogs_assert(string);
+    ogs_assert(digit);
+
+    while (*string && i < OGS_MAX_IMSI_BCD_LEN) {
+        if (*string >= '0' && *string <= '9') {
+            *digit++ = *string;
+            extracting = true;
+        } else if (extracting == true) {
+            break;
+        }
+        string++;
+        i++;
     }
 
-    *mem = value;
-
-    return mem;
+    *digit = 0;
 }

@@ -20,22 +20,17 @@ OpenAPI_termination_info_t *OpenAPI_termination_info_create(
 
 void OpenAPI_termination_info_free(OpenAPI_termination_info_t *termination_info)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == termination_info) {
         return;
     }
-    if (termination_info->res_uri) {
-        ogs_free(termination_info->res_uri);
-        termination_info->res_uri = NULL;
-    }
+    OpenAPI_lnode_t *node;
+    ogs_free(termination_info->res_uri);
     ogs_free(termination_info);
 }
 
 cJSON *OpenAPI_termination_info_convertToJSON(OpenAPI_termination_info_t *termination_info)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (termination_info == NULL) {
         ogs_error("OpenAPI_termination_info_convertToJSON() failed [TerminationInfo]");
@@ -43,19 +38,11 @@ cJSON *OpenAPI_termination_info_convertToJSON(OpenAPI_termination_info_t *termin
     }
 
     item = cJSON_CreateObject();
-    if (termination_info->term_cause == OpenAPI_termination_cause_NULL) {
-        ogs_error("OpenAPI_termination_info_convertToJSON() failed [term_cause]");
-        return NULL;
-    }
     if (cJSON_AddStringToObject(item, "termCause", OpenAPI_termination_cause_ToString(termination_info->term_cause)) == NULL) {
         ogs_error("OpenAPI_termination_info_convertToJSON() failed [term_cause]");
         goto end;
     }
 
-    if (!termination_info->res_uri) {
-        ogs_error("OpenAPI_termination_info_convertToJSON() failed [res_uri]");
-        return NULL;
-    }
     if (cJSON_AddStringToObject(item, "resUri", termination_info->res_uri) == NULL) {
         ogs_error("OpenAPI_termination_info_convertToJSON() failed [res_uri]");
         goto end;
@@ -68,26 +55,25 @@ end:
 OpenAPI_termination_info_t *OpenAPI_termination_info_parseFromJSON(cJSON *termination_infoJSON)
 {
     OpenAPI_termination_info_t *termination_info_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *term_cause = NULL;
-    OpenAPI_termination_cause_e term_causeVariable = 0;
-    cJSON *res_uri = NULL;
-    term_cause = cJSON_GetObjectItemCaseSensitive(termination_infoJSON, "termCause");
+    cJSON *term_cause = cJSON_GetObjectItemCaseSensitive(termination_infoJSON, "termCause");
     if (!term_cause) {
         ogs_error("OpenAPI_termination_info_parseFromJSON() failed [term_cause]");
         goto end;
     }
+
+    OpenAPI_termination_cause_e term_causeVariable;
     if (!cJSON_IsString(term_cause)) {
         ogs_error("OpenAPI_termination_info_parseFromJSON() failed [term_cause]");
         goto end;
     }
     term_causeVariable = OpenAPI_termination_cause_FromString(term_cause->valuestring);
 
-    res_uri = cJSON_GetObjectItemCaseSensitive(termination_infoJSON, "resUri");
+    cJSON *res_uri = cJSON_GetObjectItemCaseSensitive(termination_infoJSON, "resUri");
     if (!res_uri) {
         ogs_error("OpenAPI_termination_info_parseFromJSON() failed [res_uri]");
         goto end;
     }
+
     if (!cJSON_IsString(res_uri)) {
         ogs_error("OpenAPI_termination_info_parseFromJSON() failed [res_uri]");
         goto end;

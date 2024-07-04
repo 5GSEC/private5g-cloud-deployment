@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019,2020 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -48,8 +48,8 @@ ogs_pkbuf_t *gsm_build_pdu_session_establishment_accept(smf_sess_t *sess)
     ogs_nas_qos_flow_description_t
         qos_flow_description[OGS_NAS_MAX_NUM_OF_QOS_FLOW_DESCRIPTION];
 
-    uint8_t *epco_buf = NULL;
-    int16_t epco_len;
+    uint8_t pco_buf[OGS_MAX_PCO_LEN];
+    int16_t pco_len;
 
     selected_pdu_session_type = &pdu_session_establishment_accept->
         selected_pdu_session_type;
@@ -132,14 +132,8 @@ ogs_pkbuf_t *gsm_build_pdu_session_establishment_accept(smf_sess_t *sess)
     qos_rule[0].flow.identifier = qos_flow->qfi;
 
     rv = ogs_nas_build_qos_rules(authorized_qos_rules, qos_rule, 1);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_nas_build_qos_rules() failed");
-        goto cleanup;
-    }
-    if (!authorized_qos_rules->length) {
-        ogs_error("No length");
-        goto cleanup;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, NULL);
+    ogs_expect_or_return_val(authorized_qos_rules->length, NULL);
 
     /* Session-AMBR */
     session_ambr->length = 6;
@@ -167,7 +161,7 @@ ogs_pkbuf_t *gsm_build_pdu_session_establishment_accept(smf_sess_t *sess)
         pdu_address->length = OGS_NAS_PDU_ADDRESS_IPV4V6_LEN;
     } else {
         ogs_error("Unexpected PDN Type %u", pdu_address->pdn_type);
-        goto cleanup;
+        return NULL;
     }
 
     /* GSM cause */
@@ -209,26 +203,18 @@ ogs_pkbuf_t *gsm_build_pdu_session_establishment_accept(smf_sess_t *sess)
         OGS_NAS_5GS_PDU_SESSION_ESTABLISHMENT_ACCEPT_AUTHORIZED_QOS_FLOW_DESCRIPTIONS_PRESENT;
     rv = ogs_nas_build_qos_flow_descriptions(
             authorized_qos_flow_descriptions, qos_flow_description, 1);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_nas_build_qos_flow_descriptions() failed");
-        goto cleanup;
-    }
-    if (!authorized_qos_flow_descriptions->length) {
-        ogs_error("No length");
-        goto cleanup;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, NULL);
+    ogs_expect_or_return_val(authorized_qos_flow_descriptions->length, NULL);
 
     /* Extended protocol configuration options */
-    if (sess->nas.ue_epco.buffer && sess->nas.ue_epco.length) {
-        epco_buf = ogs_calloc(OGS_MAX_EPCO_LEN, sizeof(uint8_t));
-        ogs_assert(epco_buf);
-        epco_len = smf_pco_build(epco_buf,
-                sess->nas.ue_epco.buffer, sess->nas.ue_epco.length);
-        ogs_assert(epco_len > 0);
+    if (sess->nas.ue_pco.buffer && sess->nas.ue_pco.length) {
+        pco_len = smf_pco_build(pco_buf,
+                sess->nas.ue_pco.buffer, sess->nas.ue_pco.length);
+        ogs_assert(pco_len > 0);
         pdu_session_establishment_accept->presencemask |=
             OGS_NAS_5GS_PDU_SESSION_ESTABLISHMENT_ACCEPT_EXTENDED_PROTOCOL_CONFIGURATION_OPTIONS_PRESENT;
-        extended_protocol_configuration_options->buffer = epco_buf;
-        extended_protocol_configuration_options->length = epco_len;
+        extended_protocol_configuration_options->buffer = pco_buf;
+        extended_protocol_configuration_options->length = pco_len;
     }
 
     /* DNN */
@@ -242,14 +228,8 @@ ogs_pkbuf_t *gsm_build_pdu_session_establishment_accept(smf_sess_t *sess)
     pkbuf = ogs_nas_5gs_plain_encode(&message);
     ogs_assert(pkbuf);
 
-cleanup:
-    if (epco_buf)
-        ogs_free(epco_buf);
-
-    if (authorized_qos_rules->buffer)
-        ogs_free(authorized_qos_rules->buffer);
-    if (authorized_qos_flow_descriptions->buffer)
-        ogs_free(authorized_qos_flow_descriptions->buffer);
+    ogs_free(authorized_qos_rules->buffer);
+    ogs_free(authorized_qos_flow_descriptions->buffer);
 
     return pkbuf;
 }
@@ -312,7 +292,7 @@ static void encode_qos_rule_packet_filter(
 }
 
 ogs_pkbuf_t *gsm_build_pdu_session_modification_command(
-        smf_sess_t *sess,
+        smf_sess_t *sess, uint8_t pti,
         uint8_t qos_rule_code, uint8_t qos_flow_description_code)
 {
     ogs_pkbuf_t *pkbuf = NULL;
@@ -345,7 +325,7 @@ ogs_pkbuf_t *gsm_build_pdu_session_modification_command(
     message.gsm.h.extended_protocol_discriminator =
             OGS_NAS_EXTENDED_PROTOCOL_DISCRIMINATOR_5GSM;
     message.gsm.h.pdu_session_identity = sess->psi;
-    message.gsm.h.procedure_transaction_identity = sess->pti;
+    message.gsm.h.procedure_transaction_identity = pti;
     message.gsm.h.message_type = OGS_NAS_5GS_PDU_SESSION_MODIFICATION_COMMAND;
 
     /* QoS rule */
@@ -383,14 +363,8 @@ ogs_pkbuf_t *gsm_build_pdu_session_modification_command(
         }
 
         rv = ogs_nas_build_qos_rules(authorized_qos_rules, qos_rule, i);
-        if (rv != OGS_OK) {
-            ogs_error("ogs_nas_build_qos_rules() failed");
-            return NULL;
-        }
-        if (!authorized_qos_rules->length) {
-            ogs_error("No length");
-            return NULL;
-        }
+        ogs_expect_or_return_val(rv == OGS_OK, NULL);
+        ogs_expect_or_return_val(authorized_qos_rules->length, NULL);
 
         pdu_session_modification_command->presencemask |=
             OGS_NAS_5GS_PDU_SESSION_MODIFICATION_COMMAND_AUTHORIZED_QOS_RULES_PRESENT;
@@ -473,14 +447,9 @@ ogs_pkbuf_t *gsm_build_pdu_session_modification_command(
 
         rv = ogs_nas_build_qos_flow_descriptions(
                 authorized_qos_flow_descriptions, qos_flow_description, i);
-        if (rv != OGS_OK) {
-            ogs_error("ogs_nas_build_qos_flow_descriptions() failed");
-            return NULL;
-        }
-        if (!authorized_qos_flow_descriptions->length) {
-            ogs_error("No length");
-            return NULL;
-        }
+        ogs_expect_or_return_val(rv == OGS_OK, NULL);
+        ogs_expect_or_return_val(
+                authorized_qos_flow_descriptions->length, NULL);
 
         pdu_session_modification_command->presencemask |=
             OGS_NAS_5GS_PDU_SESSION_MODIFICATION_COMMAND_AUTHORIZED_QOS_FLOW_DESCRIPTIONS_PRESENT;

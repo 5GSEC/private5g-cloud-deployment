@@ -17,6 +17,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include "ogs-app.h"
 #include "ogs-sbi.h"
 
 #include "microhttpd.h"
@@ -135,11 +136,7 @@ static ogs_sbi_session_t *session_add(ogs_sbi_server_t *server,
 
     sbi_sess->timer = ogs_timer_add(
             ogs_app()->timer_mgr, session_timer_expired, sbi_sess);
-    if (!sbi_sess->timer) {
-        ogs_error("ogs_timer_add() failed");
-        ogs_pool_free(&session_pool, sbi_sess);
-        return NULL;
-    }
+    ogs_assert(sbi_sess->timer);
 
     /* If User does not send HTTP response within deadline,
      * Open5GS will assert this program. */
@@ -374,12 +371,7 @@ static bool server_send_rspmem_persistent(
             hi; hi = ogs_hash_next(hi)) {
         const char *key = ogs_hash_this_key(hi);
         char *val = ogs_hash_this_val(hi);
-        ret = MHD_add_response_header(mhd_response, key, val);
-        if (ret != MHD_YES) {
-            ogs_error("MHD_add_response_header failed [%d]", ret);
-            MHD_destroy_response(mhd_response);
-            return false;
-        }
+        MHD_add_response_header(mhd_response, key, val);
     }
 
     status = response->status;
@@ -394,9 +386,7 @@ static bool server_send_rspmem_persistent(
 
     ret = MHD_queue_response(connection, status, mhd_response);
     if (ret != MHD_YES) {
-        ogs_error("MHD_queue_response failed [%d]", ret);
-        MHD_destroy_response(mhd_response);
-        ogs_pollset_remove(request->poll.write);
+        ogs_error("MHD_queue_response_error [%d]", ret);
         return false;
     }
     MHD_destroy_response(mhd_response);
@@ -543,7 +533,7 @@ static _MHD_Result access_handler(
         } else {
             offset = request->http.content_length;
             if ((request->http.content_length +
-                        *upload_data_size) > OGS_MAX_SDU_LEN) {
+                        *upload_data_size) > OGS_HUGE_LEN) {
                 ogs_error("Overflow : Content-Length[%d], upload_data_size[%d]",
                             (int)request->http.content_length,
                             (int)*upload_data_size);
@@ -572,7 +562,7 @@ suspend:
 
     ogs_assert(server->cb);
     if (server->cb(request, sbi_sess) != OGS_OK) {
-        ogs_warn("server callback error");
+        ogs_error("server callback error");
         ogs_assert(true ==
                 ogs_sbi_server_send_error((ogs_sbi_stream_t *)sbi_sess,
                     OGS_SBI_HTTP_STATUS_INTERNAL_SERVER_ERROR, NULL,

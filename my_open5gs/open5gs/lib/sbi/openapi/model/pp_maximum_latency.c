@@ -26,30 +26,19 @@ OpenAPI_pp_maximum_latency_t *OpenAPI_pp_maximum_latency_create(
 
 void OpenAPI_pp_maximum_latency_free(OpenAPI_pp_maximum_latency_t *pp_maximum_latency)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == pp_maximum_latency) {
         return;
     }
-    if (pp_maximum_latency->af_instance_id) {
-        ogs_free(pp_maximum_latency->af_instance_id);
-        pp_maximum_latency->af_instance_id = NULL;
-    }
-    if (pp_maximum_latency->validity_time) {
-        ogs_free(pp_maximum_latency->validity_time);
-        pp_maximum_latency->validity_time = NULL;
-    }
-    if (pp_maximum_latency->mtc_provider_information) {
-        ogs_free(pp_maximum_latency->mtc_provider_information);
-        pp_maximum_latency->mtc_provider_information = NULL;
-    }
+    OpenAPI_lnode_t *node;
+    ogs_free(pp_maximum_latency->af_instance_id);
+    ogs_free(pp_maximum_latency->validity_time);
+    ogs_free(pp_maximum_latency->mtc_provider_information);
     ogs_free(pp_maximum_latency);
 }
 
 cJSON *OpenAPI_pp_maximum_latency_convertToJSON(OpenAPI_pp_maximum_latency_t *pp_maximum_latency)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (pp_maximum_latency == NULL) {
         ogs_error("OpenAPI_pp_maximum_latency_convertToJSON() failed [PpMaximumLatency]");
@@ -62,10 +51,6 @@ cJSON *OpenAPI_pp_maximum_latency_convertToJSON(OpenAPI_pp_maximum_latency_t *pp
         goto end;
     }
 
-    if (!pp_maximum_latency->af_instance_id) {
-        ogs_error("OpenAPI_pp_maximum_latency_convertToJSON() failed [af_instance_id]");
-        return NULL;
-    }
     if (cJSON_AddStringToObject(item, "afInstanceId", pp_maximum_latency->af_instance_id) == NULL) {
         ogs_error("OpenAPI_pp_maximum_latency_convertToJSON() failed [af_instance_id]");
         goto end;
@@ -97,53 +82,52 @@ end:
 OpenAPI_pp_maximum_latency_t *OpenAPI_pp_maximum_latency_parseFromJSON(cJSON *pp_maximum_latencyJSON)
 {
     OpenAPI_pp_maximum_latency_t *pp_maximum_latency_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *maximum_latency = NULL;
-    cJSON *af_instance_id = NULL;
-    cJSON *reference_id = NULL;
-    cJSON *validity_time = NULL;
-    cJSON *mtc_provider_information = NULL;
-    maximum_latency = cJSON_GetObjectItemCaseSensitive(pp_maximum_latencyJSON, "maximumLatency");
+    cJSON *maximum_latency = cJSON_GetObjectItemCaseSensitive(pp_maximum_latencyJSON, "maximumLatency");
     if (!maximum_latency) {
         ogs_error("OpenAPI_pp_maximum_latency_parseFromJSON() failed [maximum_latency]");
         goto end;
     }
+
     if (!cJSON_IsNumber(maximum_latency)) {
         ogs_error("OpenAPI_pp_maximum_latency_parseFromJSON() failed [maximum_latency]");
         goto end;
     }
 
-    af_instance_id = cJSON_GetObjectItemCaseSensitive(pp_maximum_latencyJSON, "afInstanceId");
+    cJSON *af_instance_id = cJSON_GetObjectItemCaseSensitive(pp_maximum_latencyJSON, "afInstanceId");
     if (!af_instance_id) {
         ogs_error("OpenAPI_pp_maximum_latency_parseFromJSON() failed [af_instance_id]");
         goto end;
     }
+
     if (!cJSON_IsString(af_instance_id)) {
         ogs_error("OpenAPI_pp_maximum_latency_parseFromJSON() failed [af_instance_id]");
         goto end;
     }
 
-    reference_id = cJSON_GetObjectItemCaseSensitive(pp_maximum_latencyJSON, "referenceId");
+    cJSON *reference_id = cJSON_GetObjectItemCaseSensitive(pp_maximum_latencyJSON, "referenceId");
     if (!reference_id) {
         ogs_error("OpenAPI_pp_maximum_latency_parseFromJSON() failed [reference_id]");
         goto end;
     }
+
     if (!cJSON_IsNumber(reference_id)) {
         ogs_error("OpenAPI_pp_maximum_latency_parseFromJSON() failed [reference_id]");
         goto end;
     }
 
-    validity_time = cJSON_GetObjectItemCaseSensitive(pp_maximum_latencyJSON, "validityTime");
+    cJSON *validity_time = cJSON_GetObjectItemCaseSensitive(pp_maximum_latencyJSON, "validityTime");
+
     if (validity_time) {
-    if (!cJSON_IsString(validity_time) && !cJSON_IsNull(validity_time)) {
+    if (!cJSON_IsString(validity_time)) {
         ogs_error("OpenAPI_pp_maximum_latency_parseFromJSON() failed [validity_time]");
         goto end;
     }
     }
 
-    mtc_provider_information = cJSON_GetObjectItemCaseSensitive(pp_maximum_latencyJSON, "mtcProviderInformation");
+    cJSON *mtc_provider_information = cJSON_GetObjectItemCaseSensitive(pp_maximum_latencyJSON, "mtcProviderInformation");
+
     if (mtc_provider_information) {
-    if (!cJSON_IsString(mtc_provider_information) && !cJSON_IsNull(mtc_provider_information)) {
+    if (!cJSON_IsString(mtc_provider_information)) {
         ogs_error("OpenAPI_pp_maximum_latency_parseFromJSON() failed [mtc_provider_information]");
         goto end;
     }
@@ -155,8 +139,8 @@ OpenAPI_pp_maximum_latency_t *OpenAPI_pp_maximum_latency_parseFromJSON(cJSON *pp
         ogs_strdup(af_instance_id->valuestring),
         
         reference_id->valuedouble,
-        validity_time && !cJSON_IsNull(validity_time) ? ogs_strdup(validity_time->valuestring) : NULL,
-        mtc_provider_information && !cJSON_IsNull(mtc_provider_information) ? ogs_strdup(mtc_provider_information->valuestring) : NULL
+        validity_time ? ogs_strdup(validity_time->valuestring) : NULL,
+        mtc_provider_information ? ogs_strdup(mtc_provider_information->valuestring) : NULL
     );
 
     return pp_maximum_latency_local_var;

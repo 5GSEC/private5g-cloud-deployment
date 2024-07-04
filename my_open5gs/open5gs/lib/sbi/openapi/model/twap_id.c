@@ -7,7 +7,7 @@
 OpenAPI_twap_id_t *OpenAPI_twap_id_create(
     char *ss_id,
     char *bss_id,
-    char *civic_address
+    char civic_address
 )
 {
     OpenAPI_twap_id_t *twap_id_local_var = ogs_malloc(sizeof(OpenAPI_twap_id_t));
@@ -22,30 +22,18 @@ OpenAPI_twap_id_t *OpenAPI_twap_id_create(
 
 void OpenAPI_twap_id_free(OpenAPI_twap_id_t *twap_id)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == twap_id) {
         return;
     }
-    if (twap_id->ss_id) {
-        ogs_free(twap_id->ss_id);
-        twap_id->ss_id = NULL;
-    }
-    if (twap_id->bss_id) {
-        ogs_free(twap_id->bss_id);
-        twap_id->bss_id = NULL;
-    }
-    if (twap_id->civic_address) {
-        ogs_free(twap_id->civic_address);
-        twap_id->civic_address = NULL;
-    }
+    OpenAPI_lnode_t *node;
+    ogs_free(twap_id->ss_id);
+    ogs_free(twap_id->bss_id);
     ogs_free(twap_id);
 }
 
 cJSON *OpenAPI_twap_id_convertToJSON(OpenAPI_twap_id_t *twap_id)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (twap_id == NULL) {
         ogs_error("OpenAPI_twap_id_convertToJSON() failed [TwapId]");
@@ -53,10 +41,6 @@ cJSON *OpenAPI_twap_id_convertToJSON(OpenAPI_twap_id_t *twap_id)
     }
 
     item = cJSON_CreateObject();
-    if (!twap_id->ss_id) {
-        ogs_error("OpenAPI_twap_id_convertToJSON() failed [ss_id]");
-        return NULL;
-    }
     if (cJSON_AddStringToObject(item, "ssId", twap_id->ss_id) == NULL) {
         ogs_error("OpenAPI_twap_id_convertToJSON() failed [ss_id]");
         goto end;
@@ -70,7 +54,7 @@ cJSON *OpenAPI_twap_id_convertToJSON(OpenAPI_twap_id_t *twap_id)
     }
 
     if (twap_id->civic_address) {
-    if (cJSON_AddStringToObject(item, "civicAddress", twap_id->civic_address) == NULL) {
+    if (cJSON_AddNumberToObject(item, "civicAddress", twap_id->civic_address) == NULL) {
         ogs_error("OpenAPI_twap_id_convertToJSON() failed [civic_address]");
         goto end;
     }
@@ -83,31 +67,30 @@ end:
 OpenAPI_twap_id_t *OpenAPI_twap_id_parseFromJSON(cJSON *twap_idJSON)
 {
     OpenAPI_twap_id_t *twap_id_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *ss_id = NULL;
-    cJSON *bss_id = NULL;
-    cJSON *civic_address = NULL;
-    ss_id = cJSON_GetObjectItemCaseSensitive(twap_idJSON, "ssId");
+    cJSON *ss_id = cJSON_GetObjectItemCaseSensitive(twap_idJSON, "ssId");
     if (!ss_id) {
         ogs_error("OpenAPI_twap_id_parseFromJSON() failed [ss_id]");
         goto end;
     }
+
     if (!cJSON_IsString(ss_id)) {
         ogs_error("OpenAPI_twap_id_parseFromJSON() failed [ss_id]");
         goto end;
     }
 
-    bss_id = cJSON_GetObjectItemCaseSensitive(twap_idJSON, "bssId");
+    cJSON *bss_id = cJSON_GetObjectItemCaseSensitive(twap_idJSON, "bssId");
+
     if (bss_id) {
-    if (!cJSON_IsString(bss_id) && !cJSON_IsNull(bss_id)) {
+    if (!cJSON_IsString(bss_id)) {
         ogs_error("OpenAPI_twap_id_parseFromJSON() failed [bss_id]");
         goto end;
     }
     }
 
-    civic_address = cJSON_GetObjectItemCaseSensitive(twap_idJSON, "civicAddress");
+    cJSON *civic_address = cJSON_GetObjectItemCaseSensitive(twap_idJSON, "civicAddress");
+
     if (civic_address) {
-    if (!cJSON_IsString(civic_address) && !cJSON_IsNull(civic_address)) {
+    if (!cJSON_IsNumber(civic_address)) {
         ogs_error("OpenAPI_twap_id_parseFromJSON() failed [civic_address]");
         goto end;
     }
@@ -115,8 +98,8 @@ OpenAPI_twap_id_t *OpenAPI_twap_id_parseFromJSON(cJSON *twap_idJSON)
 
     twap_id_local_var = OpenAPI_twap_id_create (
         ogs_strdup(ss_id->valuestring),
-        bss_id && !cJSON_IsNull(bss_id) ? ogs_strdup(bss_id->valuestring) : NULL,
-        civic_address && !cJSON_IsNull(civic_address) ? ogs_strdup(civic_address->valuestring) : NULL
+        bss_id ? ogs_strdup(bss_id->valuestring) : NULL,
+        civic_address ? civic_address->valueint : 0
     );
 
     return twap_id_local_var;

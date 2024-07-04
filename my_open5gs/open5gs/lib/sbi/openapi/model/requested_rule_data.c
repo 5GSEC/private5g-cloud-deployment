@@ -20,29 +20,21 @@ OpenAPI_requested_rule_data_t *OpenAPI_requested_rule_data_create(
 
 void OpenAPI_requested_rule_data_free(OpenAPI_requested_rule_data_t *requested_rule_data)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == requested_rule_data) {
         return;
     }
-    if (requested_rule_data->ref_pcc_rule_ids) {
-        OpenAPI_list_for_each(requested_rule_data->ref_pcc_rule_ids, node) {
-            ogs_free(node->data);
-        }
-        OpenAPI_list_free(requested_rule_data->ref_pcc_rule_ids);
-        requested_rule_data->ref_pcc_rule_ids = NULL;
+    OpenAPI_lnode_t *node;
+    OpenAPI_list_for_each(requested_rule_data->ref_pcc_rule_ids, node) {
+        ogs_free(node->data);
     }
-    if (requested_rule_data->req_data) {
-        OpenAPI_list_free(requested_rule_data->req_data);
-        requested_rule_data->req_data = NULL;
-    }
+    OpenAPI_list_free(requested_rule_data->ref_pcc_rule_ids);
+    OpenAPI_list_free(requested_rule_data->req_data);
     ogs_free(requested_rule_data);
 }
 
 cJSON *OpenAPI_requested_rule_data_convertToJSON(OpenAPI_requested_rule_data_t *requested_rule_data)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (requested_rule_data == NULL) {
         ogs_error("OpenAPI_requested_rule_data_convertToJSON() failed [RequestedRuleData]");
@@ -50,33 +42,28 @@ cJSON *OpenAPI_requested_rule_data_convertToJSON(OpenAPI_requested_rule_data_t *
     }
 
     item = cJSON_CreateObject();
-    if (!requested_rule_data->ref_pcc_rule_ids) {
-        ogs_error("OpenAPI_requested_rule_data_convertToJSON() failed [ref_pcc_rule_ids]");
-        return NULL;
-    }
-    cJSON *ref_pcc_rule_idsList = cJSON_AddArrayToObject(item, "refPccRuleIds");
-    if (ref_pcc_rule_idsList == NULL) {
+    cJSON *ref_pcc_rule_ids = cJSON_AddArrayToObject(item, "refPccRuleIds");
+    if (ref_pcc_rule_ids == NULL) {
         ogs_error("OpenAPI_requested_rule_data_convertToJSON() failed [ref_pcc_rule_ids]");
         goto end;
-    }
-    OpenAPI_list_for_each(requested_rule_data->ref_pcc_rule_ids, node) {
-        if (cJSON_AddStringToObject(ref_pcc_rule_idsList, "", (char*)node->data) == NULL) {
-            ogs_error("OpenAPI_requested_rule_data_convertToJSON() failed [ref_pcc_rule_ids]");
-            goto end;
-        }
     }
 
-    if (requested_rule_data->req_data == OpenAPI_requested_rule_data_type_NULL) {
-        ogs_error("OpenAPI_requested_rule_data_convertToJSON() failed [req_data]");
-        return NULL;
+    OpenAPI_lnode_t *ref_pcc_rule_ids_node;
+    OpenAPI_list_for_each(requested_rule_data->ref_pcc_rule_ids, ref_pcc_rule_ids_node)  {
+    if (cJSON_AddStringToObject(ref_pcc_rule_ids, "", (char*)ref_pcc_rule_ids_node->data) == NULL) {
+        ogs_error("OpenAPI_requested_rule_data_convertToJSON() failed [ref_pcc_rule_ids]");
+        goto end;
     }
-    cJSON *req_dataList = cJSON_AddArrayToObject(item, "reqData");
-    if (req_dataList == NULL) {
+                    }
+
+    cJSON *req_data = cJSON_AddArrayToObject(item, "reqData");
+    if (req_data == NULL) {
         ogs_error("OpenAPI_requested_rule_data_convertToJSON() failed [req_data]");
         goto end;
     }
-    OpenAPI_list_for_each(requested_rule_data->req_data, node) {
-        if (cJSON_AddStringToObject(req_dataList, "", OpenAPI_requested_rule_data_type_ToString((intptr_t)node->data)) == NULL) {
+    OpenAPI_lnode_t *req_data_node;
+    OpenAPI_list_for_each(requested_rule_data->req_data, req_data_node) {
+        if (cJSON_AddStringToObject(req_data, "", OpenAPI_requested_rule_data_type_ToString((intptr_t)req_data_node->data)) == NULL) {
             ogs_error("OpenAPI_requested_rule_data_convertToJSON() failed [req_data]");
             goto end;
         }
@@ -89,60 +76,51 @@ end:
 OpenAPI_requested_rule_data_t *OpenAPI_requested_rule_data_parseFromJSON(cJSON *requested_rule_dataJSON)
 {
     OpenAPI_requested_rule_data_t *requested_rule_data_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *ref_pcc_rule_ids = NULL;
-    OpenAPI_list_t *ref_pcc_rule_idsList = NULL;
-    cJSON *req_data = NULL;
-    OpenAPI_list_t *req_dataList = NULL;
-    ref_pcc_rule_ids = cJSON_GetObjectItemCaseSensitive(requested_rule_dataJSON, "refPccRuleIds");
+    cJSON *ref_pcc_rule_ids = cJSON_GetObjectItemCaseSensitive(requested_rule_dataJSON, "refPccRuleIds");
     if (!ref_pcc_rule_ids) {
         ogs_error("OpenAPI_requested_rule_data_parseFromJSON() failed [ref_pcc_rule_ids]");
         goto end;
     }
-        cJSON *ref_pcc_rule_ids_local = NULL;
-        if (!cJSON_IsArray(ref_pcc_rule_ids)) {
-            ogs_error("OpenAPI_requested_rule_data_parseFromJSON() failed [ref_pcc_rule_ids]");
-            goto end;
-        }
 
-        ref_pcc_rule_idsList = OpenAPI_list_create();
+    OpenAPI_list_t *ref_pcc_rule_idsList;
+    cJSON *ref_pcc_rule_ids_local;
+    if (!cJSON_IsArray(ref_pcc_rule_ids)) {
+        ogs_error("OpenAPI_requested_rule_data_parseFromJSON() failed [ref_pcc_rule_ids]");
+        goto end;
+    }
+    ref_pcc_rule_idsList = OpenAPI_list_create();
 
-        cJSON_ArrayForEach(ref_pcc_rule_ids_local, ref_pcc_rule_ids) {
-            double *localDouble = NULL;
-            int *localInt = NULL;
-            if (!cJSON_IsString(ref_pcc_rule_ids_local)) {
-                ogs_error("OpenAPI_requested_rule_data_parseFromJSON() failed [ref_pcc_rule_ids]");
-                goto end;
-            }
-            OpenAPI_list_add(ref_pcc_rule_idsList, ogs_strdup(ref_pcc_rule_ids_local->valuestring));
-        }
+    cJSON_ArrayForEach(ref_pcc_rule_ids_local, ref_pcc_rule_ids) {
+    if (!cJSON_IsString(ref_pcc_rule_ids_local)) {
+        ogs_error("OpenAPI_requested_rule_data_parseFromJSON() failed [ref_pcc_rule_ids]");
+        goto end;
+    }
+    OpenAPI_list_add(ref_pcc_rule_idsList , ogs_strdup(ref_pcc_rule_ids_local->valuestring));
+    }
 
-    req_data = cJSON_GetObjectItemCaseSensitive(requested_rule_dataJSON, "reqData");
+    cJSON *req_data = cJSON_GetObjectItemCaseSensitive(requested_rule_dataJSON, "reqData");
     if (!req_data) {
         ogs_error("OpenAPI_requested_rule_data_parseFromJSON() failed [req_data]");
         goto end;
     }
-        cJSON *req_data_local = NULL;
-        if (!cJSON_IsArray(req_data)) {
+
+    OpenAPI_list_t *req_dataList;
+    cJSON *req_data_local_nonprimitive;
+    if (!cJSON_IsArray(req_data)) {
+        ogs_error("OpenAPI_requested_rule_data_parseFromJSON() failed [req_data]");
+        goto end;
+    }
+
+    req_dataList = OpenAPI_list_create();
+
+    cJSON_ArrayForEach(req_data_local_nonprimitive, req_data ) {
+        if (!cJSON_IsString(req_data_local_nonprimitive)){
             ogs_error("OpenAPI_requested_rule_data_parseFromJSON() failed [req_data]");
             goto end;
         }
 
-        req_dataList = OpenAPI_list_create();
-
-        cJSON_ArrayForEach(req_data_local, req_data) {
-            OpenAPI_requested_rule_data_type_e localEnum = OpenAPI_requested_rule_data_type_NULL;
-            if (!cJSON_IsString(req_data_local)) {
-                ogs_error("OpenAPI_requested_rule_data_parseFromJSON() failed [req_data]");
-                goto end;
-            }
-            localEnum = OpenAPI_requested_rule_data_type_FromString(req_data_local->valuestring);
-            if (!localEnum) {
-                ogs_error("OpenAPI_requested_rule_data_type_FromString(req_data_local->valuestring) failed");
-                goto end;
-            }
-            OpenAPI_list_add(req_dataList, (void *)localEnum);
-        }
+        OpenAPI_list_add(req_dataList, (void *)OpenAPI_requested_rule_data_type_FromString(req_data_local_nonprimitive->valuestring));
+    }
 
     requested_rule_data_local_var = OpenAPI_requested_rule_data_create (
         ref_pcc_rule_idsList,
@@ -151,17 +129,6 @@ OpenAPI_requested_rule_data_t *OpenAPI_requested_rule_data_parseFromJSON(cJSON *
 
     return requested_rule_data_local_var;
 end:
-    if (ref_pcc_rule_idsList) {
-        OpenAPI_list_for_each(ref_pcc_rule_idsList, node) {
-            ogs_free(node->data);
-        }
-        OpenAPI_list_free(ref_pcc_rule_idsList);
-        ref_pcc_rule_idsList = NULL;
-    }
-    if (req_dataList) {
-        OpenAPI_list_free(req_dataList);
-        req_dataList = NULL;
-    }
     return NULL;
 }
 

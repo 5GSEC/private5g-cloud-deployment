@@ -20,26 +20,18 @@ OpenAPI_time_window_t *OpenAPI_time_window_create(
 
 void OpenAPI_time_window_free(OpenAPI_time_window_t *time_window)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == time_window) {
         return;
     }
-    if (time_window->start_time) {
-        ogs_free(time_window->start_time);
-        time_window->start_time = NULL;
-    }
-    if (time_window->stop_time) {
-        ogs_free(time_window->stop_time);
-        time_window->stop_time = NULL;
-    }
+    OpenAPI_lnode_t *node;
+    ogs_free(time_window->start_time);
+    ogs_free(time_window->stop_time);
     ogs_free(time_window);
 }
 
 cJSON *OpenAPI_time_window_convertToJSON(OpenAPI_time_window_t *time_window)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (time_window == NULL) {
         ogs_error("OpenAPI_time_window_convertToJSON() failed [TimeWindow]");
@@ -47,19 +39,11 @@ cJSON *OpenAPI_time_window_convertToJSON(OpenAPI_time_window_t *time_window)
     }
 
     item = cJSON_CreateObject();
-    if (!time_window->start_time) {
-        ogs_error("OpenAPI_time_window_convertToJSON() failed [start_time]");
-        return NULL;
-    }
     if (cJSON_AddStringToObject(item, "startTime", time_window->start_time) == NULL) {
         ogs_error("OpenAPI_time_window_convertToJSON() failed [start_time]");
         goto end;
     }
 
-    if (!time_window->stop_time) {
-        ogs_error("OpenAPI_time_window_convertToJSON() failed [stop_time]");
-        return NULL;
-    }
     if (cJSON_AddStringToObject(item, "stopTime", time_window->stop_time) == NULL) {
         ogs_error("OpenAPI_time_window_convertToJSON() failed [stop_time]");
         goto end;
@@ -72,25 +56,24 @@ end:
 OpenAPI_time_window_t *OpenAPI_time_window_parseFromJSON(cJSON *time_windowJSON)
 {
     OpenAPI_time_window_t *time_window_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *start_time = NULL;
-    cJSON *stop_time = NULL;
-    start_time = cJSON_GetObjectItemCaseSensitive(time_windowJSON, "startTime");
+    cJSON *start_time = cJSON_GetObjectItemCaseSensitive(time_windowJSON, "startTime");
     if (!start_time) {
         ogs_error("OpenAPI_time_window_parseFromJSON() failed [start_time]");
         goto end;
     }
-    if (!cJSON_IsString(start_time) && !cJSON_IsNull(start_time)) {
+
+    if (!cJSON_IsString(start_time)) {
         ogs_error("OpenAPI_time_window_parseFromJSON() failed [start_time]");
         goto end;
     }
 
-    stop_time = cJSON_GetObjectItemCaseSensitive(time_windowJSON, "stopTime");
+    cJSON *stop_time = cJSON_GetObjectItemCaseSensitive(time_windowJSON, "stopTime");
     if (!stop_time) {
         ogs_error("OpenAPI_time_window_parseFromJSON() failed [stop_time]");
         goto end;
     }
-    if (!cJSON_IsString(stop_time) && !cJSON_IsNull(stop_time)) {
+
+    if (!cJSON_IsString(stop_time)) {
         ogs_error("OpenAPI_time_window_parseFromJSON() failed [stop_time]");
         goto end;
     }

@@ -33,7 +33,7 @@ $ brew install mongodb-community
 
 Run MongoDB server.
 ```bash
-$ mongod --config /opt/homebrew/etc/mongod.conf
+$ mongod --config /usr/local/etc/mongod.conf
 ```
 
 **Tip:** MongoDB is persistent after rebooting with the following commands:
@@ -69,7 +69,6 @@ $ sudo ifconfig lo0 alias 127.0.0.17 netmask 255.255.255.255
 $ sudo ifconfig lo0 alias 127.0.0.18 netmask 255.255.255.255
 $ sudo ifconfig lo0 alias 127.0.0.19 netmask 255.255.255.255
 $ sudo ifconfig lo0 alias 127.0.0.20 netmask 255.255.255.255
-$ sudo ifconfig lo0 alias 127.0.1.10 netmask 255.255.255.255
 ```
 
 Enable IP forwarding & Masquerading
@@ -90,14 +89,12 @@ $ sudo pfctl -e -f /etc/pf.anchors/org.open5gs
 
 Install the depedencies for building the source code.
 ```bash
-$ brew install mongo-c-driver gnutls libgcrypt libidn libyaml libmicrohttpd nghttp2 pkg-config bison libusrsctp libtins talloc cmake
+$ brew install mongo-c-driver gnutls libgcrypt libidn libyaml libmicrohttpd nghttp2 pkg-config bison libusrsctp libtins talloc
 ```
 
 Configure Homebrew PATH
 ```bash
-$ export PATH="/opt/homebrew/opt/curl/bin:/opt/homebrew/opt/bison/bin:/opt/homebrew/bin:$PATH"
-$ export PKG_CONFIG_PATH="/opt/homebrew/opt/curl/lib/pkgconfig:$PKG_CONFIG_PATH"
-$ export PKG_CONFIG_PATH="/opt/homebrew/opt/openssl/lib/pkgconfig:$PKG_CONFIG_PATH"
+$ export PATH="/opt/homebrew/opt/bison/bin:/opt/homebrew/bin:$PATH"
 $ export LIBRARY_PATH=/opt/homebrew/lib
 $ export C_INCLUDE_PATH=/opt/homebrew/include
 $ export CPLUS_INCLUDE_PATH=/opt/homebrew/include
@@ -166,7 +163,7 @@ Install the dependencies to run WebUI
 
 ```bash
 $ cd webui
-$ npm ci
+$ npm ci --no-optional
 ```
 
 The WebUI runs as an [npm](https://www.npmjs.com/) script.

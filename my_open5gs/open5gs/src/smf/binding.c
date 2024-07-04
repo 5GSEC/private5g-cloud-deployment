@@ -197,10 +197,10 @@ void smf_bearer_binding(smf_sess_t *sess)
                                 &bearer->pgw_s5u_addr, &bearer->pgw_s5u_addr6);
                         if (resource->info.teidri)
                             bearer->pgw_s5u_teid = OGS_PFCP_GTPU_INDEX_TO_TEID(
-                                    ul_pdr->teid, resource->info.teidri,
+                                    ul_pdr->index, resource->info.teidri,
                                     resource->info.teid_range);
                         else
-                            bearer->pgw_s5u_teid = ul_pdr->teid;
+                            bearer->pgw_s5u_teid = ul_pdr->index;
                     } else {
                         if (sess->pfcp_node->addr.ogs_sa_family == AF_INET)
                             ogs_assert(OGS_OK ==
@@ -214,7 +214,7 @@ void smf_bearer_binding(smf_sess_t *sess)
                         else
                             ogs_assert_if_reached();
 
-                        bearer->pgw_s5u_teid = ul_pdr->teid;
+                        bearer->pgw_s5u_teid = ul_pdr->index;
                     }
 
                     ogs_assert(OGS_OK ==
@@ -262,14 +262,8 @@ void smf_bearer_binding(smf_sess_t *sess)
                 smf_pf_t *pf = NULL;
                 ogs_flow_t *flow = &pcc_rule->flow[j];
 
-                if (!flow) {
-                    ogs_error("No Flow");
-                    return;
-                }
-                if (!flow->description) {
-                    ogs_error("No Flow-Description");
-                    return;
-                }
+                ogs_expect_or_return(flow);
+                ogs_expect_or_return(flow->description);
 
                 /*
                  * To add a flow to an existing tft.
@@ -370,17 +364,11 @@ void smf_bearer_binding(smf_sess_t *sess)
                         OGS_NAS_PROCEDURE_TRANSACTION_IDENTITY_UNASSIGNED,
                         (ogs_list_count(&bearer->pf_to_add_list) > 0) ?
                             &tft : NULL, qos_presence);
-                if (!pkbuf) {
-                    ogs_error("smf_s5c_build_update_bearer_request() failed");
-                    return;
-                }
+                ogs_expect_or_return(pkbuf);
 
                 xact = ogs_gtp_xact_local_create(
                         sess->gnode, &h, pkbuf, gtp_bearer_timeout, bearer);
-                if (!xact) {
-                    ogs_error("ogs_gtp_xact_local_create() failed");
-                    return;
-                }
+                ogs_expect_or_return(xact);
                 xact->local_teid = sess->smf_n4_teid;
 
                 if (ogs_list_count(&bearer->pf_to_add_list) > 0)
@@ -446,17 +434,11 @@ int smf_gtp2_send_create_bearer_request(smf_bearer_t *bearer)
             &tft, bearer, OGS_GTP2_TFT_CODE_CREATE_NEW_TFT);
 
     pkbuf = smf_s5c_build_create_bearer_request(h.type, bearer, &tft);
-    if (!pkbuf) {
-        ogs_error("smf_s5c_build_create_bearer_request() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(pkbuf, OGS_ERROR);
 
     xact = ogs_gtp_xact_local_create(
             sess->gnode, &h, pkbuf, gtp_bearer_timeout, bearer);
-    if (!xact) {
-        ogs_error("ogs_gtp_xact_local_create() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(xact, OGS_ERROR);
     xact->local_teid = sess->smf_n4_teid;
 
     rv = ogs_gtp_xact_commit(xact);
@@ -591,14 +573,8 @@ void smf_qos_flow_binding(smf_sess_t *sess)
             for (j = 0; j < pcc_rule->num_of_flow; j++) {
                 ogs_flow_t *flow = &pcc_rule->flow[j];
 
-                if (!flow) {
-                    ogs_error("No Flow");
-                    return;
-                }
-                if (!flow->description) {
-                    ogs_error("No Flow-Description");
-                    return;
-                }
+                ogs_expect_or_return(flow);
+                ogs_expect_or_return(flow->description);
 
                 /*
                  * To add a flow to an existing tft.

@@ -22,26 +22,18 @@ OpenAPI_point_uncertainty_circle_t *OpenAPI_point_uncertainty_circle_create(
 
 void OpenAPI_point_uncertainty_circle_free(OpenAPI_point_uncertainty_circle_t *point_uncertainty_circle)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == point_uncertainty_circle) {
         return;
     }
-    if (point_uncertainty_circle->shape) {
-        OpenAPI_supported_gad_shapes_free(point_uncertainty_circle->shape);
-        point_uncertainty_circle->shape = NULL;
-    }
-    if (point_uncertainty_circle->point) {
-        OpenAPI_geographical_coordinates_free(point_uncertainty_circle->point);
-        point_uncertainty_circle->point = NULL;
-    }
+    OpenAPI_lnode_t *node;
+    OpenAPI_supported_gad_shapes_free(point_uncertainty_circle->shape);
+    OpenAPI_geographical_coordinates_free(point_uncertainty_circle->point);
     ogs_free(point_uncertainty_circle);
 }
 
 cJSON *OpenAPI_point_uncertainty_circle_convertToJSON(OpenAPI_point_uncertainty_circle_t *point_uncertainty_circle)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (point_uncertainty_circle == NULL) {
         ogs_error("OpenAPI_point_uncertainty_circle_convertToJSON() failed [PointUncertaintyCircle]");
@@ -49,10 +41,6 @@ cJSON *OpenAPI_point_uncertainty_circle_convertToJSON(OpenAPI_point_uncertainty_
     }
 
     item = cJSON_CreateObject();
-    if (!point_uncertainty_circle->shape) {
-        ogs_error("OpenAPI_point_uncertainty_circle_convertToJSON() failed [shape]");
-        return NULL;
-    }
     cJSON *shape_local_JSON = OpenAPI_supported_gad_shapes_convertToJSON(point_uncertainty_circle->shape);
     if (shape_local_JSON == NULL) {
         ogs_error("OpenAPI_point_uncertainty_circle_convertToJSON() failed [shape]");
@@ -64,10 +52,6 @@ cJSON *OpenAPI_point_uncertainty_circle_convertToJSON(OpenAPI_point_uncertainty_
         goto end;
     }
 
-    if (!point_uncertainty_circle->point) {
-        ogs_error("OpenAPI_point_uncertainty_circle_convertToJSON() failed [point]");
-        return NULL;
-    }
     cJSON *point_local_JSON = OpenAPI_geographical_coordinates_convertToJSON(point_uncertainty_circle->point);
     if (point_local_JSON == NULL) {
         ogs_error("OpenAPI_point_uncertainty_circle_convertToJSON() failed [point]");
@@ -91,39 +75,30 @@ end:
 OpenAPI_point_uncertainty_circle_t *OpenAPI_point_uncertainty_circle_parseFromJSON(cJSON *point_uncertainty_circleJSON)
 {
     OpenAPI_point_uncertainty_circle_t *point_uncertainty_circle_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *shape = NULL;
-    OpenAPI_supported_gad_shapes_t *shape_local_nonprim = NULL;
-    cJSON *point = NULL;
-    OpenAPI_geographical_coordinates_t *point_local_nonprim = NULL;
-    cJSON *uncertainty = NULL;
-    shape = cJSON_GetObjectItemCaseSensitive(point_uncertainty_circleJSON, "shape");
+    cJSON *shape = cJSON_GetObjectItemCaseSensitive(point_uncertainty_circleJSON, "shape");
     if (!shape) {
         ogs_error("OpenAPI_point_uncertainty_circle_parseFromJSON() failed [shape]");
         goto end;
     }
-    shape_local_nonprim = OpenAPI_supported_gad_shapes_parseFromJSON(shape);
-    if (!shape_local_nonprim) {
-        ogs_error("OpenAPI_supported_gad_shapes_parseFromJSON failed [shape]");
-        goto end;
-    }
 
-    point = cJSON_GetObjectItemCaseSensitive(point_uncertainty_circleJSON, "point");
+    OpenAPI_supported_gad_shapes_t *shape_local_nonprim = NULL;
+    shape_local_nonprim = OpenAPI_supported_gad_shapes_parseFromJSON(shape);
+
+    cJSON *point = cJSON_GetObjectItemCaseSensitive(point_uncertainty_circleJSON, "point");
     if (!point) {
         ogs_error("OpenAPI_point_uncertainty_circle_parseFromJSON() failed [point]");
         goto end;
     }
-    point_local_nonprim = OpenAPI_geographical_coordinates_parseFromJSON(point);
-    if (!point_local_nonprim) {
-        ogs_error("OpenAPI_geographical_coordinates_parseFromJSON failed [point]");
-        goto end;
-    }
 
-    uncertainty = cJSON_GetObjectItemCaseSensitive(point_uncertainty_circleJSON, "uncertainty");
+    OpenAPI_geographical_coordinates_t *point_local_nonprim = NULL;
+    point_local_nonprim = OpenAPI_geographical_coordinates_parseFromJSON(point);
+
+    cJSON *uncertainty = cJSON_GetObjectItemCaseSensitive(point_uncertainty_circleJSON, "uncertainty");
     if (!uncertainty) {
         ogs_error("OpenAPI_point_uncertainty_circle_parseFromJSON() failed [uncertainty]");
         goto end;
     }
+
     if (!cJSON_IsNumber(uncertainty)) {
         ogs_error("OpenAPI_point_uncertainty_circle_parseFromJSON() failed [uncertainty]");
         goto end;
@@ -138,14 +113,6 @@ OpenAPI_point_uncertainty_circle_t *OpenAPI_point_uncertainty_circle_parseFromJS
 
     return point_uncertainty_circle_local_var;
 end:
-    if (shape_local_nonprim) {
-        OpenAPI_supported_gad_shapes_free(shape_local_nonprim);
-        shape_local_nonprim = NULL;
-    }
-    if (point_local_nonprim) {
-        OpenAPI_geographical_coordinates_free(point_local_nonprim);
-        point_local_nonprim = NULL;
-    }
     return NULL;
 }
 

@@ -1,7 +1,7 @@
 /*
  * af_routing_requirement_rm.h
  *
- * This data type is defined in the same way as the AfRoutingRequirement data type, but with the OpenAPI nullable property set to true and the spVal and tempVals attributes defined as removable. 
+ * this data type is defined in the same way as the AfRoutingRequirement data type, but with the OpenAPI nullable property set to true and the spVal and tempVals attributes defined as removable.
  */
 
 #ifndef _OpenAPI_af_routing_requirement_rm_H_
@@ -12,7 +12,6 @@
 #include "../include/list.h"
 #include "../include/keyValuePair.h"
 #include "../include/binary.h"
-#include "eas_ip_replacement_info.h"
 #include "route_to_location.h"
 #include "spatial_validity_rm.h"
 #include "temporal_validity.h"
@@ -32,15 +31,6 @@ typedef struct OpenAPI_af_routing_requirement_rm_s {
     struct OpenAPI_up_path_chg_event_s *up_path_chg_sub;
     bool is_addr_preser_ind;
     int addr_preser_ind;
-    bool is_sim_conn_ind;
-    int sim_conn_ind;
-    bool is_sim_conn_term;
-    int sim_conn_term;
-    OpenAPI_list_t *eas_ip_replace_infos;
-    bool is_eas_redis_ind;
-    int eas_redis_ind;
-    bool is_max_allowed_up_lat;
-    int max_allowed_up_lat;
 } OpenAPI_af_routing_requirement_rm_t;
 
 OpenAPI_af_routing_requirement_rm_t *OpenAPI_af_routing_requirement_rm_create(
@@ -51,16 +41,7 @@ OpenAPI_af_routing_requirement_rm_t *OpenAPI_af_routing_requirement_rm_create(
     OpenAPI_list_t *temp_vals,
     OpenAPI_up_path_chg_event_t *up_path_chg_sub,
     bool is_addr_preser_ind,
-    int addr_preser_ind,
-    bool is_sim_conn_ind,
-    int sim_conn_ind,
-    bool is_sim_conn_term,
-    int sim_conn_term,
-    OpenAPI_list_t *eas_ip_replace_infos,
-    bool is_eas_redis_ind,
-    int eas_redis_ind,
-    bool is_max_allowed_up_lat,
-    int max_allowed_up_lat
+    int addr_preser_ind
 );
 void OpenAPI_af_routing_requirement_rm_free(OpenAPI_af_routing_requirement_rm_t *af_routing_requirement_rm);
 OpenAPI_af_routing_requirement_rm_t *OpenAPI_af_routing_requirement_rm_parseFromJSON(cJSON *af_routing_requirement_rmJSON);

@@ -184,8 +184,8 @@ uint8_t smf_gn_handle_create_pdp_context_request(
     }
 
     /* Set some sane default if information not present in QoS Profile or APN-AMBR: */
-    sess->session.ambr.downlink = 100000000;
-    sess->session.ambr.uplink = 100000000;
+    sess->session.ambr.downlink = 102400000;
+    sess->session.ambr.uplink = 102400000;
 
     /* Set Bearer QoS */
     OGS_TLV_STORE_DATA(&sess->gtp.v1.qos, &req->quality_of_service_profile);
@@ -295,8 +295,8 @@ uint8_t smf_gn_handle_create_pdp_context_request(
     }
 
     ogs_info("UE IMSI[%s] APN[%s] IPv4[%s] IPv6[%s]",
-        smf_ue->imsi_bcd,
-        sess->session.name,
+	    smf_ue->imsi_bcd,
+	    sess->session.name,
         sess->ipv4 ? OGS_INET_NTOP(&sess->ipv4->addr, buf1) : "",
         sess->ipv6 ? OGS_INET6_NTOP(&sess->ipv6->addr, buf2) : "");
 
@@ -312,18 +312,6 @@ uint8_t smf_gn_handle_delete_pdp_context_request(
     if (!ogs_diam_app_connected(OGS_DIAM_GX_APPLICATION_ID)) {
         ogs_error("No Gx Diameter Peer");
         return OGS_GTP1_CAUSE_NO_RESOURCES_AVAILABLE;
-    }
-
-    /* PCO */
-    if (req->protocol_configuration_options.presence) {
-        OGS_TLV_STORE_DATA(&sess->gtp.ue_pco,
-                &req->protocol_configuration_options);
-    } else {
-        /*
-         * Clear contents to reflect whether PCO IE was included or not as part
-         * of Delete PDP context request
-         */
-        OGS_TLV_CLEAR_DATA(&sess->gtp.ue_pco);
     }
 
     ogs_debug("    SGW_S5C_TEID[0x%x] SMF_N4_TEID[0x%x]",
@@ -472,12 +460,6 @@ void smf_gn_handle_update_pdp_context_request(
     if (req->protocol_configuration_options.presence) {
         OGS_TLV_STORE_DATA(&sess->gtp.ue_pco,
                 &req->protocol_configuration_options);
-    } else {
-        /*
-         * Clear contents to reflect whether PCO IE was included or not as part
-         * of Update PDP context request
-         */
-        OGS_TLV_CLEAR_DATA(&sess->gtp.ue_pco);
     }
 
     memset(&h, 0, sizeof(ogs_gtp2_header_t));

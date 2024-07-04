@@ -19,7 +19,7 @@ OpenAPI_object_t *OpenAPI_object_create(void);
 
 void OpenAPI_object_free(OpenAPI_object_t *object);
 
-OpenAPI_object_t *OpenAPI_object_parseFromJSON(cJSON *json);
+OpenAPI_object_t *OpenAPI_object_parseFromJSON(cJSON *objectJSON);
 
 cJSON *OpenAPI_object_convertToJSON(OpenAPI_object_t *object);
 

@@ -44,7 +44,7 @@ int ogs_diam_init(int mode, const char *conffile, ogs_diam_config_t *fd_config)
         return ret;
     } 
     
-    /* Parse the configuration file */
+	/* Parse the configuration file */
     if (conffile) {
         CHECK_FCT_DO( fd_core_parseconf(conffile), goto error );
     } else {
@@ -59,35 +59,35 @@ int ogs_diam_init(int mode, const char *conffile, ogs_diam_config_t *fd_config)
 
     return 0;
 error:
-    CHECK_FCT_DO( fd_core_shutdown(),  );
-    CHECK_FCT_DO( fd_core_wait_shutdown_complete(),  );
+	CHECK_FCT_DO( fd_core_shutdown(),  );
+	CHECK_FCT_DO( fd_core_wait_shutdown_complete(),  );
 
-    return -1;
+	return -1;
 }
 
 int ogs_diam_start(void)
 {
-    /* Start the servers */
-    CHECK_FCT_DO( fd_core_start(), goto error );
+	/* Start the servers */
+	CHECK_FCT_DO( fd_core_start(), goto error );
 
-    CHECK_FCT_DO( fd_core_waitstartcomplete(), goto error );
+	CHECK_FCT_DO( fd_core_waitstartcomplete(), goto error );
 
     CHECK_FCT( ogs_diam_logger_stats_start() );
 
     return 0;
 error:
-    CHECK_FCT_DO( fd_core_shutdown(),  );
-    CHECK_FCT_DO( fd_core_wait_shutdown_complete(),  );
+	CHECK_FCT_DO( fd_core_shutdown(),  );
+	CHECK_FCT_DO( fd_core_wait_shutdown_complete(),  );
 
-    return -1;
+	return -1;
 }
 
 void ogs_diam_final()
 {
     ogs_diam_logger_final();
 
-    CHECK_FCT_DO( fd_core_shutdown(), ogs_error("fd_core_shutdown() failed") );
-    CHECK_FCT_DO( fd_core_wait_shutdown_complete(),
+	CHECK_FCT_DO( fd_core_shutdown(), ogs_error("fd_core_shutdown() failed") );
+	CHECK_FCT_DO( fd_core_wait_shutdown_complete(), 
             ogs_error("fd_core_wait_shutdown_complete() failed"));
 }
 
@@ -98,19 +98,15 @@ static void diam_gnutls_log_func(int level, const char *str)
 
 static void diam_log_func(int printlevel, const char *format, va_list ap)
 {
-    char *buffer = NULL;
+    char buffer[OGS_HUGE_LEN*2];
     int  ret = 0;
-
-    buffer = ogs_calloc(1, OGS_MAX_SDU_LEN);
-    ogs_assert(buffer);
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
-    ret = ogs_vsnprintf(buffer, OGS_MAX_SDU_LEN, format, ap);
+    ret = ogs_vsnprintf(buffer, OGS_HUGE_LEN*2, format, ap);
 #pragma GCC diagnostic pop
-    if (ret < 0 || ret > OGS_MAX_SDU_LEN) {
+    if (ret < 0 || ret > OGS_HUGE_LEN*2) {
         ogs_error("vsnprintf() failed[ret=%d]", ret);
-        ogs_free(buffer);
         return;
     }
 
@@ -146,6 +142,4 @@ static void diam_log_func(int printlevel, const char *format, va_list ap)
         diam_log_printf(OGS_LOG_ERROR, "[%d] %s\n", printlevel, buffer);
         break;
     }
-
-    ogs_free(buffer);
 }

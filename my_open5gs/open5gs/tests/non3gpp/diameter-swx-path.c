@@ -57,10 +57,10 @@ static void state_cleanup(struct sess_state *sess_data, os0_t sid, void *opaque)
 static int test_swx_fb_cb(struct msg **msg, struct avp *avp,
         struct session *sess, void *opaque, enum disp_action *act)
 {
-    /* This CB should never be called */
-    ogs_warn("Unexpected message received!");
-
-    return ENOTSUP;
+	/* This CB should never be called */
+	ogs_warn("Unexpected message received!");
+	
+	return ENOTSUP;
 }
 
 void test_swx_send(test_sess_t *sess, bool handover_ind,
@@ -201,10 +201,8 @@ static void test_swx_send_mar(struct sess_state *sess_data)
         uint64_t sqn_ms;
         int i;
 
-        ogs_hex_from_string(
-                test_ue->k_string, test_ue->k, sizeof(test_ue->k));
-        ogs_hex_from_string(
-                test_ue->opc_string, test_ue->opc, sizeof(test_ue->opc));
+        OGS_HEX(test_ue->k_string, strlen(test_ue->k_string), test_ue->k);
+        OGS_HEX(test_ue->opc_string, strlen(test_ue->opc_string), test_ue->opc);
 
         milenage_f2345(test_ue->opc, test_ue->k, test_ue->rand,
                 NULL, NULL, NULL, NULL, ak);
@@ -298,28 +296,13 @@ static void test_swx_maa_cb(void *data, struct msg **msg)
 
     /* Search the session, retrieve its data */
     ret = fd_msg_sess_get(fd_g_config->cnf_dict, *msg, &session, &new);
-    if (ret != 0) {
-        ogs_error("fd_msg_sess_get() failed");
-        return;
-    }
-    if (new != 0) {
-        ogs_error("fd_msg_sess_get() failed");
-        return;
-    }
+    ogs_expect_or_return(ret == 0);
+    ogs_expect_or_return(new == 0);
 
     ret = fd_sess_state_retrieve(test_swx_reg, session, &sess_data);
-    if (ret != 0) {
-        ogs_error("fd_sess_state_retrieve() failed");
-        return;
-    }
-    if (!sess_data) {
-        ogs_error("fd_sess_state_retrieve() failed");
-        return;
-    }
-    if ((void *)sess_data != data) {
-        ogs_error("fd_sess_state_retrieve() failed");
-        return;
-    }
+    ogs_expect_or_return(ret == 0);
+    ogs_expect_or_return(sess_data);
+    ogs_expect_or_return((void *)sess_data == data);
 
     /* Value of Result Code */
     ret = fd_msg_search_avp(*msg, ogs_diam_result_code, &avp);
@@ -553,28 +536,13 @@ static void test_swx_saa_cb(void *data, struct msg **msg)
 
     /* Search the session, retrieve its data */
     ret = fd_msg_sess_get(fd_g_config->cnf_dict, *msg, &session, &new);
-    if (ret != 0) {
-        ogs_error("fd_msg_sess_get() failed");
-        return;
-    }
-    if (new != 0) {
-        ogs_error("fd_msg_sess_get() failed");
-        return;
-    }
+    ogs_expect_or_return(ret == 0);
+    ogs_expect_or_return(new == 0);
 
     ret = fd_sess_state_retrieve(test_swx_reg, session, &sess_data);
-    if (ret != 0) {
-        ogs_error("fd_sess_state_retrieve() failed");
-        return;
-    }
-    if (!sess_data) {
-        ogs_error("fd_sess_state_retrieve() failed");
-        return;
-    }
-    if ((void *)sess_data != data) {
-        ogs_error("fd_sess_state_retrieve() failed");
-        return;
-    }
+    ogs_expect_or_return(ret == 0);
+    ogs_expect_or_return(sess_data);
+    ogs_expect_or_return((void *)sess_data == data);
 
     sess = sess_data->sess;
     ogs_assert(sess);
@@ -661,38 +629,38 @@ static void test_swx_saa_cb(void *data, struct msg **msg)
 int test_swx_init(void)
 {
     int ret;
-    struct disp_when data;
+	struct disp_when data;
 
-    /* Install objects definitions for this application */
-    ret = ogs_diam_swx_init();
+	/* Install objects definitions for this application */
+	ret = ogs_diam_swx_init();
     ogs_assert(ret == 0);
 
     /* Create handler for sessions */
-    ret = fd_sess_handler_create(&test_swx_reg, &state_cleanup, NULL, NULL);
+	ret = fd_sess_handler_create(&test_swx_reg, &state_cleanup, NULL, NULL);
     ogs_assert(ret == 0);
 
-    /* Fallback CB if command != unexpected message received */
-    memset(&data, 0, sizeof(data));
-    data.app = ogs_diam_swx_application;
+	/* Fallback CB if command != unexpected message received */
+	memset(&data, 0, sizeof(data));
+	data.app = ogs_diam_swx_application;
 
-    ret = fd_disp_register(test_swx_fb_cb, DISP_HOW_APPID, &data, NULL,
+	ret = fd_disp_register(test_swx_fb_cb, DISP_HOW_APPID, &data, NULL,
                 &hdl_swx_fb);
     ogs_assert(ret == 0);
-
-    /* Advertise the support for the application in the peer */
-    ret = fd_disp_app_support(ogs_diam_swx_application, ogs_diam_vendor, 1, 0);
+	
+	/* Advertise the support for the application in the peer */
+	ret = fd_disp_app_support(ogs_diam_swx_application, ogs_diam_vendor, 1, 0);
     ogs_assert(ret == 0);
 
-    return 0;
+	return 0;
 }
 
 void test_swx_final(void)
 {
     int ret;
 
-    ret = fd_sess_handler_destroy(&test_swx_reg, NULL);
+	ret = fd_sess_handler_destroy(&test_swx_reg, NULL);
     ogs_assert(ret == OGS_OK);
 
-    if (hdl_swx_fb)
-        (void) fd_disp_unregister(&hdl_swx_fb, NULL);
+	if (hdl_swx_fb)
+		(void) fd_disp_unregister(&hdl_swx_fb, NULL);
 }

@@ -80,25 +80,20 @@ int ogs_dbi_auth_info(char *supi, ogs_dbi_auth_info_t *auth_info)
 
         if (!strcmp(key, "k") && BSON_ITER_HOLDS_UTF8(&inner_iter)) {
             utf8 = (char *)bson_iter_utf8(&inner_iter, &length);
-            ogs_ascii_to_hex(utf8, length, buf, sizeof(buf));
-            memcpy(auth_info->k, buf, OGS_KEY_LEN);
+            memcpy(auth_info->k, OGS_HEX(utf8, length, buf), OGS_KEY_LEN);
         } else if (!strcmp(key, "opc") && BSON_ITER_HOLDS_UTF8(&inner_iter)) {
             utf8 = (char *)bson_iter_utf8(&inner_iter, &length);
             auth_info->use_opc = 1;
-            ogs_ascii_to_hex(utf8, length, buf, sizeof(buf));
-            memcpy(auth_info->opc, buf, OGS_KEY_LEN);
+            memcpy(auth_info->opc, OGS_HEX(utf8, length, buf), OGS_KEY_LEN);
         } else if (!strcmp(key, "op") && BSON_ITER_HOLDS_UTF8(&inner_iter)) {
             utf8 = (char *)bson_iter_utf8(&inner_iter, &length);
-            ogs_ascii_to_hex(utf8, length, buf, sizeof(buf));
-            memcpy(auth_info->op, buf, OGS_KEY_LEN);
+            memcpy(auth_info->op, OGS_HEX(utf8, length, buf), OGS_KEY_LEN);
         } else if (!strcmp(key, "amf") && BSON_ITER_HOLDS_UTF8(&inner_iter)) {
             utf8 = (char *)bson_iter_utf8(&inner_iter, &length);
-            ogs_ascii_to_hex(utf8, length, buf, sizeof(buf));
-            memcpy(auth_info->amf, buf, OGS_AMF_LEN);
+            memcpy(auth_info->amf, OGS_HEX(utf8, length, buf), OGS_AMF_LEN);
         } else if (!strcmp(key, "rand") && BSON_ITER_HOLDS_UTF8(&inner_iter)) {
             utf8 = (char *)bson_iter_utf8(&inner_iter, &length);
-            ogs_ascii_to_hex(utf8, length, buf, sizeof(buf));
-            memcpy(auth_info->rand, buf, OGS_RAND_LEN);
+            memcpy(auth_info->rand, OGS_HEX(utf8, length, buf), OGS_RAND_LEN);
         } else if (!strcmp(key, "sqn") && BSON_ITER_HOLDS_INT64(&inner_iter)) {
             auth_info->sqn = bson_iter_int64(&inner_iter);
         }
@@ -177,51 +172,6 @@ int ogs_dbi_update_imeisv(char *supi, char *imeisv)
     update = BCON_NEW("$set",
             "{",
                 "imeisv", BCON_UTF8(imeisv),
-            "}");
-    if (!mongoc_collection_update(ogs_mongoc()->collection.subscriber,
-            MONGOC_UPDATE_UPSERT, query, update, NULL, &error)) {
-        ogs_error("mongoc_collection_update() failure: %s", error.message);
-
-        rv = OGS_ERROR;
-    }
-
-    if (query) bson_destroy(query);
-    if (update) bson_destroy(update);
-
-    ogs_free(supi_type);
-    ogs_free(supi_id);
-
-    return rv;
-}
-
-int ogs_dbi_update_mme(char *supi, char *mme_host, char *mme_realm, 
-    bool purge_flag)
-{
-    int rv = OGS_OK;
-    bson_t *query = NULL;
-    bson_t *update = NULL;
-    bson_error_t error;
-
-    char *supi_type = NULL;
-    char *supi_id = NULL;
-
-    ogs_assert(supi);
-
-    supi_type = ogs_id_get_type(supi);
-    ogs_assert(supi_type);
-    supi_id = ogs_id_get_value(supi);
-    ogs_assert(supi_id);
-
-    ogs_debug("SUPI type: %s, SUPI id: %s, mme_host: %s, mme_realm: %s",
-            supi_type, supi_id, mme_host, mme_realm);
-
-    query = BCON_NEW(supi_type, BCON_UTF8(supi_id));
-    update = BCON_NEW("$set",
-            "{",
-                "mme_host", BCON_UTF8(mme_host),
-                "mme_realm", BCON_UTF8(mme_realm),
-                "mme_timestamp", BCON_INT64(ogs_time_now()),
-                "purge_flag", BCON_BOOL(purge_flag),
             "}");
     if (!mongoc_collection_update(ogs_mongoc()->collection.subscriber,
             MONGOC_UPDATE_UPSERT, query, update, NULL, &error)) {
@@ -379,12 +329,6 @@ int ogs_dbi_subscription_data(char *supi,
             }
             subscription_data->num_of_msisdn = msisdn_index;
 
-        } else if (!strcmp(key, "imsi") &&
-            BSON_ITER_HOLDS_UTF8(&iter)) {
-            utf8 = bson_iter_utf8(&iter, &length);
-            subscription_data->imsi =
-                ogs_strndup(utf8, ogs_min(length, OGS_MAX_IMSI_BCD_LEN) + 1);
-            ogs_assert(subscription_data->imsi);
         } else if (!strcmp(key, "access_restriction_data") &&
             BSON_ITER_HOLDS_INT32(&iter)) {
             subscription_data->access_restriction_data =
@@ -424,7 +368,7 @@ int ogs_dbi_subscription_data(char *supi,
                     }
 
                     for (n = 0; n < unit; n++)
-                        subscription_data->ambr.downlink *= 1000;
+                        subscription_data->ambr.downlink *= 1024;
                 } else if (!strcmp(child1_key, "uplink") &&
                         BSON_ITER_HOLDS_DOCUMENT(&child1_iter)) {
                     uint8_t unit = 0;
@@ -444,7 +388,7 @@ int ogs_dbi_subscription_data(char *supi,
                     }
 
                     for (n = 0; n < unit; n++)
-                        subscription_data->ambr.uplink *= 1000;
+                        subscription_data->ambr.uplink *= 1024;
                 }
 
             }
@@ -593,7 +537,7 @@ int ogs_dbi_subscription_data(char *supi,
                                             }
 
                                             for (n = 0; n < unit; n++)
-                                                session->ambr.downlink *= 1000;
+                                                session->ambr.downlink *= 1024;
                                         } else if (!strcmp(child5_key,
                                                     "uplink") &&
                                                 BSON_ITER_HOLDS_DOCUMENT(
@@ -624,7 +568,7 @@ int ogs_dbi_subscription_data(char *supi,
                                             }
 
                                             for (n = 0; n < unit; n++)
-                                                session->ambr.uplink *= 1000;
+                                                session->ambr.uplink *= 1024;
                                         }
                                     }
                                 } else if (!strcmp(child4_key, "smf") &&
@@ -697,64 +641,6 @@ int ogs_dbi_subscription_data(char *supi,
 
                                         }
                                     }
-                                } else if (!strcmp(child4_key, "ipv4_framed_routes") &&
-                                    BSON_ITER_HOLDS_ARRAY(&child4_iter)) {
-                                    int i;
-
-                                    if (session->ipv4_framed_routes) {
-                                        for (i = 0; i < OGS_MAX_NUM_OF_FRAMED_ROUTES_IN_PDI; i++) {
-                                            if (!session->ipv4_framed_routes[i])
-                                                break;
-                                            ogs_free(session->ipv4_framed_routes[i]);
-                                        }
-                                    } else {
-                                        session->ipv4_framed_routes = ogs_calloc(
-                                                OGS_MAX_NUM_OF_FRAMED_ROUTES_IN_PDI,
-                                                sizeof(session->ipv4_framed_routes[0]));
-                                    }
-                                    bson_iter_recurse(
-                                            &child4_iter, &child5_iter);
-                                    i = 0;
-                                    while (bson_iter_next(&child5_iter)) {
-                                        const char *v;
-
-                                        if (i >= OGS_MAX_NUM_OF_FRAMED_ROUTES_IN_PDI)
-                                            break;
-
-                                        if (!BSON_ITER_HOLDS_UTF8(&child5_iter))
-                                            continue;
-                                        v = bson_iter_utf8(&child5_iter, &length);
-                                        session->ipv4_framed_routes[i++] = ogs_strdup(v);
-                                    }
-                                } else if (!strcmp(child4_key, "ipv6_framed_routes") &&
-                                    BSON_ITER_HOLDS_ARRAY(&child4_iter)) {
-                                    int i;
-
-                                    if (session->ipv6_framed_routes) {
-                                        for (i = 0; i < OGS_MAX_NUM_OF_FRAMED_ROUTES_IN_PDI; i++) {
-                                            if (!session->ipv6_framed_routes[i])
-                                                break;
-                                            ogs_free(session->ipv6_framed_routes[i]);
-                                        }
-                                    } else {
-                                        session->ipv6_framed_routes = ogs_calloc(
-                                                OGS_MAX_NUM_OF_FRAMED_ROUTES_IN_PDI,
-                                                sizeof(session->ipv6_framed_routes[0]));
-                                    }
-                                    bson_iter_recurse(
-                                            &child4_iter, &child5_iter);
-                                    i = 0;
-                                    while (bson_iter_next(&child5_iter)) {
-                                        const char *v;
-
-                                        if (i >= OGS_MAX_NUM_OF_FRAMED_ROUTES_IN_PDI)
-                                            break;
-
-                                        if (!BSON_ITER_HOLDS_UTF8(&child5_iter))
-                                            continue;
-                                        v = bson_iter_utf8(&child5_iter, &length);
-                                        session->ipv6_framed_routes[i++] = ogs_strdup(v);
-                                    }
                                 }
                             }
                             slice_data->num_of_session++;
@@ -763,21 +649,6 @@ int ogs_dbi_subscription_data(char *supi,
                 }
                 subscription_data->num_of_slice++;
             }
-        } else if (!strcmp(key, "mme_host") &&
-            BSON_ITER_HOLDS_UTF8(&iter)) {
-            utf8 = bson_iter_utf8(&iter, &length);
-            subscription_data->mme_host =
-                ogs_strndup(utf8, ogs_min(length, OGS_MAX_FQDN_LEN) + 1);
-            ogs_assert(subscription_data->mme_host);
-        } else if (!strcmp(key, "mme_realm") &&
-            BSON_ITER_HOLDS_UTF8(&iter)) {
-            utf8 = bson_iter_utf8(&iter, &length);
-            subscription_data->mme_realm =
-                ogs_strndup(utf8, ogs_min(length, OGS_MAX_FQDN_LEN) + 1);
-            ogs_assert(subscription_data->mme_realm);
-        } else if (!strcmp(key, "purge_flag") &&
-            BSON_ITER_HOLDS_BOOL(&iter)) {
-            subscription_data->purge_flag = bson_iter_bool(&iter);
         }
     }
 

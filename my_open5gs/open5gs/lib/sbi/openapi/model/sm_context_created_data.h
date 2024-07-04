@@ -1,7 +1,7 @@
 /*
  * sm_context_created_data.h
  *
- * Data within Create SM Context Response
+ * 
  */
 
 #ifndef _OpenAPI_sm_context_created_data_H_
@@ -41,7 +41,6 @@ typedef struct OpenAPI_sm_context_created_data_s {
     char *supported_features;
     char *selected_smf_id;
     char *selected_old_smf_id;
-    char *inter_plmn_api_root;
 } OpenAPI_sm_context_created_data_t;
 
 OpenAPI_sm_context_created_data_t *OpenAPI_sm_context_created_data_create(
@@ -60,8 +59,7 @@ OpenAPI_sm_context_created_data_t *OpenAPI_sm_context_created_data_create(
     char *recovery_time,
     char *supported_features,
     char *selected_smf_id,
-    char *selected_old_smf_id,
-    char *inter_plmn_api_root
+    char *selected_old_smf_id
 );
 void OpenAPI_sm_context_created_data_free(OpenAPI_sm_context_created_data_t *sm_context_created_data);
 OpenAPI_sm_context_created_data_t *OpenAPI_sm_context_created_data_parseFromJSON(cJSON *sm_context_created_dataJSON);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -18,306 +18,7 @@
  */
 
 #include "ogs-sbi.h"
-
-static void handle_nf_service(
-        ogs_sbi_nf_service_t *nf_service, OpenAPI_nf_service_t *NFService);
-static void handle_smf_info(
-        ogs_sbi_nf_instance_t *nf_instance, OpenAPI_smf_info_t *SmfInfo);
-
-void ogs_nnrf_nfm_handle_nf_register(
-        ogs_sbi_nf_instance_t *nf_instance, ogs_sbi_message_t *recvmsg)
-{
-    OpenAPI_nf_profile_t *NFProfile = NULL;
-
-    ogs_assert(recvmsg);
-    ogs_assert(nf_instance);
-
-    NFProfile = recvmsg->NFProfile;
-    if (!NFProfile) {
-        ogs_error("No NFProfile");
-        return;
-    }
-
-    /* TIME : Update heartbeat from NRF */
-    if (NFProfile->is_heart_beat_timer == true)
-        nf_instance->time.heartbeat_interval = NFProfile->heart_beat_timer;
-}
-
-void ogs_nnrf_nfm_handle_nf_profile(
-        ogs_sbi_nf_instance_t *nf_instance, OpenAPI_nf_profile_t *NFProfile)
-{
-    int rv;
-    OpenAPI_lnode_t *node;
-
-    ogs_assert(nf_instance);
-    ogs_assert(NFProfile);
-    ogs_assert(NFProfile->nf_instance_id);
-    ogs_assert(NFProfile->nf_type);
-    ogs_assert(NFProfile->nf_status);
-
-    ogs_sbi_nf_instance_clear(nf_instance);
-
-    nf_instance->nf_type = NFProfile->nf_type;
-    nf_instance->nf_status = NFProfile->nf_status;
-    if (NFProfile->is_heart_beat_timer == true)
-        nf_instance->time.heartbeat_interval = NFProfile->heart_beat_timer;
-
-    if (NFProfile->fqdn)
-        nf_instance->fqdn = ogs_strdup(NFProfile->fqdn);
-
-    if (NFProfile->is_priority == true)
-        nf_instance->priority = NFProfile->priority;
-    if (NFProfile->is_capacity == true)
-        nf_instance->capacity = NFProfile->capacity;
-    if (NFProfile->is_load == true)
-        nf_instance->load = NFProfile->load;
-
-    OpenAPI_list_for_each(NFProfile->ipv4_addresses, node) {
-        ogs_sockaddr_t *addr = NULL;
-
-        if (!node->data) {
-            ogs_error("No IPv4 Address");
-            continue;
-        }
-
-        if (nf_instance->num_of_ipv4 < OGS_SBI_MAX_NUM_OF_IP_ADDRESS) {
-
-            rv = ogs_getaddrinfo(&addr, AF_UNSPEC,
-                    node->data, ogs_sbi_client_default_port(), 0);
-            if (rv != OGS_OK) continue;
-
-            nf_instance->ipv4[nf_instance->num_of_ipv4] = addr;
-            nf_instance->num_of_ipv4++;
-        }
-    }
-    OpenAPI_list_for_each(NFProfile->ipv6_addresses, node) {
-        ogs_sockaddr_t *addr = NULL;
-
-        if (!node->data) {
-            ogs_error("No IPv6 Address");
-            continue;
-        }
-
-        if (nf_instance->num_of_ipv6 < OGS_SBI_MAX_NUM_OF_IP_ADDRESS) {
-
-            rv = ogs_getaddrinfo(&addr, AF_UNSPEC,
-                    node->data, ogs_sbi_client_default_port(), 0);
-            if (rv != OGS_OK) continue;
-
-            nf_instance->ipv6[nf_instance->num_of_ipv6] = addr;
-            nf_instance->num_of_ipv6++;
-        }
-    }
-
-    OpenAPI_list_for_each(NFProfile->allowed_nf_types, node) {
-        OpenAPI_nf_type_e AllowedNfType = (uintptr_t)node->data;
-
-        if (!AllowedNfType) {
-            ogs_error("AllowedNfType");
-            continue;
-        }
-
-        if (nf_instance->num_of_allowed_nf_type <
-                OGS_SBI_MAX_NUM_OF_NF_TYPE) {
-            nf_instance->allowed_nf_type[
-                nf_instance->num_of_allowed_nf_type] = AllowedNfType;
-            nf_instance->num_of_allowed_nf_type++;
-        }
-    }
-
-    OpenAPI_list_for_each(NFProfile->nf_services, node) {
-        ogs_sbi_nf_service_t *nf_service = NULL;
-        OpenAPI_nf_service_t *NFService = node->data;
-
-        if (!NFService) {
-            ogs_error("No NFService");
-            continue;
-        }
-
-        if (!NFService->service_instance_id) {
-            ogs_error("No NFService.service_instance_id");
-            continue;
-        }
-
-        if (!NFService->service_name) {
-            ogs_error("No NFService.service_name");
-            continue;
-        }
-
-        if (!NFService->scheme) {
-            ogs_error("No NFService.scheme");
-            continue;
-        }
-
-        nf_service = ogs_sbi_nf_service_find_by_id(
-                        nf_instance, NFService->service_instance_id);
-        if (!nf_service) {
-            nf_service = ogs_sbi_nf_service_add(
-                            nf_instance,
-                            NFService->service_instance_id,
-                            NFService->service_name, NFService->scheme);
-            ogs_assert(nf_service);
-        }
-
-        ogs_sbi_nf_service_clear(nf_service);
-
-        handle_nf_service(nf_service, NFService);
-    }
-
-    OpenAPI_list_for_each(NFProfile->nf_service_list, node) {
-        ogs_sbi_nf_service_t *nf_service = NULL;
-        OpenAPI_map_t *NFServiceMap = NULL;
-        OpenAPI_nf_service_t *NFService = node->data;
-
-        NFServiceMap = node->data;
-        if (NFServiceMap) {
-            NFService = NFServiceMap->value;
-            if (!NFService) {
-                ogs_error("No NFService");
-                continue;
-            }
-
-            if (!NFService->service_instance_id) {
-                ogs_error("No NFService.service_instance_id");
-                continue;
-            }
-
-            if (!NFService->service_name) {
-                ogs_error("No NFService.service_name");
-                continue;
-            }
-
-            if (!NFService->scheme) {
-                ogs_error("No NFService.scheme");
-                continue;
-            }
-
-            nf_service = ogs_sbi_nf_service_find_by_id(
-                            nf_instance, NFService->service_instance_id);
-            if (!nf_service) {
-                nf_service = ogs_sbi_nf_service_add(
-                                nf_instance,
-                                NFService->service_instance_id,
-                                NFService->service_name, NFService->scheme);
-                ogs_assert(nf_service);
-            }
-
-            ogs_sbi_nf_service_clear(nf_service);
-
-            handle_nf_service(nf_service, NFService);
-        }
-    }
-
-    ogs_sbi_nf_info_remove_all(&nf_instance->nf_info_list);
-
-    if (NFProfile->smf_info)
-        handle_smf_info(nf_instance, NFProfile->smf_info);
-
-    OpenAPI_list_for_each(NFProfile->smf_info_list, node) {
-        OpenAPI_map_t *SmfInfoMap = node->data;
-        if (SmfInfoMap && SmfInfoMap->value)
-            handle_smf_info(nf_instance, SmfInfoMap->value);
-    }
-}
-
-static void handle_nf_service(
-        ogs_sbi_nf_service_t *nf_service, OpenAPI_nf_service_t *NFService)
-{
-    int rv;
-    OpenAPI_lnode_t *node = NULL;
-
-    ogs_assert(nf_service);
-    ogs_assert(NFService);
-
-    OpenAPI_list_for_each(NFService->versions, node) {
-        OpenAPI_nf_service_version_t *NFServiceVersion = node->data;
-
-        if (!NFServiceVersion) {
-            ogs_error("No NFServiceVersion");
-            continue;
-        }
-
-        ogs_sbi_nf_service_add_version(nf_service,
-                    NFServiceVersion->api_version_in_uri,
-                    NFServiceVersion->api_full_version,
-                    NFServiceVersion->expiry);
-    }
-
-    if (NFService->fqdn)
-        nf_service->fqdn = ogs_strdup(NFService->fqdn);
-
-    OpenAPI_list_for_each(NFService->ip_end_points, node) {
-        OpenAPI_ip_end_point_t *IpEndPoint = node->data;
-        ogs_sockaddr_t *addr = NULL, *addr6 = NULL;
-        int port = 0;
-
-        if (!IpEndPoint) {
-            ogs_error("No IpEndPoint");
-            continue;
-        }
-
-        if (nf_service->num_of_addr < OGS_SBI_MAX_NUM_OF_IP_ADDRESS) {
-            if (!IpEndPoint->is_port)
-                port = ogs_sbi_client_default_port();
-            else
-                port = IpEndPoint->port;
-
-            if (IpEndPoint->ipv4_address) {
-                rv = ogs_getaddrinfo(&addr, AF_UNSPEC,
-                        IpEndPoint->ipv4_address, port, 0);
-                if (rv != OGS_OK) {
-                    ogs_error("ogs_getaddrinfo[%s] failed",
-                                IpEndPoint->ipv4_address);
-                    continue;
-                }
-            }
-            if (IpEndPoint->ipv6_address) {
-                rv = ogs_getaddrinfo(&addr6, AF_UNSPEC,
-                        IpEndPoint->ipv6_address, port, 0);
-                if (rv != OGS_OK) {
-                    ogs_error("ogs_getaddrinfo[%s] failed",
-                                IpEndPoint->ipv6_address);
-                    continue;
-                }
-            }
-
-            if (addr || addr6) {
-                nf_service->addr[nf_service->num_of_addr].
-                    is_port = IpEndPoint->is_port;
-                nf_service->addr[nf_service->num_of_addr].
-                    port = port;
-                nf_service->addr[nf_service->num_of_addr].
-                    ipv4 = addr;
-                nf_service->addr[nf_service->num_of_addr].
-                    ipv6 = addr6;
-                nf_service->num_of_addr++;
-            }
-        }
-    }
-
-    OpenAPI_list_for_each(NFService->allowed_nf_types, node) {
-        OpenAPI_nf_type_e AllowedNfType = (uintptr_t)node->data;
-
-        if (!AllowedNfType) {
-            ogs_error("AllowedNfType");
-            continue;
-        }
-
-        if (nf_service->num_of_allowed_nf_type <
-                OGS_SBI_MAX_NUM_OF_NF_TYPE) {
-            nf_service->allowed_nf_type[
-                nf_service->num_of_allowed_nf_type] = AllowedNfType;
-            nf_service->num_of_allowed_nf_type++;
-        }
-    }
-
-    if (NFService->is_priority == true)
-        nf_service->priority = NFService->priority;
-    if (NFService->is_capacity == true)
-        nf_service->capacity = NFService->capacity;
-    if (NFService->is_load == true)
-        nf_service->load = NFService->load;
-}
+#include "ogs-app.h"
 
 static void handle_smf_info(
         ogs_sbi_nf_instance_t *nf_instance, OpenAPI_smf_info_t *SmfInfo)
@@ -326,7 +27,7 @@ static void handle_smf_info(
 
     OpenAPI_list_t *sNssaiSmfInfoList = NULL;
     OpenAPI_snssai_smf_info_item_t *sNssaiSmfInfoItem = NULL;
-    OpenAPI_ext_snssai_t *sNssai = NULL;
+    OpenAPI_snssai_t *sNssai = NULL;
     OpenAPI_list_t *DnnSmfInfoList = NULL;
     OpenAPI_dnn_smf_info_item_t *DnnSmfInfoItem = NULL;
 
@@ -452,408 +153,291 @@ static void handle_smf_info(
     }
 }
 
-static void handle_validity_time(
-        ogs_sbi_subscription_data_t *subscription_data,
-        char *validity_time, const char *action)
-{
-    ogs_time_t time, validity, patch;
-
-    ogs_assert(validity_time);
-    ogs_assert(subscription_data);
-    ogs_assert(action);
-
-    if (ogs_sbi_time_from_string(&time, validity_time) == false) {
-        ogs_error("[%s] Subscription %s until %s [parser error]",
-                subscription_data->id, action, validity_time);
-        return;
-    }
-
-    validity = time - ogs_time_now();
-    if (validity < 0) {
-        ogs_error("[%s] Subscription %s until %s [validity:%d.%06d]",
-                subscription_data->id, action, validity_time,
-                (int)ogs_time_sec(validity), (int)ogs_time_usec(validity));
-        return;
-    }
-
-    /*
-     * Store subscription_data->time.validity_duration to derive NRF validity.
-     * It will be used in ogs_nnrf_nfm_build_status_update().
-     *
-     * So, you should not remove the following lines.
-     */
-    subscription_data->time.validity_duration = OGS_SBI_VALIDITY_SEC(validity);
-
-    if (!subscription_data->t_validity) {
-        subscription_data->t_validity =
-            ogs_timer_add(ogs_app()->timer_mgr,
-                ogs_timer_subscription_validity, subscription_data);
-        ogs_assert(subscription_data->t_validity);
-    }
-    ogs_timer_start(subscription_data->t_validity, validity);
-
-    /*
-     * PATCH request will be sent before VALIDITY is expired.
-     */
-#define PATCH_TIME_FROM_VALIDITY(x) ((x) / 2)
-    patch = PATCH_TIME_FROM_VALIDITY(validity);
-
-    if (!subscription_data->t_patch) {
-        subscription_data->t_patch =
-            ogs_timer_add(ogs_app()->timer_mgr,
-                ogs_timer_subscription_patch, subscription_data);
-        ogs_assert(subscription_data->t_patch);
-    }
-    ogs_timer_start(subscription_data->t_patch, patch);
-
-    ogs_info("[%s] Subscription %s until %s "
-            "[duration:%d,validity:%d.%06d,patch:%d.%06d]",
-            subscription_data->id, action, validity_time,
-            subscription_data->time.validity_duration,
-            (int)ogs_time_sec(validity), (int)ogs_time_usec(validity),
-            (int)ogs_time_sec(patch), (int)ogs_time_usec(patch));
-}
-
-void ogs_nnrf_nfm_handle_nf_status_subscribe(
-        ogs_sbi_subscription_data_t *subscription_data,
-        ogs_sbi_message_t *recvmsg)
-{
-    OpenAPI_subscription_data_t *SubscriptionData = NULL;
-
-    ogs_assert(recvmsg);
-    ogs_assert(subscription_data);
-
-    SubscriptionData = recvmsg->SubscriptionData;
-    if (!SubscriptionData) {
-        ogs_error("No SubscriptionData");
-        return;
-    }
-
-    if (recvmsg->http.location) {
-        int rv;
-        ogs_sbi_message_t message;
-        ogs_sbi_header_t header;
-
-        memset(&header, 0, sizeof(header));
-        header.uri = recvmsg->http.location;
-
-        rv = ogs_sbi_parse_header(&message, &header);
-        if (rv != OGS_OK) {
-            ogs_error("Cannot parse http.location [%s]",
-                recvmsg->http.location);
-            return;
-        }
-
-        if (!message.h.resource.component[1]) {
-            ogs_error("No Subscription ID [%s]", recvmsg->http.location);
-            ogs_sbi_header_free(&header);
-            return;
-        }
-
-        ogs_sbi_subscription_data_set_id(
-                subscription_data, message.h.resource.component[1]);
-
-        ogs_sbi_header_free(&header);
-
-    } else if (SubscriptionData->subscription_id) {
-        /*
-         * For compatibility with v2.5.x and lower versions
-         *
-         * Deprecated : It will be removed soon.
-         */
-        ogs_sbi_subscription_data_set_id(
-            subscription_data, SubscriptionData->subscription_id);
-    } else {
-        ogs_error("No Subscription ID");
-        return;
-    }
-
-    /* SBI Features */
-    if (SubscriptionData->nrf_supported_features) {
-        subscription_data->nrf_supported_features =
-            ogs_uint64_from_string(SubscriptionData->nrf_supported_features);
-    } else {
-        subscription_data->nrf_supported_features = 0;
-    }
-
-    /* Subscription Validity Time */
-    if (SubscriptionData->validity_time)
-        handle_validity_time(
-                subscription_data, SubscriptionData->validity_time, "created");
-}
-
-void ogs_nnrf_nfm_handle_nf_status_update(
-        ogs_sbi_subscription_data_t *subscription_data,
-        ogs_sbi_message_t *recvmsg)
-{
-    OpenAPI_subscription_data_t *SubscriptionData = NULL;
-
-    ogs_assert(recvmsg);
-    ogs_assert(subscription_data);
-
-    SubscriptionData = recvmsg->SubscriptionData;
-    if (!SubscriptionData) {
-        ogs_error("No SubscriptionData");
-        return;
-    }
-
-    /* Subscription Validity Time */
-    if (SubscriptionData->validity_time)
-        handle_validity_time(
-                subscription_data, SubscriptionData->validity_time, "updated");
-}
-
-bool ogs_nnrf_nfm_handle_nf_status_notify(
-        ogs_sbi_stream_t *stream, ogs_sbi_message_t *recvmsg)
+bool ogs_sbi_nnrf_handle_nf_profile(ogs_sbi_nf_instance_t *nf_instance,
+        OpenAPI_nf_profile_t *NFProfile,
+        ogs_sbi_stream_t *stream, ogs_sbi_message_t *message)
 {
     int rv;
 
-    ogs_sbi_response_t *response = NULL;
-    OpenAPI_notification_data_t *NotificationData = NULL;
-    ogs_sbi_nf_instance_t *nf_instance = NULL;
+    OpenAPI_lnode_t *node;
+    ogs_sbi_nf_service_t *nf_service = NULL, *next_nf_service = NULL;
+#if SBI_FQDN_WITH_ONE_OCTET_LENGTH
+    char fqdn[OGS_MAX_FQDN_LEN+1];
+#endif
 
-    ogs_sbi_message_t message;
-    ogs_sbi_header_t header;
+    ogs_assert(nf_instance);
+    ogs_assert(NFProfile);
 
-    ogs_assert(stream);
-    ogs_assert(recvmsg);
-
-    NotificationData = recvmsg->NotificationData;
-    if (!NotificationData) {
-        ogs_error("No NotificationData");
-        ogs_assert(true ==
-            ogs_sbi_server_send_error(stream, OGS_SBI_HTTP_STATUS_BAD_REQUEST,
-                recvmsg, "No NotificationData", NULL));
-        return false;
-    }
-
-    if (!NotificationData->nf_instance_uri) {
-        ogs_error("No nfInstanceUri");
-        ogs_assert(true ==
-            ogs_sbi_server_send_error(stream, OGS_SBI_HTTP_STATUS_BAD_REQUEST,
-                recvmsg, "No nfInstanceUri", NULL));
-        return false;
-    }
-
-    memset(&header, 0, sizeof(header));
-    header.uri = NotificationData->nf_instance_uri;
-
-    rv = ogs_sbi_parse_header(&message, &header);
-    if (rv != OGS_OK) {
-        ogs_error("Cannot parse nfInstanceUri [%s]", header.uri);
-        ogs_assert(true ==
-            ogs_sbi_server_send_error(stream, OGS_SBI_HTTP_STATUS_BAD_REQUEST,
-                recvmsg, "Cannot parse nfInstanceUri", header.uri));
-        return false;
-    }
-
-    if (!message.h.resource.component[1]) {
-        ogs_error("No nfInstanceId [%s]", header.uri);
-        ogs_assert(true ==
-            ogs_sbi_server_send_error(stream, OGS_SBI_HTTP_STATUS_BAD_REQUEST,
-                recvmsg, "Cannot parse nfInstanceUri", header.uri));
-        ogs_sbi_header_free(&header);
-        return false;
-    }
-
-    if (NF_INSTANCE_ID_IS_SELF(message.h.resource.component[1])) {
-        ogs_warn("[%s] The notification is not allowed",
-                message.h.resource.component[1]);
-        ogs_assert(true ==
-            ogs_sbi_server_send_error(stream, OGS_SBI_HTTP_STATUS_FORBIDDEN,
-                recvmsg, "The notification is not allowed",
-                message.h.resource.component[1]));
-        ogs_sbi_header_free(&header);
-        return false;
-    }
-
-    if (NotificationData->event ==
-            OpenAPI_notification_event_type_NF_REGISTERED) {
-
-        OpenAPI_nf_profile_t *NFProfile = NULL;
-
-        NFProfile = NotificationData->nf_profile;
-        if (!NFProfile) {
-            ogs_error("No NFProfile");
+    if (!NFProfile) {
+        ogs_error("No NFProfile");
+        if (stream)
             ogs_assert(true ==
                 ogs_sbi_server_send_error(
                     stream, OGS_SBI_HTTP_STATUS_BAD_REQUEST,
-                    recvmsg, "No NFProfile", NULL));
-            ogs_sbi_header_free(&header);
-            return false;
-        }
+                    message, "No NFProfile", NULL));
+        return false;
+    }
 
-        if (!NFProfile->nf_instance_id) {
-            ogs_error("No NFProfile.NFInstanceId");
+    if (!NFProfile->nf_instance_id) {
+        ogs_error("No NFProfile.NFInstanceId");
+        if (stream)
             ogs_assert(true ==
                 ogs_sbi_server_send_error(
                     stream, OGS_SBI_HTTP_STATUS_BAD_REQUEST,
-                    recvmsg, "No NFProfile.NFInstanceId", NULL));
-            ogs_sbi_header_free(&header);
-            return false;
-        }
+                    message, "NFProfile", "No NFInstanceId"));
+        return false;
+    }
 
-        if (!NFProfile->nf_type) {
-            ogs_error("No NFProfile.NFType");
+    if (!NFProfile->nf_type) {
+        ogs_error("No NFProfile.NFType");
+        if (stream)
             ogs_assert(true ==
                 ogs_sbi_server_send_error(
                     stream, OGS_SBI_HTTP_STATUS_BAD_REQUEST,
-                    recvmsg, "No NFProfile.NFType", NULL));
-            ogs_sbi_header_free(&header);
-            return false;
-        }
+                    message, "NFProfile", "No NFType"));
+        return false;
+    }
 
-        if (!NFProfile->nf_status) {
-            ogs_error("No NFProfile.NFStatus");
+    if (!NFProfile->nf_status) {
+        ogs_error("No NFProfile.NFStatus");
+        if (stream)
             ogs_assert(true ==
                 ogs_sbi_server_send_error(
                     stream, OGS_SBI_HTTP_STATUS_BAD_REQUEST,
-                    recvmsg, "No NFProfile.NFStatus", NULL));
-            ogs_sbi_header_free(&header);
-            return false;
+                    message, "NFProfile", "No NFStatus"));
+        return false;
+    }
+
+    ogs_list_for_each_safe(&nf_instance->nf_service_list,
+            next_nf_service, nf_service) {
+        bool nf_service_should_not_be_deleted = false;
+
+        ogs_assert(nf_service->id);
+
+        OpenAPI_list_for_each(NFProfile->nf_services, node) {
+            OpenAPI_nf_service_t *NFService = node->data;
+
+            if (!NFService) continue;
+            if (!NFService->service_instance_id) continue;
+            if (!NFService->service_name) continue;
+
+            if (strcmp(nf_service->id, NFService->service_instance_id) == 0) {
+                nf_service_should_not_be_deleted = true;
+                break;
+            }
         }
 
-        nf_instance = ogs_sbi_nf_instance_find(message.h.resource.component[1]);
-        if (!nf_instance) {
-            nf_instance = ogs_sbi_nf_instance_add();
+        if (nf_service_should_not_be_deleted == false) {
+            ogs_warn("NFService[%s:%s] removed",
+                    nf_service->id, nf_service->name);
+            OpenAPI_list_for_each(NFProfile->nf_services, node) {
+                OpenAPI_nf_service_t *NFService = node->data;
+
+                if (!NFService) continue;
+                if (!NFService->service_instance_id) continue;
+                if (!NFService->service_name) continue;
+
+                ogs_warn("NFService[%s:%s] will be added",
+                    NFService->service_instance_id, NFService->service_name);
+            }
+            ogs_sbi_nf_service_remove(nf_service);
+        }
+    }
+    ogs_sbi_nf_instance_clear(nf_instance);
+
+    nf_instance->nf_type = NFProfile->nf_type;
+    nf_instance->nf_status = NFProfile->nf_status;
+    if (NFProfile->is_heart_beat_timer == true)
+        nf_instance->time.heartbeat_interval = NFProfile->heart_beat_timer;
+
+    if (NFProfile->fqdn) {
+#if SBI_FQDN_WITH_ONE_OCTET_LENGTH
+        if (ogs_fqdn_parse(
+                fqdn, NFProfile->fqdn,
+                ogs_min(strlen(NFProfile->fqdn), OGS_MAX_FQDN_LEN)) > 0) {
+
+            /* Nothing : succeeded to parse FQDN */
+            nf_instance->fqdn = ogs_strdup(fqdn);
             ogs_assert(nf_instance);
 
-            ogs_sbi_nf_instance_set_id(
-                    nf_instance, message.h.resource.component[1]);
-            ogs_sbi_nf_fsm_init(nf_instance);
-
-            ogs_info("[%s] (NRF-notify) NF registered", nf_instance->id);
         } else {
-            ogs_sbi_nf_fsm_tran(nf_instance, ogs_sbi_nf_state_registered);
-
-            ogs_warn("[%s] (NRF-notify) NF has already been added",
-                    message.h.resource.component[1]);
-        }
-
-        ogs_nnrf_nfm_handle_nf_profile(nf_instance, NFProfile);
-
-        ogs_info("[%s] (NRF-notify) NF Profile updated", nf_instance->id);
-
-        ogs_sbi_client_associate(nf_instance);
-
-    } else if (NotificationData->event ==
-            OpenAPI_notification_event_type_NF_DEREGISTERED) {
-        nf_instance = ogs_sbi_nf_instance_find(message.h.resource.component[1]);
-        if (nf_instance) {
-            if (OGS_OBJECT_IS_REF(nf_instance)) {
-                /* There are references to other contexts. */
-                ogs_warn("[%s:%d] NF was referenced in other contexts",
-                        nf_instance->id, nf_instance->reference_count);
-                ogs_sbi_nf_fsm_tran(
-                        nf_instance, ogs_sbi_nf_state_de_registered);
-            } else {
-                ogs_info("[%s:%d] NF removed",
-                        nf_instance->id, nf_instance->reference_count);
-                ogs_sbi_nf_fsm_fini((nf_instance));
-                ogs_sbi_nf_instance_remove(nf_instance);
-            }
-        } else {
-            ogs_warn("[%s] (NRF-notify) Not found",
-                    message.h.resource.component[1]);
-            ogs_assert(true ==
-                ogs_sbi_server_send_error(stream,
-                    OGS_SBI_HTTP_STATUS_NOT_FOUND,
-                    recvmsg, "Not found", message.h.resource.component[1]));
-            ogs_sbi_header_free(&header);
+            ogs_error("ogs_fqdn_parse() failed[%s]", NFProfile->fqdn);
             return false;
         }
-    } else {
-        char *eventstr = OpenAPI_notification_event_type_ToString(
-                            NotificationData->event);
-        ogs_error("Not supported event [%d:%s]",
-                NotificationData->event, eventstr ? eventstr : "Unknown");
-        ogs_assert(true ==
-            ogs_sbi_server_send_error(stream, OGS_SBI_HTTP_STATUS_BAD_REQUEST,
-                recvmsg, "Not supported event",
-                eventstr ? eventstr : "Unknown"));
-        ogs_sbi_header_free(&header);
-        return false;
+#else
+        nf_instance->fqdn = ogs_strdup(NFProfile->fqdn);
+#endif
     }
 
-    response = ogs_sbi_build_response(recvmsg, OGS_SBI_HTTP_STATUS_NO_CONTENT);
-    ogs_assert(response);
-    ogs_assert(true == ogs_sbi_server_send_response(stream, response));
+    if (NFProfile->is_priority == true)
+        nf_instance->priority = NFProfile->priority;
+    if (NFProfile->is_capacity == true)
+        nf_instance->capacity = NFProfile->capacity;
+    if (NFProfile->is_load == true)
+        nf_instance->load = NFProfile->load;
 
-    ogs_sbi_header_free(&header);
-    return true;
-}
-
-void ogs_nnrf_disc_handle_nf_discover_search_result(
-        OpenAPI_search_result_t *SearchResult)
-{
-    OpenAPI_lnode_t *node = NULL;
-    ogs_sbi_nf_instance_t *nf_instance = NULL;
-
-    ogs_assert(SearchResult);
-
-    OpenAPI_list_for_each(SearchResult->nf_instances, node) {
-        OpenAPI_nf_profile_t *NFProfile = NULL;
+    /* Only one time handles RegisterNFInstance operation */
+    OpenAPI_list_for_each(NFProfile->ipv4_addresses, node) {
+        ogs_sockaddr_t *addr = NULL;
 
         if (!node->data) continue;
 
-        NFProfile = node->data;
+        if (nf_instance->num_of_ipv4 < OGS_SBI_MAX_NUM_OF_IP_ADDRESS) {
 
-        if (!NFProfile) {
-            ogs_error("No NFProfile");
-            continue;
-        }
+            rv = ogs_getaddrinfo(&addr, AF_UNSPEC,
+                    node->data, ogs_sbi_self()->sbi_port, 0);
+            if (rv != OGS_OK) continue;
 
-        if (!NFProfile->nf_instance_id) {
-            ogs_error("No NFProfile.NFInstanceId");
-            continue;
-        }
-
-        if (!NFProfile->nf_type) {
-            ogs_error("No NFProfile.NFType");
-            continue;
-        }
-
-        if (!NFProfile->nf_status) {
-            ogs_error("No NFProfile.NFStatus");
-            continue;
-        }
-
-        nf_instance = ogs_sbi_nf_instance_find(NFProfile->nf_instance_id);
-        if (!nf_instance) {
-            nf_instance = ogs_sbi_nf_instance_add();
-            ogs_assert(nf_instance);
-
-            ogs_sbi_nf_instance_set_id(nf_instance, NFProfile->nf_instance_id);
-            ogs_sbi_nf_fsm_init(nf_instance);
-
-            ogs_info("[%s] (NF-discover) NF registered", nf_instance->id);
-        } else {
-            ogs_sbi_nf_fsm_tran(nf_instance, ogs_sbi_nf_state_registered);
-
-            ogs_warn("[%s] (NF-discover) NF has already been added",
-                    NFProfile->nf_instance_id);
-        }
-
-        if (NF_INSTANCE_ID_IS_OTHERS(nf_instance->id)) {
-            ogs_nnrf_nfm_handle_nf_profile(nf_instance, NFProfile);
-
-            ogs_sbi_client_associate(nf_instance);
-
-            /* TIME : Update validity from NRF */
-            if (SearchResult->is_validity_period &&
-                SearchResult->validity_period) {
-                nf_instance->time.validity_duration =
-                        SearchResult->validity_period;
-
-                ogs_assert(nf_instance->t_validity);
-                ogs_timer_start(nf_instance->t_validity,
-                    ogs_time_from_sec(nf_instance->time.validity_duration));
-
-            } else
-                ogs_warn("[%s] NF Instance validity-time should not 0",
-                        nf_instance->id);
-
-            ogs_info("[%s] (NF-discover) NF Profile updated", nf_instance->id);
+            nf_instance->ipv4[nf_instance->num_of_ipv4] = addr;
+            nf_instance->num_of_ipv4++;
         }
     }
+    OpenAPI_list_for_each(NFProfile->ipv6_addresses, node) {
+        ogs_sockaddr_t *addr = NULL;
+
+        if (!node->data) continue;
+
+        if (nf_instance->num_of_ipv6 < OGS_SBI_MAX_NUM_OF_IP_ADDRESS) {
+
+            rv = ogs_getaddrinfo(&addr, AF_UNSPEC,
+                    node->data, ogs_sbi_self()->sbi_port, 0);
+            if (rv != OGS_OK) continue;
+
+            nf_instance->ipv6[nf_instance->num_of_ipv6] = addr;
+            nf_instance->num_of_ipv6++;
+        }
+    }
+
+    OpenAPI_list_for_each(NFProfile->nf_services, node) {
+        OpenAPI_nf_service_t *NFService = node->data;
+        OpenAPI_list_t *VersionList = NULL;
+        OpenAPI_list_t *IpEndPointList = NULL;
+        OpenAPI_list_t *AllowedNfTypeList = NULL;
+        OpenAPI_lnode_t *node2 = NULL;
+
+        if (!NFService) continue;
+        if (!NFService->service_instance_id) continue;
+        if (!NFService->service_name) continue;
+
+        VersionList = NFService->versions;
+        IpEndPointList = NFService->ip_end_points;
+        AllowedNfTypeList = NFService->allowed_nf_types;
+
+        nf_service = ogs_sbi_nf_service_find_by_id(nf_instance,
+                NFService->service_instance_id);
+        if (!nf_service) {
+            nf_service = ogs_sbi_nf_service_add(nf_instance,
+                NFService->service_instance_id,
+                NFService->service_name, NFService->scheme);
+            ogs_assert(nf_service);
+        }
+
+        ogs_sbi_nf_service_clear(nf_service);
+
+        OpenAPI_list_for_each(VersionList, node2) {
+            OpenAPI_nf_service_version_t *NFServiceVersion = node2->data;
+
+            if (!NFServiceVersion) continue;
+
+            ogs_sbi_nf_service_add_version(nf_service,
+                        NFServiceVersion->api_version_in_uri,
+                        NFServiceVersion->api_full_version,
+                        NFServiceVersion->expiry);
+        }
+
+        if (NFService->fqdn) {
+#if SBI_FQDN_WITH_ONE_OCTET_LENGTH
+            if (ogs_fqdn_parse(
+                    fqdn, NFService->fqdn,
+                    ogs_min(strlen(NFService->fqdn), OGS_MAX_FQDN_LEN)) > 0) {
+
+                /* Nothing : succeeded to parse FQDN */
+                nf_service->fqdn = ogs_strdup(fqdn);
+                ogs_assert(nf_service);
+
+            } else {
+                ogs_error("ogs_fqdn_parse() failed[%s]", NFService->fqdn);
+                return false;
+            }
+#else
+            nf_service->fqdn = ogs_strdup(NFService->fqdn);
+            ogs_assert(nf_service);
+#endif
+        }
+
+        OpenAPI_list_for_each(IpEndPointList, node2) {
+            OpenAPI_ip_end_point_t *IpEndPoint = node2->data;
+            ogs_sockaddr_t *addr = NULL, *addr6 = NULL;
+            int port = 0;
+
+            if (!IpEndPoint) continue;
+
+            if (nf_service->num_of_addr < OGS_SBI_MAX_NUM_OF_IP_ADDRESS) {
+                if (!IpEndPoint->is_port) {
+                    if (nf_service->scheme == OpenAPI_uri_scheme_http)
+                        port = OGS_SBI_HTTP_PORT;
+                    else if (nf_service->scheme == OpenAPI_uri_scheme_https)
+                        port = OGS_SBI_HTTPS_PORT;
+                    else
+                        continue;
+                } else {
+                    port = IpEndPoint->port;
+                }
+
+                if (IpEndPoint->ipv4_address) {
+                    rv = ogs_getaddrinfo(&addr, AF_UNSPEC,
+                            IpEndPoint->ipv4_address, port, 0);
+                    if (rv != OGS_OK) continue;
+                }
+                if (IpEndPoint->ipv6_address) {
+                    rv = ogs_getaddrinfo(&addr6, AF_UNSPEC,
+                            IpEndPoint->ipv6_address, port, 0);
+                    if (rv != OGS_OK) continue;
+                }
+
+                if (addr || addr6) {
+                    nf_service->addr[nf_service->num_of_addr].
+                        port = port;
+                    nf_service->addr[nf_service->num_of_addr].
+                        ipv4 = addr;
+                    nf_service->addr[nf_service->num_of_addr].
+                        ipv6 = addr6;
+                    nf_service->num_of_addr++;
+                }
+            }
+        }
+
+        OpenAPI_list_for_each(AllowedNfTypeList, node2) {
+            OpenAPI_nf_type_e AllowedNfType = (uintptr_t)node2->data;
+
+            if (!AllowedNfType) continue;
+
+            if (nf_service->num_of_allowed_nf_type <
+                    OGS_SBI_MAX_NUM_OF_NF_TYPE) {
+                nf_service->allowed_nf_types[
+                    nf_service->num_of_allowed_nf_type] = AllowedNfType;
+                nf_service->num_of_allowed_nf_type++;
+            }
+        }
+
+        if (NFService->is_priority == true)
+            nf_service->priority = NFService->priority;
+        if (NFService->is_capacity == true)
+            nf_service->capacity = NFService->capacity;
+        if (NFService->is_load == true)
+            nf_service->load = NFService->load;
+    }
+
+    ogs_sbi_nf_info_remove_all(&nf_instance->nf_info_list);
+
+    if (NFProfile->smf_info)
+        handle_smf_info(nf_instance, NFProfile->smf_info);
+
+    OpenAPI_list_for_each(NFProfile->smf_info_list, node) {
+        OpenAPI_map_t *SmfInfoMap = node->data;
+        if (SmfInfoMap && SmfInfoMap->value)
+            handle_smf_info(nf_instance, SmfInfoMap->value);
+    }
+
+    return true;
 }

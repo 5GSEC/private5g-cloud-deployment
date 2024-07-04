@@ -1,7 +1,7 @@
 /*
  * error_report.h
  *
- * Contains the rule error reports.
+ * 
  */
 
 #ifndef _OpenAPI_error_report_H_
@@ -12,7 +12,6 @@
 #include "../include/list.h"
 #include "../include/keyValuePair.h"
 #include "../include/binary.h"
-#include "invalid_param.h"
 #include "policy_decision_failure_code.h"
 #include "problem_details.h"
 #include "rule_report.h"
@@ -28,7 +27,7 @@ typedef struct OpenAPI_error_report_s {
     OpenAPI_list_t *rule_reports;
     OpenAPI_list_t *sess_rule_reports;
     OpenAPI_list_t *pol_dec_failure_reports;
-    OpenAPI_list_t *invalid_policy_decs;
+    char *alt_qos_param_id;
 } OpenAPI_error_report_t;
 
 OpenAPI_error_report_t *OpenAPI_error_report_create(
@@ -36,7 +35,7 @@ OpenAPI_error_report_t *OpenAPI_error_report_create(
     OpenAPI_list_t *rule_reports,
     OpenAPI_list_t *sess_rule_reports,
     OpenAPI_list_t *pol_dec_failure_reports,
-    OpenAPI_list_t *invalid_policy_decs
+    char *alt_qos_param_id
 );
 void OpenAPI_error_report_free(OpenAPI_error_report_t *error_report);
 OpenAPI_error_report_t *OpenAPI_error_report_parseFromJSON(cJSON *error_reportJSON);

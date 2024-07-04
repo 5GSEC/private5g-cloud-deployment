@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -20,7 +20,8 @@
 #ifndef SMF_EVENT_H
 #define SMF_EVENT_H
 
-#include "ogs-proto.h"
+#include "ogs-core.h"
+#include "ogs-gtp.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,8 +29,6 @@ extern "C" {
 
 typedef struct ogs_gtp_node_s ogs_gtp_node_t;
 typedef struct ogs_gtp_xact_s ogs_gtp_xact_t;
-typedef struct ogs_gtp1_message_s ogs_gtp1_message_t;
-typedef struct ogs_gtp2_message_s ogs_gtp2_message_t;
 typedef struct ogs_pfcp_node_s ogs_pfcp_node_t;
 typedef struct ogs_pfcp_xact_s ogs_pfcp_xact_t;
 typedef struct ogs_pfcp_message_s ogs_pfcp_message_t;
@@ -39,12 +38,16 @@ typedef struct ogs_diam_s6b_message_s ogs_diam_s6b_message_t;
 typedef struct smf_sess_s smf_sess_t;
 typedef struct smf_upf_s smf_upf_t;
 typedef struct smf_gtp_node_s smf_gtp_node_t;
+typedef struct ogs_sbi_request_s ogs_sbi_request_t;
+typedef struct ogs_sbi_response_s ogs_sbi_response_t;
+typedef struct ogs_sbi_message_s ogs_sbi_message_t;
+typedef struct ogs_sbi_subscription_s ogs_sbi_subscription_t;
 typedef struct ogs_nas_5gs_message_s ogs_nas_5gs_message_t;
 typedef struct NGAP_NGAP_PDU ogs_ngap_message_t;
 typedef long NGAP_ProcedureCode_t;
 
 typedef enum {
-    SMF_EVT_BASE = OGS_MAX_NUM_OF_PROTO_EVENT,
+    SMF_EVT_BASE = OGS_FSM_USER_SIG,
 
     SMF_EVT_S5C_MESSAGE,
     SMF_EVT_S6B_MESSAGE,
@@ -55,6 +58,10 @@ typedef enum {
     SMF_EVT_N4_MESSAGE,
     SMF_EVT_N4_TIMER,
     SMF_EVT_N4_NO_HEARTBEAT,
+
+    SMF_EVT_SBI_SERVER,
+    SMF_EVT_SBI_CLIENT,
+    SMF_EVT_SBI_TIMER,
 
     SMF_EVT_NGAP_MESSAGE,
     SMF_EVT_NGAP_TIMER,
@@ -67,9 +74,9 @@ typedef enum {
 } smf_event_e;
 
 typedef struct smf_event_s {
-    ogs_event_t h;
-
+    int id;
     ogs_pkbuf_t *pkbuf;
+    int timer_id;
 
     smf_gtp_node_t *gnode;
     ogs_gtp_xact_t *gtp_xact;
@@ -90,6 +97,15 @@ typedef struct smf_event_s {
     };
 
     struct {
+        ogs_sbi_request_t *request;
+        ogs_sbi_response_t *response;
+        void *data;
+        int state;
+
+        ogs_sbi_message_t *message;
+    } sbi;
+
+    struct {
         int type;
         ogs_ngap_message_t *message;
     } ngap;
@@ -102,9 +118,11 @@ typedef struct smf_event_s {
     smf_sess_t *sess;
 } smf_event_t;
 
-OGS_STATIC_ASSERT(OGS_EVENT_SIZE >= sizeof(smf_event_t));
+void smf_event_init(void);
+void smf_event_final(void);
 
-smf_event_t *smf_event_new(int id);
+smf_event_t *smf_event_new(smf_event_e id);
+void smf_event_free(smf_event_t *e);
 
 const char *smf_event_get_name(smf_event_t *e);
 

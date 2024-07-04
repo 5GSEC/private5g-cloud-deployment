@@ -43,8 +43,9 @@ ogs_sbi_request_t *ausf_nudm_ueau_build_get(ausf_ue_t *ausf_ue, void *data)
 
     AuthenticationInfoRequest.serving_network_name =
         ausf_ue->serving_network_name;
+    ogs_assert(ogs_sbi_self()->nf_instance);
     AuthenticationInfoRequest.ausf_instance_id =
-        NF_INSTANCE_ID(ogs_sbi_self()->nf_instance);
+        ogs_sbi_self()->nf_instance->id;
 
     if (data) {
         OpenAPI_resynchronization_info_t *recvinfo = data;
@@ -60,7 +61,7 @@ ogs_sbi_request_t *ausf_nudm_ueau_build_get(ausf_ue_t *ausf_ue, void *data)
     message.AuthenticationInfoRequest = &AuthenticationInfoRequest;
 
     request = ogs_sbi_build_request(&message);
-    ogs_expect(request);
+    ogs_expect_or_return_val(request, NULL);
 
     return request;
 }
@@ -74,7 +75,6 @@ ogs_sbi_request_t *ausf_nudm_ueau_build_result_confirmation_inform(
     OpenAPI_auth_event_t *AuthEvent = NULL;
 
     ogs_assert(ausf_ue);
-    ogs_assert(ausf_ue->supi);
 
     memset(&message, 0, sizeof(message));
     message.h.method = (char *)OGS_SBI_HTTP_METHOD_POST;
@@ -84,18 +84,13 @@ ogs_sbi_request_t *ausf_nudm_ueau_build_result_confirmation_inform(
     message.h.resource.component[1] = (char *)OGS_SBI_RESOURCE_NAME_AUTH_EVENTS;
 
     AuthEvent = ogs_calloc(1, sizeof(*AuthEvent));
-    if (!AuthEvent) {
-        ogs_error("No AuthEvent");
-        goto end;
-    }
+    ogs_expect_or_return_val(AuthEvent, NULL);
 
     AuthEvent->time_stamp = ogs_sbi_localtime_string(ogs_time_now());
-    if (!AuthEvent->time_stamp) {
-        ogs_error("No time_stamp");
-        goto end;
-    }
+    ogs_expect_or_return_val(AuthEvent->time_stamp, NULL);
 
-    AuthEvent->nf_instance_id = NF_INSTANCE_ID(ogs_sbi_self()->nf_instance);
+    ogs_assert(ogs_sbi_self()->nf_instance);
+    AuthEvent->nf_instance_id = ogs_sbi_self()->nf_instance->id;
     if (ausf_ue->auth_result == OpenAPI_auth_result_AUTHENTICATION_SUCCESS)
         AuthEvent->success = true;
     else
@@ -106,69 +101,11 @@ ogs_sbi_request_t *ausf_nudm_ueau_build_result_confirmation_inform(
     message.AuthEvent = AuthEvent;
 
     request = ogs_sbi_build_request(&message);
-    ogs_expect(request);
+    ogs_expect_or_return_val(request, NULL);
 
-end:
-
-    if (AuthEvent) {
-        if (AuthEvent->time_stamp)
-            ogs_free(AuthEvent->time_stamp);
-        ogs_free(AuthEvent);
-    }
-
-    return request;
-}
-
-ogs_sbi_request_t *ausf_nudm_ueau_build_auth_removal_ind(
-        ausf_ue_t *ausf_ue, void *data)
-{
-    ogs_sbi_message_t message;
-    ogs_sbi_request_t *request = NULL;
-
-    OpenAPI_auth_event_t *AuthEvent = NULL;
-
-    ogs_assert(ausf_ue);
-    ogs_assert(ausf_ue->supi);
-
-    memset(&message, 0, sizeof(message));
-    message.h.method = (char *)OGS_SBI_HTTP_METHOD_PUT;
-    message.h.service.name = (char *)OGS_SBI_SERVICE_NAME_NUDM_UEAU;
-    message.h.api.version = (char *)OGS_SBI_API_V1;
-    message.h.resource.component[0] = ausf_ue->supi;
-    message.h.resource.component[1] = (char *)OGS_SBI_RESOURCE_NAME_AUTH_EVENTS;
-
-    AuthEvent = ogs_calloc(1, sizeof(*AuthEvent));
-    if (!AuthEvent) {
-        ogs_error("No AuthEvent");
-        goto end;
-    }
-
-    AuthEvent->time_stamp = ogs_sbi_localtime_string(ogs_time_now());
-    if (!AuthEvent->time_stamp) {
-        ogs_error("No time_stamp");
-        goto end;
-    }
-
-    AuthEvent->nf_instance_id = NF_INSTANCE_ID(ogs_sbi_self()->nf_instance);
-    AuthEvent->success = true;
-    AuthEvent->auth_type = ausf_ue->auth_type;
-    AuthEvent->serving_network_name = ausf_ue->serving_network_name;
-
-    AuthEvent->is_auth_removal_ind = true;
-    AuthEvent->auth_removal_ind = true;
-
-    message.AuthEvent = AuthEvent;
-
-    request = ogs_sbi_build_request(&message);
-    ogs_expect(request);
-
-end:
-
-    if (AuthEvent) {
-        if (AuthEvent->time_stamp)
-            ogs_free(AuthEvent->time_stamp);
-        ogs_free(AuthEvent);
-    }
+    if (AuthEvent->time_stamp)
+        ogs_free(AuthEvent->time_stamp);
+    ogs_free(AuthEvent);
 
     return request;
 }

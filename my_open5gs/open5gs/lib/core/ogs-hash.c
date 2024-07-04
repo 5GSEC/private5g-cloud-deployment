@@ -66,16 +66,13 @@ static ogs_hash_entry_t **alloc_array(ogs_hash_t *ht, unsigned int max)
     return ptr;
 }
 
-ogs_hash_t *ogs_hash_make(void)
+ogs_hash_t *ogs_hash_make()
 {
     ogs_hash_t *ht;
     ogs_time_t now = ogs_get_monotonic_time();
 
     ht = ogs_malloc(sizeof(ogs_hash_t));
-    if (!ht) {
-        ogs_error("ogs_malloc() failed");
-        return NULL;
-    }
+    ogs_expect_or_return_val(ht, NULL);
 
     ht->free = NULL;
     ht->count = 0;
@@ -91,10 +88,7 @@ ogs_hash_t *ogs_hash_make(void)
 ogs_hash_t *ogs_hash_make_custom(ogs_hashfunc_t hash_func)
 {
     ogs_hash_t *ht = ogs_hash_make();
-    if (!ht) {
-        ogs_error("ogs_hash_make() failed");
-        return NULL;
-    }
+    ogs_expect_or_return_val(ht, NULL);
     ht->hash_func = hash_func;
     return ht;
 }

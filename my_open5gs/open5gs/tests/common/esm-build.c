@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019,2020 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -34,8 +34,6 @@ ogs_pkbuf_t *testesm_build_pdn_connectivity_request(
         &pdn_connectivity_request->esm_information_transfer_flag;
     ogs_nas_protocol_configuration_options_t *protocol_configuration_options =
         &pdn_connectivity_request->protocol_configuration_options;
-    ogs_nas_extended_protocol_configuration_options_t *extended_protocol_configuration_options =
-        &pdn_connectivity_request->extended_protocol_configuration_options;
 #if 0
     uint8_t ue_pco[29] =
             "\x80\x80\x21\x10\x01\x01\x00\x10\x81\x06\x00\x00\x00\x00"
@@ -89,25 +87,12 @@ ogs_pkbuf_t *testesm_build_pdn_connectivity_request(
         pdn_connectivity_request->presencemask |= OGS_NAS_EPS_PDN_CONNECTIVITY_REQUEST_PROTOCOL_CONFIGURATION_OPTIONS_PRESENT;
         protocol_configuration_options->length = sizeof(ue_pco);
         memcpy(protocol_configuration_options->buffer, ue_pco, sizeof(ue_pco));
-    } else if (sess->pdn_connectivity_param.epco) {
-        pdn_connectivity_request->presencemask |= OGS_NAS_EPS_PDN_CONNECTIVITY_REQUEST_EXTENDED_PROTOCOL_CONFIGURATION_OPTIONS_PRESENT;
-        extended_protocol_configuration_options->length = sizeof(ue_pco);
-        extended_protocol_configuration_options->buffer =
-            ogs_calloc(sizeof(uint8_t), extended_protocol_configuration_options->length);
-        ogs_assert(extended_protocol_configuration_options->buffer);
-        memcpy(extended_protocol_configuration_options->buffer, ue_pco, sizeof(ue_pco));
     }
 
     if (integrity_protected)
-        pkbuf = test_nas_eps_security_encode(test_ue, &message);
+        return test_nas_eps_security_encode(test_ue, &message);
     else
-        pkbuf = ogs_nas_eps_plain_encode(&message);
-    ogs_assert(pkbuf);
-
-    if (extended_protocol_configuration_options->buffer)
-        ogs_free(extended_protocol_configuration_options->buffer);
-
-    return pkbuf;
+        return ogs_nas_eps_plain_encode(&message);
 }
 
 ogs_pkbuf_t *testesm_build_pdn_disconnect_request(test_sess_t *sess)
@@ -154,8 +139,6 @@ ogs_pkbuf_t *testesm_build_esm_information_response(test_sess_t *sess)
         &esm_information_response->access_point_name;
     ogs_nas_protocol_configuration_options_t *protocol_configuration_options =
         &esm_information_response->protocol_configuration_options;
-    ogs_nas_extended_protocol_configuration_options_t *extended_protocol_configuration_options =
-        &esm_information_response->extended_protocol_configuration_options;
 
 #if 0
     uint8_t ue_pco[29] =
@@ -208,22 +191,9 @@ ogs_pkbuf_t *testesm_build_esm_information_response(test_sess_t *sess)
         esm_information_response->presencemask |= OGS_NAS_EPS_ESM_INFORMATION_RESPONSE_PROTOCOL_CONFIGURATION_OPTIONS_PRESENT;
         protocol_configuration_options->length = sizeof(ue_pco);
         memcpy(protocol_configuration_options->buffer, ue_pco, sizeof(ue_pco));
-    } else if (sess->esm_information_param.epco) {
-        esm_information_response->presencemask |= OGS_NAS_EPS_ESM_INFORMATION_RESPONSE_EXTENDED_PROTOCOL_CONFIGURATION_OPTIONS_PRESENT;
-        extended_protocol_configuration_options->length = sizeof(ue_pco);
-        extended_protocol_configuration_options->buffer =
-            ogs_calloc(sizeof(uint8_t), extended_protocol_configuration_options->length);
-        ogs_assert(extended_protocol_configuration_options->buffer);
-        memcpy(extended_protocol_configuration_options->buffer, ue_pco, sizeof(ue_pco));
     }
 
-    pkbuf = test_nas_eps_security_encode(test_ue, &message);
-    ogs_assert(pkbuf);
-
-    if (extended_protocol_configuration_options->buffer)
-        ogs_free(extended_protocol_configuration_options->buffer);
-
-    return pkbuf;
+    return test_nas_eps_security_encode(test_ue, &message);
 }
 
 ogs_pkbuf_t *testesm_build_activate_default_eps_bearer_context_accept(

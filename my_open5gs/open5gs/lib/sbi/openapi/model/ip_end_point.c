@@ -26,26 +26,18 @@ OpenAPI_ip_end_point_t *OpenAPI_ip_end_point_create(
 
 void OpenAPI_ip_end_point_free(OpenAPI_ip_end_point_t *ip_end_point)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == ip_end_point) {
         return;
     }
-    if (ip_end_point->ipv4_address) {
-        ogs_free(ip_end_point->ipv4_address);
-        ip_end_point->ipv4_address = NULL;
-    }
-    if (ip_end_point->ipv6_address) {
-        ogs_free(ip_end_point->ipv6_address);
-        ip_end_point->ipv6_address = NULL;
-    }
+    OpenAPI_lnode_t *node;
+    ogs_free(ip_end_point->ipv4_address);
+    ogs_free(ip_end_point->ipv6_address);
     ogs_free(ip_end_point);
 }
 
 cJSON *OpenAPI_ip_end_point_convertToJSON(OpenAPI_ip_end_point_t *ip_end_point)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (ip_end_point == NULL) {
         ogs_error("OpenAPI_ip_end_point_convertToJSON() failed [IpEndPoint]");
@@ -67,7 +59,7 @@ cJSON *OpenAPI_ip_end_point_convertToJSON(OpenAPI_ip_end_point_t *ip_end_point)
     }
     }
 
-    if (ip_end_point->transport != OpenAPI_transport_protocol_NULL) {
+    if (ip_end_point->transport) {
     if (cJSON_AddStringToObject(item, "transport", OpenAPI_transport_protocol_ToString(ip_end_point->transport)) == NULL) {
         ogs_error("OpenAPI_ip_end_point_convertToJSON() failed [transport]");
         goto end;
@@ -88,29 +80,27 @@ end:
 OpenAPI_ip_end_point_t *OpenAPI_ip_end_point_parseFromJSON(cJSON *ip_end_pointJSON)
 {
     OpenAPI_ip_end_point_t *ip_end_point_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *ipv4_address = NULL;
-    cJSON *ipv6_address = NULL;
-    cJSON *transport = NULL;
-    OpenAPI_transport_protocol_e transportVariable = 0;
-    cJSON *port = NULL;
-    ipv4_address = cJSON_GetObjectItemCaseSensitive(ip_end_pointJSON, "ipv4Address");
+    cJSON *ipv4_address = cJSON_GetObjectItemCaseSensitive(ip_end_pointJSON, "ipv4Address");
+
     if (ipv4_address) {
-    if (!cJSON_IsString(ipv4_address) && !cJSON_IsNull(ipv4_address)) {
+    if (!cJSON_IsString(ipv4_address)) {
         ogs_error("OpenAPI_ip_end_point_parseFromJSON() failed [ipv4_address]");
         goto end;
     }
     }
 
-    ipv6_address = cJSON_GetObjectItemCaseSensitive(ip_end_pointJSON, "ipv6Address");
+    cJSON *ipv6_address = cJSON_GetObjectItemCaseSensitive(ip_end_pointJSON, "ipv6Address");
+
     if (ipv6_address) {
-    if (!cJSON_IsString(ipv6_address) && !cJSON_IsNull(ipv6_address)) {
+    if (!cJSON_IsString(ipv6_address)) {
         ogs_error("OpenAPI_ip_end_point_parseFromJSON() failed [ipv6_address]");
         goto end;
     }
     }
 
-    transport = cJSON_GetObjectItemCaseSensitive(ip_end_pointJSON, "transport");
+    cJSON *transport = cJSON_GetObjectItemCaseSensitive(ip_end_pointJSON, "transport");
+
+    OpenAPI_transport_protocol_e transportVariable;
     if (transport) {
     if (!cJSON_IsString(transport)) {
         ogs_error("OpenAPI_ip_end_point_parseFromJSON() failed [transport]");
@@ -119,7 +109,8 @@ OpenAPI_ip_end_point_t *OpenAPI_ip_end_point_parseFromJSON(cJSON *ip_end_pointJS
     transportVariable = OpenAPI_transport_protocol_FromString(transport->valuestring);
     }
 
-    port = cJSON_GetObjectItemCaseSensitive(ip_end_pointJSON, "port");
+    cJSON *port = cJSON_GetObjectItemCaseSensitive(ip_end_pointJSON, "port");
+
     if (port) {
     if (!cJSON_IsNumber(port)) {
         ogs_error("OpenAPI_ip_end_point_parseFromJSON() failed [port]");
@@ -128,8 +119,8 @@ OpenAPI_ip_end_point_t *OpenAPI_ip_end_point_parseFromJSON(cJSON *ip_end_pointJS
     }
 
     ip_end_point_local_var = OpenAPI_ip_end_point_create (
-        ipv4_address && !cJSON_IsNull(ipv4_address) ? ogs_strdup(ipv4_address->valuestring) : NULL,
-        ipv6_address && !cJSON_IsNull(ipv6_address) ? ogs_strdup(ipv6_address->valuestring) : NULL,
+        ipv4_address ? ogs_strdup(ipv4_address->valuestring) : NULL,
+        ipv6_address ? ogs_strdup(ipv6_address->valuestring) : NULL,
         transport ? transportVariable : 0,
         port ? true : false,
         port ? port->valuedouble : 0

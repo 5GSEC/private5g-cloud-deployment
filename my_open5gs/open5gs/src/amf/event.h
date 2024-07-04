@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019,2020 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -20,11 +20,17 @@
 #ifndef AMF_EVENT_H
 #define AMF_EVENT_H
 
-#include "ogs-proto.h"
+#include "ogs-core.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct ogs_sbi_request_s ogs_sbi_request_t;
+typedef struct ogs_sbi_response_s ogs_sbi_response_t;
+typedef struct ogs_sbi_message_s ogs_sbi_message_t;
+typedef struct ogs_sbi_nf_instance_s ogs_sbi_nf_instance_t;
+typedef struct ogs_sbi_subscription_s ogs_sbi_subscription_t;
 
 typedef struct ogs_nas_5gs_message_s ogs_nas_5gs_message_t;
 typedef struct NGAP_NGAP_PDU ogs_ngap_message_t;
@@ -37,27 +43,39 @@ typedef struct amf_sess_s amf_sess_t;
 typedef struct amf_bearer_s amf_bearer_t;
 
 typedef enum {
-    AMF_EVENT_BASE = OGS_MAX_NUM_OF_PROTO_EVENT,
+    AMF_EVT_BASE = OGS_FSM_USER_SIG,
 
-    AMF_EVENT_NGAP_MESSAGE,
-    AMF_EVENT_NGAP_TIMER,
-    AMF_EVENT_NGAP_LO_ACCEPT,
-    AMF_EVENT_NGAP_LO_SCTP_COMM_UP,
-    AMF_EVENT_NGAP_LO_CONNREFUSED,
+    AMF_EVT_SBI_SERVER,
+    AMF_EVT_SBI_CLIENT,
+    AMF_EVT_SBI_TIMER,
 
-    AMF_EVENT_5GMM_MESSAGE,
-    AMF_EVENT_5GMM_TIMER,
-    AMF_EVENT_5GSM_MESSAGE,
-    AMF_EVENT_5GSM_TIMER,
+    AMF_EVT_NGAP_MESSAGE,
+    AMF_EVT_NGAP_TIMER,
+    AMF_EVT_NGAP_LO_ACCEPT,
+    AMF_EVT_NGAP_LO_SCTP_COMM_UP,
+    AMF_EVT_NGAP_LO_CONNREFUSED,
 
-    MAX_NUM_OF_AMF_EVENT,
+    AMF_EVT_5GMM_MESSAGE,
+    AMF_EVT_5GMM_TIMER,
+    AMF_EVT_5GSM_MESSAGE,
+    AMF_EVT_5GSM_TIMER,
+
+    AMF_EVT_TOP,
 
 } amf_event_e;
 
 typedef struct amf_event_s {
-    ogs_event_t h;
-
+    int id;
     ogs_pkbuf_t *pkbuf;
+    int timer_id;
+
+    struct {
+        ogs_sbi_request_t *request;
+        ogs_sbi_response_t *response;
+        void *data;
+
+        ogs_sbi_message_t *message;
+    } sbi;
 
     struct {
         ogs_sock_t *sock;
@@ -83,13 +101,15 @@ typedef struct amf_event_s {
     ogs_timer_t *timer;
 } amf_event_t;
 
-OGS_STATIC_ASSERT(OGS_EVENT_SIZE >= sizeof(amf_event_t));
+void amf_event_init(void);
+void amf_event_final(void);
 
-amf_event_t *amf_event_new(int id);
+amf_event_t *amf_event_new(amf_event_e id);
+void amf_event_free(amf_event_t *e);
 
 const char *amf_event_get_name(amf_event_t *e);
 
-void amf_sctp_event_push(int id,
+void amf_sctp_event_push(amf_event_e id,
         void *sock, ogs_sockaddr_t *addr, ogs_pkbuf_t *pkbuf,
         uint16_t max_num_of_istreams, uint16_t max_num_of_ostreams);
 

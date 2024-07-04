@@ -48,7 +48,6 @@ libupf_sources = files('''
     rule-match.h
     event.h
     timer.h
-    metrics.h
     context.h
     upf-sm.h
     gtp-path.h
@@ -58,7 +57,6 @@ libupf_sources = files('''
 
     rule-match.c
     init.c
-    metrics.c
     event.c
     timer.c
     context.c
@@ -88,7 +86,8 @@ libarp_nd_dep = declare_dependency(
 libupf = static_library('upf',
     sources : libupf_sources,
     dependencies : [
-        libmetrics_dep,
+        libapp_dep,
+        libgtp_dep,
         libpfcp_dep,
         libtun_dep,
         libarp_nd_dep,
@@ -98,7 +97,8 @@ libupf = static_library('upf',
 libupf_dep = declare_dependency(
     link_with : libupf,
     dependencies : [
-        libmetrics_dep,
+        libapp_dep,
+        libgtp_dep,
         libpfcp_dep,
         libtun_dep,
         libarp_nd_dep,

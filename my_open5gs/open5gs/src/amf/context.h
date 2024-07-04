@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019,2020 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -34,6 +34,8 @@
 extern "C" {
 #endif
 
+#define MAX_NUM_OF_SERVED_GUAMI     8
+
 extern int __amf_log_domain;
 extern int __gmm_log_domain;
 
@@ -47,46 +49,37 @@ typedef uint32_t amf_m_tmsi_t;
 
 typedef struct amf_context_s {
     /* Served GUAMI */
-    int num_of_served_guami;
-    ogs_guami_t served_guami[OGS_MAX_NUM_OF_SERVED_GUAMI];
+    uint8_t num_of_served_guami;
+    ogs_guami_t served_guami[MAX_NUM_OF_SERVED_GUAMI];
 
     /* Served TAI */
-    int num_of_served_tai;
+    uint8_t num_of_served_tai;
     struct {
         ogs_5gs_tai0_list_t list0;
-        ogs_5gs_tai1_list_t list1;
         ogs_5gs_tai2_list_t list2;
     } served_tai[OGS_MAX_NUM_OF_SERVED_TAI];
 
     /* PLMN Support */
-    int num_of_plmn_support;
+    uint8_t num_of_plmn_support;
     struct {
         ogs_plmn_id_t plmn_id;
         int num_of_s_nssai;
         ogs_s_nssai_t s_nssai[OGS_MAX_NUM_OF_SLICE];
     } plmn_support[OGS_MAX_NUM_OF_PLMN];
 
-    /* Access Control */
-    int             default_reject_cause;
-    int             num_of_access_control;
-    struct {
-        int reject_cause;
-        ogs_plmn_id_t plmn_id;
-    } access_control[OGS_MAX_NUM_OF_ACCESS_CONTROL];
-
     /* defined in 'nas_ies.h'
      * #define NAS_SECURITY_ALGORITHMS_EIA0        0
      * #define NAS_SECURITY_ALGORITHMS_128_EEA1    1
      * #define NAS_SECURITY_ALGORITHMS_128_EEA2    2
      * #define NAS_SECURITY_ALGORITHMS_128_EEA3    3 */
-    int             num_of_ciphering_order;
+    uint8_t         num_of_ciphering_order;
     uint8_t         ciphering_order[OGS_MAX_NUM_OF_ALGORITHM];
     /* defined in 'nas_ies.h'
      * #define NAS_SECURITY_ALGORITHMS_EIA0        0
      * #define NAS_SECURITY_ALGORITHMS_128_EIA1    1
      * #define NAS_SECURITY_ALGORITHMS_128_EIA1    2
      * #define NAS_SECURITY_ALGORITHMS_128_EIA3    3 */
-    int             num_of_integrity_order;
+    uint8_t         num_of_integrity_order;
     uint8_t         integrity_order[OGS_MAX_NUM_OF_ALGORITHM];
 
     /* Network Name */    
@@ -111,16 +104,12 @@ typedef struct amf_context_s {
     ogs_hash_t      *suci_hash;     /* hash table (SUCI) */
     ogs_hash_t      *supi_hash;     /* hash table (SUPI) */
 
+    OGS_POOL(m_tmsi, amf_m_tmsi_t); /* M-TMSI Pool */
+
     uint16_t        ngap_port;      /* Default NGAP Port */
 
     ogs_list_t      ngap_list;      /* AMF NGAP IPv4 Server List */
     ogs_list_t      ngap_list6;     /* AMF NGAP IPv6 Server List */
-
-    struct {
-        struct {
-            ogs_time_t value;       /* Timer Value(Seconds) */
-        } t3502, t3512;
-    } time;
 
 } amf_context_t;
 
@@ -130,23 +119,22 @@ typedef struct amf_gnb_s {
     ogs_fsm_t       sm;         /* A state machine */
 
     uint32_t        gnb_id;     /* gNB_ID received from gNB */
-    ogs_plmn_id_t   plmn_id;    /* gNB PLMN-ID received from gNB */
     ogs_sctp_sock_t sctp;       /* SCTP socket */
 
     struct {
         bool ng_setup_success;  /* gNB NGAP Setup complete successfuly */
     } state;
 
-    int             max_num_of_ostreams;/* SCTP Max num of outbound streams */
+    uint16_t        max_num_of_ostreams;/* SCTP Max num of outbound streams */
     uint16_t        ostream_id;         /* gnb_ostream_id generator */
 
-    int             num_of_supported_ta_list;
+    uint8_t         num_of_supported_ta_list;
     struct {
         ogs_uint24_t tac;
-        int num_of_bplmn_list;
+        uint8_t num_of_bplmn_list;
         struct {
             ogs_plmn_id_t plmn_id;
-            int num_of_s_nssai;
+            uint8_t num_of_s_nssai;
             ogs_s_nssai_t s_nssai[OGS_MAX_NUM_OF_SLICE];
         } bplmn_list[OGS_MAX_NUM_OF_BPLMN];
     } supported_ta_list[OGS_MAX_NUM_OF_TAI];
@@ -204,14 +192,26 @@ struct ran_ue_s {
 
     bool            part_of_ng_reset_requested;
 
-    struct {
-        uint16_t    activated; /* Activated PSI Mask */
-    } psimask;
-
     /* Related Context */
     amf_gnb_t       *gnb;
     amf_ue_t        *amf_ue;
 }; 
+
+#define AMF_NF_INSTANCE_CLEAR(_cAUSE, _nFInstance) \
+    do { \
+        ogs_assert(_nFInstance); \
+        if ((_nFInstance)->reference_count == 1) { \
+            ogs_info("[%s] (%s) NF removed", (_nFInstance)->id, (_cAUSE)); \
+            amf_nf_fsm_fini((_nFInstance)); \
+        } else { \
+            /* There is an assocation with other context */ \
+            ogs_info("[%s:%d] (%s) NF suspended", \
+                    _nFInstance->id, _nFInstance->reference_count, (_cAUSE)); \
+            OGS_FSM_TRAN(&_nFInstance->sm, amf_nf_state_de_registered); \
+            ogs_fsm_dispatch(&_nFInstance->sm, NULL); \
+        } \
+        ogs_sbi_nf_instance_remove(_nFInstance); \
+    } while(0)
 
 struct amf_ue_s {
     ogs_sbi_object_t sbi;
@@ -355,7 +355,6 @@ struct amf_ue_s {
     /* SubscribedInfo */
     ogs_bitrate_t   ue_ambr;
     int num_of_slice;
-    OpenAPI_list_t *rat_restrictions;
     ogs_slice_data_t slice[OGS_MAX_NUM_OF_SLICE];
 
     uint64_t        am_policy_control_features; /* SBI Features */
@@ -376,8 +375,6 @@ struct amf_ue_s {
         CLEAR_AMF_UE_TIMER((__aMF)->t3555); \
         CLEAR_AMF_UE_TIMER((__aMF)->t3560); \
         CLEAR_AMF_UE_TIMER((__aMF)->t3570); \
-        CLEAR_AMF_UE_TIMER((__aMF)->mobile_reachable); \
-        CLEAR_AMF_UE_TIMER((__aMF)->implicit_deregistration); \
     } while(0);
 #define CLEAR_AMF_UE_TIMER(__aMF_UE_TIMER) \
     do { \
@@ -392,7 +389,7 @@ struct amf_ue_s {
         ogs_pkbuf_t     *pkbuf;
         ogs_timer_t     *timer;
         uint32_t        retry_count;;
-    } t3513, t3522, t3550, t3555, t3560, t3570, mobile_reachable, implicit_deregistration;
+    } t3513, t3522, t3550, t3555, t3560, t3570;
 
     /* UE Radio Capability */
     OCTET_STRING_t  ueRadioCapability;
@@ -411,28 +408,8 @@ struct amf_ue_s {
         long cause;
     } handover;
 
-    /* SubscriptionId of Subscription to Data Change Notification to UDM */
-#define UDM_SDM_SUBSCRIBED(__aMF) \
-    ((__aMF) && ((__aMF)->data_change_subscription_id))
-    char *data_change_subscription_id;
-
-    struct {
-        /*
-         * De-Registered Request
-         * De-Registered Accept
-         */
-        bool n1_done;
-
-        /*
-         * Nudm_SDM_Unsubscribe
-         * PATCH Nudm_UECM/registration/amf-3gpp-access
-         * PDU Session Release
-         * N4 Release
-         * DELETE Nbpsf-management
-         * DELETE Npcf-am_policy-control
-         */
-        bool sbi_done;
-    } explict_de_registered;
+    /* Network Initiated De-Registration */
+    bool network_initiated_de_reg;
 
     ogs_list_t      sess_list;
 };
@@ -488,19 +465,6 @@ typedef struct amf_sess_s {
     OpenAPI_resource_status_e resource_status;
     bool n1_released;
     bool n2_released;
-
-    /*
-     * To check if Reactivation Request has been used.
-     *
-     * During the PFCP recovery process,
-     * when a Reactivation Request is sent to PDU session release command,
-     * the UE simultaneously sends PDU session release complete and
-     * PDU session establishment request.
-     *
-     * In this case, old_gsm_type is PDU session release command and
-     * current_gsm_type is PDU session establishment request.
-     */
-    uint8_t old_gsm_type, current_gsm_type;
 
     struct {
         ogs_pkbuf_t *pdu_session_resource_setup_request;
@@ -649,6 +613,15 @@ typedef struct amf_sess_s {
     ogs_s_nssai_t mapped_hplmn;
     char *dnn;
 
+    /* Save Protocol Configuration Options from UE */
+    struct {
+        uint8_t length;
+        uint8_t *buffer;
+    } ue_pco; 
+
+    /* Save Protocol Configuration Options from PGW */
+    ogs_tlv_octet_t pgw_pco;
+
 } amf_sess_t;
 
 void amf_context_init(void);
@@ -656,7 +629,6 @@ void amf_context_final(void);
 amf_context_t *amf_self(void);
 
 int amf_context_parse_config(void);
-int amf_context_nf_info(void);
 
 amf_gnb_t *amf_gnb_add(ogs_sock_t *sock, ogs_sockaddr_t *addr);
 void amf_gnb_remove(amf_gnb_t *gnb);
@@ -687,6 +659,7 @@ void amf_ue_fsm_init(amf_ue_t *amf_ue);
 void amf_ue_fsm_fini(amf_ue_t *amf_ue);
 
 amf_ue_t *amf_ue_find_by_guti(ogs_nas_5gs_guti_t *nas_guti);
+amf_ue_t *amf_ue_find_by_teid(uint32_t teid);
 amf_ue_t *amf_ue_find_by_suci(char *suci);
 amf_ue_t *amf_ue_find_by_supi(char *supi);
 
@@ -761,10 +734,9 @@ amf_sess_t *amf_sess_add(amf_ue_t *amf_ue, uint8_t psi);
     do { \
         ogs_sbi_object_t *sbi_object = NULL; \
         ogs_assert(__sESS); \
-        sbi_object = &(__sESS)->sbi; \
+        sbi_object = &sess->sbi; \
         ogs_assert(sbi_object); \
         \
-        ogs_error("AMF_SESS_CLEAR"); \
         if (ogs_list_count(&sbi_object->xact_list)) { \
             ogs_error("SBI running [%d]", \
                     ogs_list_count(&sbi_object->xact_list)); \
@@ -782,17 +754,13 @@ amf_sess_t *amf_sess_cycle(amf_sess_t *sess);
 
 void amf_sbi_select_nf(
         ogs_sbi_object_t *sbi_object,
-        ogs_sbi_service_type_e service_type,
-        OpenAPI_nf_type_e requester_nf_type,
+        OpenAPI_nf_type_e target_nf_type,
         ogs_sbi_discovery_option_t *discovery_option);
 
 #define AMF_SESSION_SYNC_DONE(__aMF, __sTATE) \
     (amf_sess_xact_state_count(__aMF, __sTATE) == 0)
 int amf_sess_xact_count(amf_ue_t *amf_ue);
 int amf_sess_xact_state_count(amf_ue_t *amf_ue, int state);
-
-#define AMF_SESSION_RELEASE_PENDING(__aMF) \
-    (amf_ue_have_session_release_pending(__aMF) == true)
 
 #define PDU_RES_SETUP_REQ_TRANSFER_NEEDED(__aMF) \
     (amf_pdu_res_setup_req_transfer_needed(__aMF) == true)
@@ -812,6 +780,7 @@ int amf_find_served_tai(ogs_5gs_tai_t *nr_tai);
 ogs_s_nssai_t *amf_find_s_nssai(
         ogs_plmn_id_t *served_plmn_id, ogs_s_nssai_t *s_nssai);
 
+int amf_m_tmsi_pool_generate(void);
 amf_m_tmsi_t *amf_m_tmsi_alloc(void);
 int amf_m_tmsi_free(amf_m_tmsi_t *tmsi);
 
@@ -821,8 +790,6 @@ uint8_t amf_selected_enc_algorithm(amf_ue_t *amf_ue);
 void amf_clear_subscribed_info(amf_ue_t *amf_ue);
 
 bool amf_update_allowed_nssai(amf_ue_t *amf_ue);
-bool amf_ue_is_rat_restricted(amf_ue_t *amf_ue);
-int amf_instance_get_load(void);
 
 #ifdef __cplusplus
 }

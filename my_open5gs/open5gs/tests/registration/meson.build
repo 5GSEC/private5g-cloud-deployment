@@ -17,10 +17,8 @@
 
 test5gc_registration_sources = files('''
     abts-main.c
-    simple-test.c
     guti-test.c
     auth-test.c
-    ecc-test.c
     idle-test.c
     dereg-test.c
     paging-test.c
@@ -28,7 +26,6 @@ test5gc_registration_sources = files('''
     gmm-status-test.c
     ue-context-test.c
     reset-test.c
-    multi-ue-test.c
     crash-test.c
 '''.split())
 

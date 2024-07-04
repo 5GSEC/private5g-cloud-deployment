@@ -24,7 +24,6 @@ testapp_volte_sources = files('''
     abts-main.c
     bearer-test.c
     session-test.c
-    simple-test.c
     rx-test.c
     video-test.c
     cx-test.c
@@ -33,7 +32,7 @@ testapp_volte_sources = files('''
 testapp_volte_exe = executable('volte',
     sources : testapp_volte_sources,
     c_args : [testunit_core_cc_flags,
-        '-DFD_EXT_DIR="@0@"'.format(build_subprojects_freeDiameter_extensions_dir)],
+        '-DFD_EXT_DIR="@0@"'.format(freediameter_extensions_builddir)],
     dependencies : libtestepc_dep)
 
 test('volte', testapp_volte_exe, is_parallel : false, suite: 'epc')

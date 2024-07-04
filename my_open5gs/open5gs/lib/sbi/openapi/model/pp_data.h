@@ -17,7 +17,6 @@
 #include "ec_restriction.h"
 #include "expected_ue_behaviour.h"
 #include "lcs_privacy.h"
-#include "model_5_mbs_authorization_info.h"
 #include "sor_info.h"
 
 #ifdef __cplusplus
@@ -34,7 +33,6 @@ typedef struct OpenAPI_pp_data_s {
     char *stn_sr;
     struct OpenAPI_lcs_privacy_s *lcs_privacy;
     struct OpenAPI_sor_info_s *sor_info;
-    struct OpenAPI_model_5_mbs_authorization_info_s *_5mbs_authorization_info;
 } OpenAPI_pp_data_t;
 
 OpenAPI_pp_data_t *OpenAPI_pp_data_create(
@@ -45,8 +43,7 @@ OpenAPI_pp_data_t *OpenAPI_pp_data_create(
     OpenAPI_acs_info_rm_t *acs_info,
     char *stn_sr,
     OpenAPI_lcs_privacy_t *lcs_privacy,
-    OpenAPI_sor_info_t *sor_info,
-    OpenAPI_model_5_mbs_authorization_info_t *_5mbs_authorization_info
+    OpenAPI_sor_info_t *sor_info
 );
 void OpenAPI_pp_data_free(OpenAPI_pp_data_t *pp_data);
 OpenAPI_pp_data_t *OpenAPI_pp_data_parseFromJSON(cJSON *pp_dataJSON);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019,2020 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -28,6 +28,9 @@ void af_nbsf_management_handle_pcf_binding(
     OpenAPI_pcf_binding_t *PcfBinding = NULL;
     OpenAPI_list_t *PcfIpEndPointList = NULL;
     OpenAPI_lnode_t *node = NULL;
+#if SBI_FQDN_WITH_ONE_OCTET_LENGTH
+    char fqdn[OGS_MAX_FQDN_LEN];
+#endif
 
     ogs_assert(sess);
     ogs_assert(recvmsg);
@@ -43,10 +46,19 @@ void af_nbsf_management_handle_pcf_binding(
     }
 
     if (PcfBinding->pcf_fqdn) {
+#if SBI_FQDN_WITH_ONE_OCTET_LENGTH
+        ogs_assert(0 < ogs_fqdn_parse(fqdn, PcfBinding->pcf_fqdn,
+                ogs_min(strlen(PcfBinding->pcf_fqdn), OGS_MAX_FQDN_LEN)));
+        if (sess->pcf.fqdn)
+            ogs_free(sess->pcf.fqdn);
+        sess->pcf.fqdn = ogs_strdup(fqdn);
+        ogs_assert(sess->pcf.fqdn);
+#else
         if (sess->pcf.fqdn)
             ogs_free(sess->pcf.fqdn);
         sess->pcf.fqdn = ogs_strdup(PcfBinding->pcf_fqdn);
         ogs_assert(sess->pcf.fqdn);
+#endif
     }
 
     PcfIpEndPointList = PcfBinding->pcf_ip_end_points;
@@ -67,10 +79,21 @@ void af_nbsf_management_handle_pcf_binding(
         if (!IpEndPoint) continue;
 
         if (sess->pcf.num_of_ip < OGS_SBI_MAX_NUM_OF_IP_ADDRESS) {
-            if (!IpEndPoint->is_port)
-                port = ogs_sbi_client_default_port();
-            else
+            if (!IpEndPoint->is_port) {
+                if (ogs_sbi_default_uri_scheme() ==
+                        OpenAPI_uri_scheme_http)
+                    port = OGS_SBI_HTTP_PORT;
+                else if (ogs_sbi_default_uri_scheme() ==
+                        OpenAPI_uri_scheme_https)
+                    port = OGS_SBI_HTTPS_PORT;
+                else {
+                    ogs_fatal("Invalid scheme [%d]",
+                        ogs_sbi_default_uri_scheme());
+                    ogs_assert_if_reached();
+                }
+            } else {
                 port = IpEndPoint->port;
+            }
 
             if (IpEndPoint->ipv4_address) {
                 rv = ogs_getaddrinfo(&addr, AF_UNSPEC,
@@ -84,7 +107,6 @@ void af_nbsf_management_handle_pcf_binding(
             }
 
             if (addr || addr6) {
-                sess->pcf.ip[sess->pcf.num_of_ip].is_port = IpEndPoint->is_port;
                 sess->pcf.ip[sess->pcf.num_of_ip].port = port;
                 sess->pcf.ip[sess->pcf.num_of_ip].addr = addr;
                 sess->pcf.ip[sess->pcf.num_of_ip].addr6 = addr6;

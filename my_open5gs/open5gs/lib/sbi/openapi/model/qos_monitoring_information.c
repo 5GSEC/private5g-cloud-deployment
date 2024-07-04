@@ -28,18 +28,16 @@ OpenAPI_qos_monitoring_information_t *OpenAPI_qos_monitoring_information_create(
 
 void OpenAPI_qos_monitoring_information_free(OpenAPI_qos_monitoring_information_t *qos_monitoring_information)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == qos_monitoring_information) {
         return;
     }
+    OpenAPI_lnode_t *node;
     ogs_free(qos_monitoring_information);
 }
 
 cJSON *OpenAPI_qos_monitoring_information_convertToJSON(OpenAPI_qos_monitoring_information_t *qos_monitoring_information)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (qos_monitoring_information == NULL) {
         ogs_error("OpenAPI_qos_monitoring_information_convertToJSON() failed [QosMonitoringInformation]");
@@ -75,11 +73,8 @@ end:
 OpenAPI_qos_monitoring_information_t *OpenAPI_qos_monitoring_information_parseFromJSON(cJSON *qos_monitoring_informationJSON)
 {
     OpenAPI_qos_monitoring_information_t *qos_monitoring_information_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *rep_thresh_dl = NULL;
-    cJSON *rep_thresh_ul = NULL;
-    cJSON *rep_thresh_rp = NULL;
-    rep_thresh_dl = cJSON_GetObjectItemCaseSensitive(qos_monitoring_informationJSON, "repThreshDl");
+    cJSON *rep_thresh_dl = cJSON_GetObjectItemCaseSensitive(qos_monitoring_informationJSON, "repThreshDl");
+
     if (rep_thresh_dl) {
     if (!cJSON_IsNumber(rep_thresh_dl)) {
         ogs_error("OpenAPI_qos_monitoring_information_parseFromJSON() failed [rep_thresh_dl]");
@@ -87,7 +82,8 @@ OpenAPI_qos_monitoring_information_t *OpenAPI_qos_monitoring_information_parseFr
     }
     }
 
-    rep_thresh_ul = cJSON_GetObjectItemCaseSensitive(qos_monitoring_informationJSON, "repThreshUl");
+    cJSON *rep_thresh_ul = cJSON_GetObjectItemCaseSensitive(qos_monitoring_informationJSON, "repThreshUl");
+
     if (rep_thresh_ul) {
     if (!cJSON_IsNumber(rep_thresh_ul)) {
         ogs_error("OpenAPI_qos_monitoring_information_parseFromJSON() failed [rep_thresh_ul]");
@@ -95,7 +91,8 @@ OpenAPI_qos_monitoring_information_t *OpenAPI_qos_monitoring_information_parseFr
     }
     }
 
-    rep_thresh_rp = cJSON_GetObjectItemCaseSensitive(qos_monitoring_informationJSON, "repThreshRp");
+    cJSON *rep_thresh_rp = cJSON_GetObjectItemCaseSensitive(qos_monitoring_informationJSON, "repThreshRp");
+
     if (rep_thresh_rp) {
     if (!cJSON_IsNumber(rep_thresh_rp)) {
         ogs_error("OpenAPI_qos_monitoring_information_parseFromJSON() failed [rep_thresh_rp]");

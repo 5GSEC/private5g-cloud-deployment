@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -49,7 +49,6 @@ extern int __esm_log_domain;
 #undef OGS_LOG_DOMAIN
 #define OGS_LOG_DOMAIN __mme_log_domain
 
-typedef struct mme_sgsn_s mme_sgsn_t;
 typedef struct mme_sgw_s mme_sgw_t;
 typedef struct mme_pgw_s mme_pgw_t;
 typedef struct mme_vlr_s mme_vlr_t;
@@ -67,12 +66,12 @@ typedef uint32_t mme_m_tmsi_t;
 typedef uint32_t mme_p_tmsi_t;
 
 typedef struct served_gummei_s {
-    int             num_of_plmn_id;
+    uint32_t        num_of_plmn_id;
     ogs_plmn_id_t   plmn_id[OGS_MAX_NUM_OF_PLMN];
 
-    int             num_of_mme_gid;
+    uint32_t        num_of_mme_gid;
     uint16_t        mme_gid[GRP_PER_MME];
-    int             num_of_mme_code;
+    uint32_t        num_of_mme_code;
     uint8_t         mme_code[CODE_PER_MME];
 } served_gummei_t;
 
@@ -86,10 +85,8 @@ typedef struct mme_context_s {
     ogs_list_t      s1ap_list;      /* MME S1AP IPv4 Server List */
     ogs_list_t      s1ap_list6;     /* MME S1AP IPv6 Server List */
 
-    ogs_list_t      sgw_list;       /* SGW GTPv2C Client List */
+    ogs_list_t      sgw_list;       /* SGW GTPC Client List */
     mme_sgw_t       *sgw;           /* Iterator for SGW round-robin */
-
-    ogs_list_t      sgsn_list;       /* SGW GTPv1C Client List */
 
     ogs_list_t      pgw_list;       /* PGW GTPC Client List */
     ogs_sockaddr_t  *pgw_addr;      /* First IPv4 Address Selected */
@@ -101,38 +98,29 @@ typedef struct mme_context_s {
     ogs_list_t      csmap_list;     /* TAI-LAI Map List */
 
     /* Served GUMME */
-    int             max_num_of_served_gummei;
+    uint8_t         max_num_of_served_gummei;
     served_gummei_t served_gummei[MAX_NUM_OF_SERVED_GUMMEI];
 
     /* Served TAI */
-    int             num_of_served_tai;
+    uint8_t         num_of_served_tai;
     struct {
         ogs_eps_tai0_list_t list0;
-        ogs_eps_tai1_list_t list1;
         ogs_eps_tai2_list_t list2;
     } served_tai[OGS_MAX_NUM_OF_SERVED_TAI];
-
-    /* Access Control */
-    int             default_reject_cause;
-    int             num_of_access_control;
-    struct {
-        int reject_cause;
-        ogs_plmn_id_t plmn_id;
-    } access_control[OGS_MAX_NUM_OF_ACCESS_CONTROL];
 
     /* defined in 'nas_ies.h'
      * #define NAS_SECURITY_ALGORITHMS_EIA0        0
      * #define NAS_SECURITY_ALGORITHMS_128_EEA1    1
      * #define NAS_SECURITY_ALGORITHMS_128_EEA2    2
      * #define NAS_SECURITY_ALGORITHMS_128_EEA3    3 */
-    int             num_of_ciphering_order;
+    uint8_t         num_of_ciphering_order;
     uint8_t         ciphering_order[OGS_MAX_NUM_OF_ALGORITHM];
     /* defined in 'nas_ies.h'
      * #define NAS_SECURITY_ALGORITHMS_EIA0        0
      * #define NAS_SECURITY_ALGORITHMS_128_EIA1    1
      * #define NAS_SECURITY_ALGORITHMS_128_EIA1    2
      * #define NAS_SECURITY_ALGORITHMS_128_EIA3    3 */
-    int             num_of_integrity_order;
+    uint8_t         num_of_integrity_order;
     uint8_t         integrity_order[OGS_MAX_NUM_OF_ALGORITHM];
 
     /* Network Name */
@@ -148,79 +136,25 @@ typedef struct mme_context_s {
     /* Generator for unique identification */
     uint32_t        mme_ue_s1ap_id;         /* mme_ue_s1ap_id generator */
 
-#define MME_UE_LIST_CHECK \
-    if (ogs_log_get_domain_level(OGS_LOG_DOMAIN) >= OGS_LOG_TRACE) { \
-        mme_ue_t *mme_ue = NULL; \
-        sgw_ue_t *sgw_ue = NULL; \
-        enb_ue_t *enb_ue = NULL; \
-        mme_sess_t *sess = NULL; \
-        mme_bearer_t *bearer = NULL; \
-        ogs_list_for_each(&mme_self()->mme_ue_list, mme_ue) { \
-            ogs_trace("MME_UE(%p) [%s] MME_S11_TEID[%d]", \
-                    mme_ue, mme_ue->imsi_bcd, mme_ue->mme_s11_teid); \
-            if (mme_ue->sgw_ue) { \
-                sgw_ue = mme_ue->sgw_ue; \
-                ogs_trace("SGW_UE(%p) MME_UE(%p) SGW_S11_TEID[%d]", \
-                        sgw_ue, mme_ue, sgw_ue->sgw_s11_teid); \
-            } \
-            if (mme_ue->enb_ue) { \
-                enb_ue = mme_ue->enb_ue; \
-                ogs_trace("ENB_UE(%p) MME_UE(%p) " \
-                    "[ENB_UE_S1AP_ID:%d MME_UE_S1AP_ID:%d]", \
-                    enb_ue, enb_ue->mme_ue, \
-                    enb_ue->enb_ue_s1ap_id, enb_ue->mme_ue_s1ap_id); \
-            } \
-            ogs_list_for_each(&mme_ue->sess_list, sess) { \
-                ogs_trace("SESS(%p) [%s:%d]", sess, \
-                        sess->session ? sess->session->name : "Unknown", \
-                        sess->pti); \
-                ogs_assert(sess->mme_ue == mme_ue); \
-                ogs_list_for_each(&sess->bearer_list, bearer) { \
-                    ogs_trace("BEARER(%p) [%d] " \
-                            "ENB_S1U_TEID[%d] SGW_S1U_TEID[%d]", \
-                            bearer, bearer->ebi, \
-                            bearer->enb_s1u_teid, bearer->sgw_s1u_teid); \
-                    ogs_assert(bearer->sess == sess); \
-                    ogs_assert(bearer->mme_ue == mme_ue); \
-                } \
-            } \
-        } \
-    }
+    /* M-TMSI Pool */
+    OGS_POOL(m_tmsi, mme_m_tmsi_t);
+
     ogs_list_t      mme_ue_list;
 
-    ogs_hash_t *enb_addr_hash;  /* hash table for ENB Address */
-    ogs_hash_t *enb_id_hash;    /* hash table for ENB-ID */
-    ogs_hash_t *imsi_ue_hash;   /* hash table (IMSI : MME_UE) */
-    ogs_hash_t *guti_ue_hash;   /* hash table (GUTI : MME_UE) */
+    ogs_hash_t      *enb_addr_hash;         /* hash table for ENB Address */
+    ogs_hash_t      *enb_id_hash;           /* hash table for ENB-ID */
+    ogs_hash_t      *imsi_ue_hash;          /* hash table (IMSI : MME_UE) */
+    ogs_hash_t      *guti_ue_hash;          /* hash table (GUTI : MME_UE) */
 
-    ogs_hash_t *mme_s11_teid_hash;  /* hash table (MME-S11-TEID : MME_UE) */
-
-    struct {
-        struct {
-            ogs_time_t value;       /* Timer Value(Seconds) */
-        } t3402, t3412, t3423;
-    } time;
 } mme_context_t;
-
-typedef struct mme_sgsn_route_s {
-    ogs_list_t    list;       /* listed in mme_sgsn_t->route_list */
-    ogs_nas_rai_t rai;
-    uint16_t cell_id;
-} mme_sgsn_route_t;
-
-typedef struct mme_sgsn_s {
-    ogs_gtp_node_t  gnode;
-    ogs_list_t      route_list; /* list of mme_sgsn_route_t */
-    bool            default_route; /* use this SGSN as default route */
-} mme_sgsn_t;
 
 typedef struct mme_sgw_s {
     ogs_gtp_node_t  gnode;
 
     uint16_t        tac[OGS_MAX_NUM_OF_TAI];
-    int             num_of_tac;
+    uint8_t         num_of_tac;
     uint32_t        e_cell_id[OGS_MAX_NUM_OF_CELL_ID];
-    int             num_of_e_cell_id;
+    uint8_t         num_of_e_cell_id;
 
     ogs_list_t      sgw_ue_list;
 } mme_sgw_t;
@@ -229,13 +163,7 @@ typedef struct mme_pgw_s {
     ogs_lnode_t     lnode;
 
     ogs_sockaddr_t  *sa_list;
-
-    const char      *apn[OGS_MAX_NUM_OF_APN];
-    uint8_t         num_of_apn;
-    uint16_t        tac[OGS_MAX_NUM_OF_TAI];
-    uint8_t         num_of_tac;
-    uint32_t        e_cell_id[OGS_MAX_NUM_OF_CELL_ID];
-    uint8_t         num_of_e_cell_id;
+    const char      *apn;
 } mme_pgw_t;
 
 #define MME_SGSAP_IS_CONNECTED(__mME) \
@@ -251,7 +179,7 @@ typedef struct mme_vlr_s {
 
     ogs_timer_t     *t_conn;     /* client timer to connect to server */
 
-    int             max_num_of_ostreams;/* SCTP Max num of outbound streams */
+    uint16_t        max_num_of_ostreams;/* SCTP Max num of outbound streams */
     uint16_t        ostream_id;     /* vlr_ostream_id generator */
 
     ogs_sockaddr_t  *sa_list;   /* VLR SGsAP Socket Address List */
@@ -277,17 +205,16 @@ typedef struct mme_enb_s {
     ogs_fsm_t       sm;         /* A state machine */
 
     uint32_t        enb_id;     /* eNB_ID received from eNB */
-    ogs_plmn_id_t   plmn_id;    /* eNB PLMN-ID received from eNB */
     ogs_sctp_sock_t sctp;       /* SCTP socket */
 
     struct {
         bool s1_setup_success;  /* eNB S1AP Setup complete successfuly */
     } state;
 
-    int             max_num_of_ostreams;/* SCTP Max num of outbound streams */
+    uint16_t        max_num_of_ostreams;/* SCTP Max num of outbound streams */
     uint16_t        ostream_id;         /* enb_ostream_id generator */
 
-    int             num_of_supported_ta_list;
+    uint8_t         num_of_supported_ta_list;
     ogs_eps_tai_t   supported_ta_list[OGS_MAX_NUM_OF_TAI*OGS_MAX_NUM_OF_BPLMN];
 
     ogs_pkbuf_t     *s1_reset_ack; /* Reset message */
@@ -345,12 +272,21 @@ struct enb_ue_s {
 
 struct sgw_ue_s {
     ogs_lnode_t     lnode;
+    uint32_t        index;
 
     sgw_ue_t        *source_ue;
     sgw_ue_t        *target_ue;
 
     /* UE identity */
     uint32_t        sgw_s11_teid;   /* SGW-S11-TEID is received from SGW */
+
+    /*
+     * If the MME sends Delete-Session-Request to the SGW for all sessions,
+     *    session_context_will_deleted = 1
+     * When the MME receives a Delete-Session-Response for the last session,
+     *    session_context_will_deleted = 0
+     */
+    int             session_context_will_deleted;
 
     /* S11 Holding timer for removing this context */
     ogs_timer_t     *t_s11_holding;
@@ -376,28 +312,14 @@ struct mme_ue_s {
 #define MME_EPS_TYPE_DETACH_REQUEST_TO_UE           6
         uint8_t     type;
         uint8_t     ksi;
-        ogs_nas_eps_attach_type_t attach;
-        ogs_nas_eps_update_type_t update;
-        ogs_nas_service_type_t service;
-        ogs_nas_detach_type_t detach;
+        union {
+            ogs_nas_eps_attach_type_t attach;
+            ogs_nas_eps_update_type_t update;
+            ogs_nas_service_type_t service;
+            ogs_nas_detach_type_t detach;
+            uint8_t data;
+        };
     } nas_eps;
-
-    /* 1. MME initiated detach request to the UE.
-     *    (nas_eps.type = MME_EPS_TYPE_DETACH_REQUEST_TO_UE)
-     * 2. If UE is IDLE, Paging sent to the UE
-     * 3. If UE is wake-up, UE will send Server Request.
-     *    (nas_eps.type = MME_EPS_TYPE_SERVICE_REQUEST)
-     *
-     * So, we will lose the MME_EPS_TYPE_DETACH_REQUEST_TO_UE.
-     *
-     * We need more variable(detach_type)
-     * to keep Detach-Type whether UE-initiated or MME-initiaed.  */
-#define MME_DETACH_TYPE_REQUEST_FROM_UE             1
-#define MME_DETACH_TYPE_MME_EXPLICIT                2
-#define MME_DETACH_TYPE_HSS_EXPLICIT                3
-#define MME_DETACH_TYPE_MME_IMPLICIT                4
-#define MME_DETACH_TYPE_HSS_IMPLICIT                5
-    uint8_t     detach_type;
 
     /* UE identity */
 #define MME_UE_HAVE_IMSI(__mME) \
@@ -429,8 +351,7 @@ struct mme_ue_s {
         ogs_nas_eps_guti_t guti;
     } current, next;
 
-    ogs_pool_id_t   *mme_s11_teid_node; /* A node of MME-S11-TEID */
-    uint32_t        mme_s11_teid;   /* MME-S11-TEID is derived from NODE */
+    uint32_t        mme_s11_teid;   /* MME-S11-TEID is derived from INDEX */
 
     uint16_t        vlr_ostream_id; /* SCTP output stream id for VLR */
 
@@ -438,7 +359,6 @@ struct mme_ue_s {
     uint16_t        enb_ostream_id;
     ogs_eps_tai_t   tai;
     ogs_e_cgi_t     e_cgi;
-    ogs_time_t      ue_location_timestamp;
     ogs_plmn_id_t   last_visited_plmn_id;
 
 #define SECURITY_CONTEXT_IS_VALID(__mME) \
@@ -455,8 +375,6 @@ struct mme_ue_s {
     } while(0)
     int             security_context_available;
     int             mac_failed;
-
-    bool            location_updated_but_not_canceled_yet;
 
     /* Security Context */
     ogs_nas_ue_network_capability_t ue_network_capability;
@@ -533,36 +451,6 @@ struct mme_ue_s {
      (((__mME)->enb_ue == NULL) || (enb_ue_cycle((__mME)->enb_ue) == NULL)))
     enb_ue_t        *enb_ue;    /* S1 UE context */
 
-    struct {
-#define MME_CLEAR_PAGING_INFO(__mME) \
-    do { \
-        ogs_assert(__mME); \
-        ogs_debug("[%s] Clear Paging Info", mme_ue->imsi_bcd); \
-        (__mME)->paging.type = 0; \
-    } while(0)
-
-#define MME_STORE_PAGING_INFO(__mME, __tYPE, __dATA) \
-    do { \
-        ogs_assert(__mME); \
-        ogs_assert(__tYPE); \
-        ogs_debug("[%s] Store Paging Info", mme_ue->imsi_bcd); \
-        (__mME)->paging.type = __tYPE; \
-        (__mME)->paging.data = __dATA; \
-    } while(0)
-
-#define MME_PAGING_ONGOING(__mME) ((__mME) && ((__mME)->paging.type))
-
-#define MME_PAGING_TYPE_DOWNLINK_DATA_NOTIFICATION 1
-#define MME_PAGING_TYPE_CREATE_BEARER 2
-#define MME_PAGING_TYPE_UPDATE_BEARER 3
-#define MME_PAGING_TYPE_DELETE_BEARER 4
-#define MME_PAGING_TYPE_CS_CALL_SERVICE 5
-#define MME_PAGING_TYPE_SMS_SERVICE 6
-#define MME_PAGING_TYPE_DETACH_TO_UE 7
-        int type;
-        void *data;
-    } paging;
-
     /* SGW UE context */
     sgw_ue_t        *sgw_ue;
 
@@ -579,8 +467,6 @@ struct mme_ue_s {
         CLEAR_MME_UE_TIMER((__mME)->t3450); \
         CLEAR_MME_UE_TIMER((__mME)->t3460); \
         CLEAR_MME_UE_TIMER((__mME)->t3470); \
-        CLEAR_MME_UE_TIMER((__mME)->t_mobile_reachable); \
-        CLEAR_MME_UE_TIMER((__mME)->t_implicit_detach); \
         \
         ogs_list_for_each(&mme_ue->sess_list, sess) { \
             ogs_list_for_each(&sess->bearer_list, bearer) { \
@@ -601,8 +487,7 @@ struct mme_ue_s {
         ogs_pkbuf_t     *pkbuf;
         ogs_timer_t     *timer;
         uint32_t        retry_count;;
-    } t3413, t3422, t3450, t3460, t3470, t_mobile_reachable,
-        t_implicit_detach;
+    } t3413, t3422, t3450, t3460, t3470;
 
 #define CLEAR_SERVICE_INDICATOR(__mME) \
     do { \
@@ -667,30 +552,19 @@ struct mme_ue_s {
 #define SESSION_CONTEXT_IS_AVAILABLE(__mME) \
      ((__mME) && ((__mME)->sgw_ue) && (((__mME)->sgw_ue)->sgw_s11_teid))
 
+#define SESSION_CONTEXT_WILL_DELETED(__mME) \
+     ((__mME) && ((__mME)->sgw_ue) && \
+      (((__mME)->sgw_ue)->session_context_will_deleted))
+
 #define CLEAR_SESSION_CONTEXT(__mME) \
     do { \
         ogs_assert((__mME)); \
         ((__mME)->sgw_ue)->sgw_s11_teid = 0; \
-    } while(0)
-
-#define MME_SESS_CLEAR(__sESS) \
-    do { \
-        mme_ue_t *mme_ue = NULL; \
-        ogs_assert(__sESS); \
-        mme_ue = (__sESS)->mme_ue; \
-        ogs_assert(mme_ue); \
-        ogs_info("Removed Session: UE IMSI:[%s] APN:[%s]", \
-                mme_ue->imsi_bcd, \
-                (__sESS)->session ? (__sESS)->session->name : "Unknown"); \
-        if (mme_sess_count(mme_ue) == 1) /* Last Session */ \
-            CLEAR_SESSION_CONTEXT(mme_ue); \
-        mme_sess_remove(__sESS); \
+        ((__mME)->sgw_ue)->session_context_will_deleted = 0; \
     } while(0)
 
 #define ACTIVE_EPS_BEARERS_IS_AVAIABLE(__mME) \
     (mme_ue_have_active_eps_bearers(__mME))
-#define MME_SESSION_RELEASE_PENDING(__mME) \
-    (mme_ue_have_session_release_pending(__mME))
 typedef struct mme_sess_s {
     ogs_lnode_t     lnode;
 
@@ -715,17 +589,8 @@ typedef struct mme_sess_s {
         uint8_t *buffer;
     } ue_pco;
 
-    /* Save Extended Protocol Configuration Options from UE */
-    struct {
-        uint16_t length;
-        uint8_t *buffer;
-    } ue_epco;
-
     /* Save Protocol Configuration Options from PGW */
     ogs_tlv_octet_t pgw_pco;
-
-    /* Save Extended Protocol Configuration Options from PGW */
-    ogs_tlv_octet_t pgw_epco;
 } mme_sess_t;
 
 #define MME_HAVE_ENB_S1U_PATH(__bEARER) \
@@ -767,6 +632,7 @@ typedef struct mme_bearer_s {
     ogs_lnode_t     lnode;
     ogs_lnode_t     to_modify_node;
 
+    uint32_t        index;
     ogs_fsm_t       sm;             /* State Machine */
 
     uint8_t         *ebi_node;      /* Pool-Node for EPS Bearer ID */
@@ -818,10 +684,9 @@ typedef struct mme_bearer_s {
     /* Related Context */
     mme_ue_t        *mme_ue;
     mme_sess_t      *sess;
-
     struct {
         ogs_gtp_xact_t  *xact;
-    } create, update, delete, notify;
+    } create, update, delete, notify, current;
 } mme_bearer_t;
 
 void mme_context_init(void);
@@ -829,13 +694,6 @@ void mme_context_final(void);
 mme_context_t *mme_self(void);
 
 int mme_context_parse_config(void);
-
-mme_sgsn_t *mme_sgsn_add(ogs_sockaddr_t *addr);
-void mme_sgsn_remove(mme_sgsn_t *sgsn);
-void mme_sgsn_remove_all(void);
-mme_sgsn_t *mme_sgsn_find_by_addr(ogs_sockaddr_t *addr);
-mme_sgsn_t *mme_sgsn_find_by_routing_address(const ogs_nas_rai_t *rai, uint16_t cell_id);
-mme_sgsn_t *mme_sgsn_find_by_default_routing_address(void);
 
 mme_sgw_t *mme_sgw_add(ogs_sockaddr_t *addr);
 void mme_sgw_remove(mme_sgw_t *sgw);
@@ -845,8 +703,8 @@ mme_sgw_t *mme_sgw_find_by_addr(ogs_sockaddr_t *addr);
 mme_pgw_t *mme_pgw_add(ogs_sockaddr_t *addr);
 void mme_pgw_remove(mme_pgw_t *pgw);
 void mme_pgw_remove_all(void);
-ogs_sockaddr_t *mme_pgw_addr_find_by_apn_enb(
-        ogs_list_t *list, int family, mme_sess_t *sess);
+ogs_sockaddr_t *mme_pgw_addr_find_by_apn(
+        ogs_list_t *list, int family, char *apn);
 
 mme_vlr_t *mme_vlr_add(ogs_sockaddr_t *sa_list, ogs_sockopt_t *option);
 void mme_vlr_remove(mme_vlr_t *vlr);
@@ -868,7 +726,6 @@ mme_enb_t *mme_enb_find_by_addr(ogs_sockaddr_t *addr);
 mme_enb_t *mme_enb_find_by_enb_id(uint32_t enb_id);
 int mme_enb_set_enb_id(mme_enb_t *enb, uint32_t enb_id);
 int mme_enb_sock_type(ogs_sock_t *sock);
-mme_enb_t *mme_enb_cycle(mme_enb_t *enb);
 
 enb_ue_t *enb_ue_add(mme_enb_t *enb, uint32_t enb_ue_s1ap_id);
 void enb_ue_remove(enb_ue_t *enb_ue);
@@ -882,6 +739,7 @@ enb_ue_t *enb_ue_cycle(enb_ue_t *enb_ue);
 sgw_ue_t *sgw_ue_add(mme_sgw_t *sgw);
 void sgw_ue_remove(sgw_ue_t *sgw_ue);
 void sgw_ue_switch_to_sgw(sgw_ue_t *sgw_ue, mme_sgw_t *new_sgw);
+sgw_ue_t *sgw_ue_find(uint32_t index);
 sgw_ue_t *sgw_ue_cycle(sgw_ue_t *sgw_ue);
 
 typedef enum {
@@ -895,9 +753,9 @@ void mme_ue_new_guti(mme_ue_t *mme_ue);
 void mme_ue_confirm_guti(mme_ue_t *mme_ue);
 
 mme_ue_t *mme_ue_add(enb_ue_t *enb_ue);
+void mme_ue_hash_remove(mme_ue_t *mme_ue);
 void mme_ue_remove(mme_ue_t *mme_ue);
 void mme_ue_remove_all(void);
-mme_ue_t *mme_ue_cycle(mme_ue_t *mme_ue);
 
 void mme_ue_fsm_init(mme_ue_t *mme_ue);
 void mme_ue_fsm_fini(mme_ue_t *mme_ue);
@@ -914,11 +772,6 @@ bool mme_ue_have_indirect_tunnel(mme_ue_t *mme_ue);
 void mme_ue_clear_indirect_tunnel(mme_ue_t *mme_ue);
 
 bool mme_ue_have_active_eps_bearers(mme_ue_t *mme_ue);
-bool mme_sess_have_active_eps_bearers(mme_sess_t *sess);
-bool mme_ue_have_session_release_pending(mme_ue_t *mme_ue);
-bool mme_sess_have_session_release_pending(mme_sess_t *sess);
-
-int mme_ue_xact_count(mme_ue_t *mme_ue, uint8_t org);
 
 /*
  * o RECV Initial UE-Message : S-TMSI
@@ -1010,6 +863,7 @@ ogs_session_t *mme_default_session(mme_ue_t *mme_ue);
 
 int mme_find_served_tai(ogs_eps_tai_t *tai);
 
+int mme_m_tmsi_pool_generate(void);
 mme_m_tmsi_t *mme_m_tmsi_alloc(void);
 int mme_m_tmsi_free(mme_m_tmsi_t *tmsi);
 

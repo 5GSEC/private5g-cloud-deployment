@@ -59,11 +59,11 @@ ogs_pkbuf_t *test_s2b_build_create_session_request(
     memset(&gtp_message, 0, sizeof(ogs_gtp2_message_t));
 
     if (handover_ind == true) {
-        memset(&indication, 0, sizeof(ogs_gtp2_indication_t));
-        indication.handover_indication = 1;
-        req->indication_flags.presence = 1;
-        req->indication_flags.data = &indication;
-        req->indication_flags.len = sizeof(ogs_gtp2_indication_t);
+	    memset(&indication, 0, sizeof(ogs_gtp2_indication_t));
+	    indication.handover_indication = 1;
+	    req->indication_flags.presence = 1;
+	    req->indication_flags.data = &indication;
+	    req->indication_flags.len = sizeof(ogs_gtp2_indication_t);
     }
 
     ogs_assert(test_ue->imsi_len);
@@ -240,10 +240,7 @@ ogs_pkbuf_t *test_s2b_build_create_bearer_response(
     ogs_assert(sess->gnode->sock);
     rv = ogs_gtp2_sockaddr_to_f_teid(
             &sess->gnode->sock->local_addr, NULL, &epdg_s2b_u_teid, &len);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_gtp2_sockaddr_to_f_teid() failed");
-        return NULL;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, NULL);
     rsp->bearer_contexts.s2b_u_epdg_f_teid_8.presence = 1;
     rsp->bearer_contexts.s2b_u_epdg_f_teid_8.data = &epdg_s2b_u_teid;
     rsp->bearer_contexts.s2b_u_epdg_f_teid_8.len = len;
@@ -253,10 +250,7 @@ ogs_pkbuf_t *test_s2b_build_create_bearer_response(
     smf_s2b_u_teid.interface_type = OGS_GTP2_F_TEID_S2B_U_PGW_GTP_U;
     smf_s2b_u_teid.teid = htobe32(bearer->sgw_s1u_teid);
     rv = ogs_gtp2_ip_to_f_teid(&bearer->sgw_s1u_ip, &smf_s2b_u_teid, &len);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_gtp2_ip_to_f_teid() failed");
-        return NULL;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, NULL);
     rsp->bearer_contexts.s2b_u_pgw_f_teid.presence = 1;
     rsp->bearer_contexts.s2b_u_pgw_f_teid.data = &smf_s2b_u_teid;
     rsp->bearer_contexts.s2b_u_pgw_f_teid.len = OGS_GTP2_F_TEID_IPV4_LEN;

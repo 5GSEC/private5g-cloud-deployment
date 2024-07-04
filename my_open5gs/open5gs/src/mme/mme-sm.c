@@ -28,12 +28,59 @@
 #include "nas-path.h"
 #include "emm-handler.h"
 #include "esm-handler.h"
-#include "mme-gn-handler.h"
 #include "mme-gtp-path.h"
 #include "mme-s11-handler.h"
 #include "mme-fd-path.h"
 #include "mme-s6a-handler.h"
 #include "mme-path.h"
+
+/* 3GPP TS 29.272 Annex A; Table !.a:
+ * Mapping from S6a error codes to NAS Cause Codes */
+static uint8_t emm_cause_from_diameter(
+        mme_ue_t *mme_ue, const uint32_t *dia_err, const uint32_t *dia_exp_err)
+{
+    ogs_assert(mme_ue);
+
+    if (dia_exp_err) {
+        switch (*dia_exp_err) {
+        case OGS_DIAM_S6A_ERROR_USER_UNKNOWN:                   /* 5001 */
+            ogs_info("[%s] User Unknown in HSS DB", mme_ue->imsi_bcd);
+            return OGS_NAS_EMM_CAUSE_PLMN_NOT_ALLOWED;
+        case OGS_DIAM_S6A_ERROR_UNKNOWN_EPS_SUBSCRIPTION:       /* 5420 */
+            /* FIXME: Error diagnostic? */
+            return OGS_NAS_EMM_CAUSE_NO_SUITABLE_CELLS_IN_TRACKING_AREA;
+        case OGS_DIAM_S6A_ERROR_RAT_NOT_ALLOWED:                /* 5421 */
+            return OGS_NAS_EMM_CAUSE_ROAMING_NOT_ALLOWED_IN_THIS_TRACKING_AREA;
+        case OGS_DIAM_S6A_ERROR_ROAMING_NOT_ALLOWED:            /* 5004 */
+            return OGS_NAS_EMM_CAUSE_PLMN_NOT_ALLOWED;
+            /* return OGS_NAS_EMM_CAUSE_EPS_SERVICES_NOT_ALLOWED_IN_THIS_PLMN;
+             * (ODB_HPLMN_APN) */
+            /* return OGS_NAS_EMM_CAUSE_ESM_FAILURE; (ODB_ALL_APN) */
+        case OGS_DIAM_S6A_AUTHENTICATION_DATA_UNAVAILABLE:      /* 4181 */
+            return OGS_NAS_EMM_CAUSE_NETWORK_FAILURE;
+        }
+    }
+    if (dia_err) {
+        switch (*dia_err) {
+        case ER_DIAMETER_AUTHORIZATION_REJECTED:                /* 5003 */
+        case ER_DIAMETER_UNABLE_TO_DELIVER:                     /* 3002 */
+        case ER_DIAMETER_REALM_NOT_SERVED:                      /* 3003 */
+            return OGS_NAS_EMM_CAUSE_NO_SUITABLE_CELLS_IN_TRACKING_AREA;
+        case ER_DIAMETER_UNABLE_TO_COMPLY:                      /* 5012 */
+        case ER_DIAMETER_INVALID_AVP_VALUE:                     /* 5004 */
+        case ER_DIAMETER_AVP_UNSUPPORTED:                       /* 5001 */
+        case ER_DIAMETER_MISSING_AVP:                           /* 5005 */
+        case ER_DIAMETER_RESOURCES_EXCEEDED:                    /* 5006 */
+        case ER_DIAMETER_AVP_OCCURS_TOO_MANY_TIMES:             /* 5009 */
+            return OGS_NAS_EMM_CAUSE_NETWORK_FAILURE;
+        }
+    }
+
+    ogs_error("Unexpected Diameter Result Code %d/%d, defaulting to severe "
+              "network failure",
+              dia_err ? *dia_err : -1, dia_exp_err ? *dia_exp_err : -1);
+    return OGS_NAS_EMM_CAUSE_SEVERE_NETWORK_FAILURE;
+}
 
 void mme_state_initial(ogs_fsm_t *s, mme_event_t *e)
 {
@@ -63,7 +110,7 @@ void mme_state_operational(ogs_fsm_t *s, mme_event_t *e)
 
     ogs_s1ap_message_t s1ap_message;
     ogs_pkbuf_t *pkbuf = NULL;
-    int rc, r;
+    int rc;
 
     ogs_nas_eps_message_t nas_message;
     enb_ue_t *enb_ue = NULL;
@@ -75,12 +122,10 @@ void mme_state_operational(ogs_fsm_t *s, mme_event_t *e)
     mme_sess_t *sess = NULL;
 
     ogs_diam_s6a_message_t *s6a_message = NULL;
-    uint8_t emm_cause = 0;
 
     ogs_gtp_node_t *gnode = NULL;
     ogs_gtp_xact_t *xact = NULL;
     ogs_gtp2_message_t gtp_message;
-    ogs_gtp1_message_t gtp1_message;
 
     mme_vlr_t *vlr = NULL;
 
@@ -96,7 +141,7 @@ void mme_state_operational(ogs_fsm_t *s, mme_event_t *e)
     case OGS_FSM_EXIT_SIG:
         break;
 
-    case MME_EVENT_S1AP_LO_ACCEPT:
+    case MME_EVT_S1AP_LO_ACCEPT:
         sock = e->sock;
         ogs_assert(sock);
         addr = e->addr;
@@ -122,7 +167,7 @@ void mme_state_operational(ogs_fsm_t *s, mme_event_t *e)
 
         break;
 
-    case MME_EVENT_S1AP_LO_SCTP_COMM_UP:
+    case MME_EVT_S1AP_LO_SCTP_COMM_UP:
         sock = e->sock;
         ogs_assert(sock);
         addr = e->addr;
@@ -152,7 +197,7 @@ void mme_state_operational(ogs_fsm_t *s, mme_event_t *e)
 
         break;
 
-    case MME_EVENT_S1AP_LO_CONNREFUSED:
+    case MME_EVT_S1AP_LO_CONNREFUSED:
         sock = e->sock;
         ogs_assert(sock);
         addr = e->addr;
@@ -174,7 +219,7 @@ void mme_state_operational(ogs_fsm_t *s, mme_event_t *e)
         ogs_free(addr);
 
         break;
-    case MME_EVENT_S1AP_MESSAGE:
+    case MME_EVT_S1AP_MESSAGE:
         sock = e->sock;
         ogs_assert(sock);
         addr = e->addr;
@@ -198,18 +243,17 @@ void mme_state_operational(ogs_fsm_t *s, mme_event_t *e)
             ogs_fsm_dispatch(&enb->sm, e);
         } else {
             ogs_warn("Cannot decode S1AP message");
-            r = s1ap_send_error_indication(
+            ogs_assert(OGS_OK ==
+                s1ap_send_error_indication(
                     enb, NULL, NULL, S1AP_Cause_PR_protocol,
-                    S1AP_CauseProtocol_abstract_syntax_error_falsely_constructed_message);
-            ogs_expect(r == OGS_OK);
-            ogs_assert(r != OGS_ERROR);
+                    S1AP_CauseProtocol_abstract_syntax_error_falsely_constructed_message));
         }
 
         ogs_s1ap_free(&s1ap_message);
         ogs_pkbuf_free(pkbuf);
         break;
 
-    case MME_EVENT_S1AP_TIMER:
+    case MME_EVT_S1AP_TIMER:
         enb_ue = e->enb_ue;
         ogs_assert(enb_ue);
 
@@ -220,9 +264,7 @@ void mme_state_operational(ogs_fsm_t *s, mme_event_t *e)
             pkbuf = e->pkbuf;
             ogs_assert(pkbuf);
 
-            r = s1ap_send_to_enb_ue(enb_ue, pkbuf);
-            ogs_expect(r == OGS_OK);
-            ogs_assert(r != OGS_ERROR);
+            ogs_expect(OGS_OK == s1ap_send_to_enb_ue(enb_ue, pkbuf));
             ogs_timer_delete(e->timer);
             break;
         case MME_TIMER_S1_HOLDING:
@@ -238,7 +280,7 @@ void mme_state_operational(ogs_fsm_t *s, mme_event_t *e)
         }
         break;
 
-    case MME_EVENT_EMM_MESSAGE:
+    case MME_EVT_EMM_MESSAGE:
         enb_ue = e->enb_ue;
         ogs_assert(enb_ue);
         pkbuf = e->pkbuf;
@@ -255,16 +297,7 @@ void mme_state_operational(ogs_fsm_t *s, mme_event_t *e)
             mme_ue = mme_ue_find_by_message(&nas_message);
             if (!mme_ue) {
                 mme_ue = mme_ue_add(enb_ue);
-                if (mme_ue == NULL) {
-                    r = s1ap_send_ue_context_release_command(enb_ue,
-                            S1AP_Cause_PR_misc,
-                            S1AP_CauseMisc_control_processing_overload,
-                            S1AP_UE_CTX_REL_S1_CONTEXT_REMOVE, 0);
-                    ogs_expect(r == OGS_OK);
-                    ogs_assert(r != OGS_ERROR);
-                    ogs_pkbuf_free(pkbuf);
-                    return;
-                }
+                ogs_assert(mme_ue);
             } else {
                 /* Here, if the MME_UE Context is found,
                  * the integrity check is not performed
@@ -302,16 +335,12 @@ void mme_state_operational(ogs_fsm_t *s, mme_event_t *e)
                 /* De-associate S1 with NAS/EMM */
                 enb_ue_deassociate(mme_ue->enb_ue);
 
-                r = s1ap_send_ue_context_release_command(mme_ue->enb_ue,
+                ogs_assert(OGS_OK ==
+                    s1ap_send_ue_context_release_command(mme_ue->enb_ue,
                         S1AP_Cause_PR_nas, S1AP_CauseNas_normal_release,
-                        S1AP_UE_CTX_REL_S1_CONTEXT_REMOVE, 0);
-                ogs_expect(r == OGS_OK);
-                ogs_assert(r != OGS_ERROR);
+                        S1AP_UE_CTX_REL_S1_CONTEXT_REMOVE, 0));
             }
             enb_ue_associate_mme_ue(enb_ue, mme_ue);
-            ogs_debug("Mobile Reachable timer stopped for IMSI[%s]",
-                mme_ue->imsi_bcd);
-            CLEAR_MME_UE_TIMER(mme_ue->t_mobile_reachable);
         }
 
         ogs_assert(mme_ue);
@@ -327,7 +356,7 @@ void mme_state_operational(ogs_fsm_t *s, mme_event_t *e)
 
         ogs_pkbuf_free(pkbuf);
         break;
-    case MME_EVENT_EMM_TIMER:
+    case MME_EVT_EMM_TIMER:
         mme_ue = e->mme_ue;
         ogs_assert(mme_ue);
         ogs_assert(OGS_FSM_STATE(&mme_ue->sm));
@@ -335,7 +364,7 @@ void mme_state_operational(ogs_fsm_t *s, mme_event_t *e)
         ogs_fsm_dispatch(&mme_ue->sm, e);
         break;
 
-    case MME_EVENT_ESM_MESSAGE:
+    case MME_EVT_ESM_MESSAGE:
         mme_ue = e->mme_ue;
         ogs_assert(mme_ue);
 
@@ -367,7 +396,7 @@ void mme_state_operational(ogs_fsm_t *s, mme_event_t *e)
             if (default_bearer->ebi == bearer->ebi) {
                 /* if the bearer is a default bearer,
                  * remove all session context linked the default bearer */
-                MME_SESS_CLEAR(sess);
+                mme_sess_remove(sess);
             } else {
                 /* if the bearer is not a default bearer,
                  * just remove the bearer context */
@@ -376,7 +405,7 @@ void mme_state_operational(ogs_fsm_t *s, mme_event_t *e)
 
         } else if (OGS_FSM_CHECK(&bearer->sm, esm_state_pdn_did_disconnect)) {
             ogs_assert(default_bearer->ebi == bearer->ebi);
-            MME_SESS_CLEAR(sess);
+            mme_sess_remove(sess);
 
         } else if (OGS_FSM_CHECK(&bearer->sm, esm_state_exception)) {
 
@@ -388,13 +417,13 @@ void mme_state_operational(ogs_fsm_t *s, mme_event_t *e)
              *
              * Just we'll remove MME session context.
              */
-            MME_SESS_CLEAR(sess);
+            mme_sess_remove(sess);
         }
 
         ogs_pkbuf_free(pkbuf);
         break;
 
-    case MME_EVENT_ESM_TIMER:
+    case MME_EVT_ESM_TIMER:
         bearer = e->bearer;
         ogs_assert(bearer);
         ogs_assert(OGS_FSM_STATE(&bearer->sm));
@@ -402,79 +431,88 @@ void mme_state_operational(ogs_fsm_t *s, mme_event_t *e)
         ogs_fsm_dispatch(&bearer->sm, e);
         break;
 
-    case MME_EVENT_S6A_MESSAGE:
+    case MME_EVT_S6A_MESSAGE:
         mme_ue = e->mme_ue;
         ogs_assert(mme_ue);
         s6a_message = e->s6a_message;
         ogs_assert(s6a_message);
 
+        enb_ue = enb_ue_cycle(mme_ue->enb_ue);
+        if (!enb_ue) {
+            ogs_error("S1 context has already been removed");
+
+            ogs_subscription_data_free(
+                    &s6a_message->ula_message.subscription_data);
+            ogs_free(s6a_message);
+            break;
+        }
+
+        if (s6a_message->result_code != ER_DIAMETER_SUCCESS) {
+            /* Unfortunately fd doesn't distinguish
+             * between result-code and experimental-result-code.
+             *
+             * However, e.g. 5004 has different meaning
+             * if used in result-code than in experimental-result-code */
+            uint8_t emm_cause = emm_cause_from_diameter(
+                    mme_ue, s6a_message->err, s6a_message->exp_err);
+
+            ogs_info("[%s] Attach reject [OGS_NAS_EMM_CAUSE:%d]",
+                    mme_ue->imsi_bcd, emm_cause);
+            ogs_assert(OGS_OK ==
+                nas_eps_send_attach_reject(mme_ue,
+                    emm_cause, OGS_NAS_ESM_CAUSE_PROTOCOL_ERROR_UNSPECIFIED));
+
+            ogs_assert(OGS_OK ==
+                s1ap_send_ue_context_release_command(enb_ue,
+                    S1AP_Cause_PR_nas, S1AP_CauseNas_normal_release,
+                    S1AP_UE_CTX_REL_UE_CONTEXT_REMOVE, 0));
+
+            ogs_subscription_data_free(
+                    &s6a_message->ula_message.subscription_data);
+            ogs_free(s6a_message);
+            break;
+        }
+
         switch (s6a_message->cmd_code) {
         case OGS_DIAM_S6A_CMD_CODE_AUTHENTICATION_INFORMATION:
-            emm_cause = mme_s6a_handle_aia(mme_ue, s6a_message);
-            if (emm_cause != OGS_NAS_EMM_CAUSE_REQUEST_ACCEPTED) {
-                ogs_info("[%s] Attach reject [OGS_NAS_EMM_CAUSE:%d]",
-                        mme_ue->imsi_bcd, emm_cause);
-                enb_ue = enb_ue_cycle(mme_ue->enb_ue);
-                if (!enb_ue) {
-                    ogs_error("S1 context has already been removed");
-                    break;
-                }
-                r = nas_eps_send_attach_reject(mme_ue, emm_cause,
-                        OGS_NAS_ESM_CAUSE_PROTOCOL_ERROR_UNSPECIFIED);
-                ogs_expect(r == OGS_OK);
-                ogs_assert(r != OGS_ERROR);
-
-                r = s1ap_send_ue_context_release_command(enb_ue,
-                        S1AP_Cause_PR_nas, S1AP_CauseNas_normal_release,
-                        S1AP_UE_CTX_REL_UE_CONTEXT_REMOVE, 0);
-                ogs_expect(r == OGS_OK);
-                ogs_assert(r != OGS_ERROR);
-            }
+            mme_s6a_handle_aia(mme_ue, &s6a_message->aia_message);
             break;
         case OGS_DIAM_S6A_CMD_CODE_UPDATE_LOCATION:
-            emm_cause = mme_s6a_handle_ula(mme_ue, s6a_message);
-            if (emm_cause != OGS_NAS_EMM_CAUSE_REQUEST_ACCEPTED) {
-                ogs_info("[%s] Attach reject [OGS_NAS_EMM_CAUSE:%d]",
-                        mme_ue->imsi_bcd, emm_cause);
-                enb_ue = enb_ue_cycle(mme_ue->enb_ue);
-                if (!enb_ue) {
-                    ogs_error("S1 context has already been removed");
-                    break;
+            mme_s6a_handle_ula(mme_ue, &s6a_message->ula_message);
+
+            if (mme_ue->nas_eps.type == MME_EPS_TYPE_ATTACH_REQUEST) {
+                rv = nas_eps_send_emm_to_esm(mme_ue,
+                        &mme_ue->pdn_connectivity_request);
+                if (rv != OGS_OK) {
+                    ogs_error("nas_eps_send_emm_to_esm() failed");
+                    ogs_assert(OGS_OK ==
+                        nas_eps_send_attach_reject(mme_ue,
+                        OGS_NAS_EMM_CAUSE_PROTOCOL_ERROR_UNSPECIFIED,
+                        OGS_NAS_ESM_CAUSE_PROTOCOL_ERROR_UNSPECIFIED));
                 }
-                r = nas_eps_send_attach_reject(mme_ue, emm_cause,
-                        OGS_NAS_ESM_CAUSE_PROTOCOL_ERROR_UNSPECIFIED);
-                ogs_expect(r == OGS_OK);
-                ogs_assert(r != OGS_ERROR);
-
-                r = s1ap_send_ue_context_release_command(enb_ue,
-                        S1AP_Cause_PR_nas, S1AP_CauseNas_normal_release,
-                        S1AP_UE_CTX_REL_UE_CONTEXT_REMOVE, 0);
-                ogs_expect(r == OGS_OK);
-                ogs_assert(r != OGS_ERROR);
+            } else if (mme_ue->nas_eps.type == MME_EPS_TYPE_TAU_REQUEST) {
+                ogs_assert(OGS_OK ==
+                    nas_eps_send_tau_accept(mme_ue,
+                        S1AP_ProcedureCode_id_InitialContextSetup));
+            } else if (mme_ue->nas_eps.type == MME_EPS_TYPE_SERVICE_REQUEST) {
+                ogs_error("[%s] Service request", mme_ue->imsi_bcd);
+            } else if (mme_ue->nas_eps.type ==
+                    MME_EPS_TYPE_DETACH_REQUEST_FROM_UE) {
+                ogs_error("[%s] Detach request", mme_ue->imsi_bcd);
+            } else {
+                ogs_fatal("Invalid Type[%d]", mme_ue->nas_eps.type);
+                ogs_assert_if_reached();
             }
-
-            mme_ue->location_updated_but_not_canceled_yet = true;
-            break;
-        case OGS_DIAM_S6A_CMD_CODE_PURGE_UE:
-            mme_s6a_handle_pua(mme_ue, s6a_message);
-            break;
-        case OGS_DIAM_S6A_CMD_CODE_CANCEL_LOCATION:
-            mme_ue->location_updated_but_not_canceled_yet = false;
-            mme_s6a_handle_clr(mme_ue, s6a_message);
-            break;
-        case OGS_DIAM_S6A_CMD_CODE_INSERT_SUBSCRIBER_DATA:
-            mme_s6a_handle_idr(mme_ue, s6a_message);
             break;
         default:
             ogs_error("Invalid Type[%d]", s6a_message->cmd_code);
             break;
         }
-        ogs_subscription_data_free(&s6a_message->idr_message.subscription_data);
         ogs_subscription_data_free(&s6a_message->ula_message.subscription_data);
         ogs_free(s6a_message);
         break;
 
-    case MME_EVENT_S11_MESSAGE:
+    case MME_EVT_S11_MESSAGE:
         pkbuf = e->pkbuf;
         ogs_assert(pkbuf);
 
@@ -596,13 +634,13 @@ void mme_state_operational(ogs_fsm_t *s, mme_event_t *e)
                 &gtp_message.bearer_resource_failure_indication);
             break;
         default:
-            ogs_warn("Not implemented(type:%d)", gtp_message.h.type);
+            ogs_warn("Not implmeneted(type:%d)", gtp_message.h.type);
             break;
         }
         ogs_pkbuf_free(pkbuf);
         break;
 
-    case MME_EVENT_S11_TIMER:
+    case MME_EVT_S11_TIMER:
         sgw_ue = e->sgw_ue;
         ogs_assert(sgw_ue);
         mme_ue = sgw_ue->mme_ue;
@@ -632,43 +670,8 @@ void mme_state_operational(ogs_fsm_t *s, mme_event_t *e)
         }
         break;
 
-    case MME_EVENT_GN_MESSAGE:
-        pkbuf = e->pkbuf;
-        ogs_assert(pkbuf);
 
-        if (ogs_gtp1_parse_msg(&gtp1_message, pkbuf) != OGS_OK) {
-            ogs_error("ogs_gtp1_parse_msg() failed");
-            ogs_pkbuf_free(pkbuf);
-            break;
-        }
-
-        gnode = e->gnode;
-        ogs_assert(gnode);
-
-        rv = ogs_gtp1_xact_receive(gnode, &gtp1_message.h, &xact);
-        if (rv != OGS_OK) {
-            ogs_pkbuf_free(pkbuf);
-            break;
-        }
-
-        switch (gtp1_message.h.type) {
-        case OGS_GTP1_ECHO_REQUEST_TYPE:
-            mme_gn_handle_echo_request(xact, &gtp1_message.echo_request);
-            break;
-        case OGS_GTP1_ECHO_RESPONSE_TYPE:
-            mme_gn_handle_echo_response(xact, &gtp1_message.echo_response);
-            break;
-        case OGS_GTP1_RAN_INFORMATION_RELAY_TYPE:
-            mme_gn_handle_ran_information_relay(xact, &gtp1_message.ran_information_relay);
-            break;
-        default:
-            ogs_warn("Not implemented(type:%d)", gtp1_message.h.type);
-            break;
-        }
-        ogs_pkbuf_free(pkbuf);
-        break;
-
-    case MME_EVENT_SGSAP_LO_SCTP_COMM_UP:
+    case MME_EVT_SGSAP_LO_SCTP_COMM_UP:
         sock = e->sock;
         ogs_assert(sock);
         addr = e->addr;
@@ -695,7 +698,7 @@ void mme_state_operational(ogs_fsm_t *s, mme_event_t *e)
         ogs_fsm_dispatch(&vlr->sm, e);
         break;
 
-    case MME_EVENT_SGSAP_LO_CONNREFUSED:
+    case MME_EVT_SGSAP_LO_CONNREFUSED:
         sock = e->sock;
         ogs_assert(sock);
         addr = e->addr;
@@ -723,7 +726,7 @@ void mme_state_operational(ogs_fsm_t *s, mme_event_t *e)
         }
 
         break;
-    case MME_EVENT_SGSAP_MESSAGE:
+    case MME_EVT_SGSAP_MESSAGE:
         sock = e->sock;
         ogs_assert(sock);
         addr = e->addr;
@@ -746,7 +749,7 @@ void mme_state_operational(ogs_fsm_t *s, mme_event_t *e)
         ogs_pkbuf_free(pkbuf);
         break;
 
-    case MME_EVENT_SGSAP_TIMER:
+    case MME_EVT_SGSAP_TIMER:
         vlr = e->vlr;
         ogs_assert(vlr);
         ogs_assert(OGS_FSM_STATE(&vlr->sm));

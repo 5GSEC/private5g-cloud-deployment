@@ -27,7 +27,7 @@ static void sgwc_main(void *data);
 
 static int initialized = 0;
 
-int sgwc_initialize(void)
+int sgwc_initialize()
 {
     int rv;
 
@@ -97,7 +97,8 @@ static void sgwc_main(void *data)
     ogs_fsm_t sgwc_sm;
     int rv;
 
-    ogs_fsm_init(&sgwc_sm, sgwc_state_initial, sgwc_state_final, 0);
+    ogs_fsm_create(&sgwc_sm, sgwc_state_initial, sgwc_state_final);
+    ogs_fsm_init(&sgwc_sm, 0);
 
     for ( ;; ) {
         ogs_pollset_poll(ogs_app()->pollset,
@@ -136,4 +137,5 @@ static void sgwc_main(void *data)
 done:
 
     ogs_fsm_fini(&sgwc_sm, 0);
+    ogs_fsm_delete(&sgwc_sm);
 }

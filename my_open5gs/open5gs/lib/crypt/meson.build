@@ -29,7 +29,6 @@ libcrypt_sources = files('''
     zuc.h
     kasumi.h
     ogs-kdf.h
-    ecc.h
 
     ogs-aes.c
     ogs-aes-cmac.c
@@ -44,12 +43,6 @@ libcrypt_sources = files('''
 
     ogs-kdf.c
     ogs-base64.c
-
-    curve25519-donna.c
-    ecc.c
-
-    openssl/snow3g.h
-    openssl/snow_core.c
 '''.split())
 
 libcrypt_inc = include_directories('.')
@@ -59,10 +52,10 @@ libcrypt = library('ogscrypt',
     version : libogslib_version,
     c_args : '-DOGS_CRYPT_COMPILATION',
     include_directories : [libcrypt_inc, libinc],
-    dependencies : libproto_dep,
+    dependencies : libcore_dep,
     install : true)
 
 libcrypt_dep = declare_dependency(
     link_with : libcrypt,
     include_directories : [libcrypt_inc, libinc],
-    dependencies : libproto_dep)
+    dependencies : libcore_dep)

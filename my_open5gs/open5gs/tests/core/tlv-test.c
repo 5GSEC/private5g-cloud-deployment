@@ -305,7 +305,7 @@ void ogs_tlv_test_check_embed_ogs_tlv_test(abts_case *tc, ogs_tlv_t *root_tlv, i
     ogs_tlv_free_all(parsed_tlv);
     ABTS_INT_EQUAL(tc, ogs_tlv_pool_avail(), ogs_core()->tlv.pool);
 
-    return;
+	return;
 }
 
 /* basic encoding/decoding/finding Test */
@@ -467,7 +467,7 @@ static void test2_func(abts_case *tc, void *data)
 
     ogs_tlv_test_check_embed_ogs_tlv_test(tc, root_tlv, mode);
 
-    return;
+	return;
 }
 
 
@@ -817,7 +817,7 @@ static void test6_func(abts_case *tc, void *data)
 
     ABTS_INT_EQUAL(tc, 182, req->len);
     ABTS_TRUE(tc, memcmp(req->data,
-        ogs_hex_from_string(TEST_TLV_BUILD_MSG, testbuf, sizeof(testbuf)),
+        OGS_HEX(TEST_TLV_BUILD_MSG, strlen(TEST_TLV_BUILD_MSG), testbuf),
         req->len) == 0);
 
     /* Initialize message value structure */
@@ -858,23 +858,23 @@ abts_suite *test_tlv(abts_suite *suite)
 
     abts_run_test(suite, test1_func, (void*)OGS_TLV_MODE_T2_L2);
     abts_run_test(suite, test2_func, (void*)OGS_TLV_MODE_T2_L2);
-    abts_run_test(suite, test3_func, (void*)OGS_TLV_MODE_T2_L2);
-    abts_run_test(suite, test4_func, (void*)OGS_TLV_MODE_T2_L2);
-    abts_run_test(suite, test5_func, (void*)OGS_TLV_MODE_T2_L2);
+	abts_run_test(suite, test3_func, (void*)OGS_TLV_MODE_T2_L2);
+	abts_run_test(suite, test4_func, (void*)OGS_TLV_MODE_T2_L2);
+	abts_run_test(suite, test5_func, (void*)OGS_TLV_MODE_T2_L2);
     abts_run_test(suite, test1_func, (void*)OGS_TLV_MODE_T1_L1);
     abts_run_test(suite, test5_func, (void*)OGS_TLV_MODE_T1_L1);
     abts_run_test(suite, test1_func, (void*)OGS_TLV_MODE_T1_L2);
     abts_run_test(suite, test2_func, (void*)OGS_TLV_MODE_T1_L2);
-    abts_run_test(suite, test3_func, (void*)OGS_TLV_MODE_T1_L2);
-    abts_run_test(suite, test4_func, (void*)OGS_TLV_MODE_T1_L2);
-    abts_run_test(suite, test5_func, (void*)OGS_TLV_MODE_T1_L2);
+	abts_run_test(suite, test3_func, (void*)OGS_TLV_MODE_T1_L2);
+	abts_run_test(suite, test4_func, (void*)OGS_TLV_MODE_T1_L2);
+	abts_run_test(suite, test5_func, (void*)OGS_TLV_MODE_T1_L2);
     abts_run_test(suite, test1_func, (void*)OGS_TLV_MODE_T1_L2_I1);
     abts_run_test(suite, test2_func, (void*)OGS_TLV_MODE_T1_L2_I1);
-    abts_run_test(suite, test3_func, (void*)OGS_TLV_MODE_T1_L2_I1);
-    abts_run_test(suite, test4_func, (void*)OGS_TLV_MODE_T1_L2_I1);
-    abts_run_test(suite, test5_func, (void*)OGS_TLV_MODE_T1_L2_I1);
+	abts_run_test(suite, test3_func, (void*)OGS_TLV_MODE_T1_L2_I1);
+	abts_run_test(suite, test4_func, (void*)OGS_TLV_MODE_T1_L2_I1);
+	abts_run_test(suite, test5_func, (void*)OGS_TLV_MODE_T1_L2_I1);
 
-    abts_run_test(suite, test6_func, NULL);
+	abts_run_test(suite, test6_func, NULL);
 
     return suite;
 }

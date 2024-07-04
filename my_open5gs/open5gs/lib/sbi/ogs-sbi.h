@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -20,15 +20,12 @@
 #ifndef OGS_SBI_H
 #define OGS_SBI_H
 
-#include "crypt/ogs-crypt.h"
-#include "app/ogs-app.h"
+#include "ogs-core.h"
 
 #if defined(__GNUC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstrict-prototypes"
 #endif
-
-#define OGS_SBI_DISABLE_NETWORK_SERVICE_REQUEST_WHILE_ACTIVATING 1
 
 #include "model/nf_profile.h"
 #include "model/nf_group_cond.h"
@@ -46,7 +43,6 @@
 #include "model/auth_event.h"
 #include "model/amf3_gpp_access_registration.h"
 #include "model/amf3_gpp_access_registration_modification.h"
-#include "model/smf_registration.h"
 #include "model/access_and_mobility_subscription_data.h"
 #include "model/smf_selection_subscription_data.h"
 #include "model/ue_context_in_smf_data.h"
@@ -78,12 +74,10 @@
 #include "model/sm_policy_notification.h"
 #include "model/termination_notification.h"
 #include "model/deregistration_data.h"
-#include "model/sdm_subscription.h"
-#include "model/modification_notification.h"
-#include "model/patch_item.h"
-#include "model/ue_authentication_ctx.h"
 
 #include "custom/links.h"
+#include "custom/ue_authentication_ctx.h"
+#include "custom/patch_item.h"
 
 #if defined(__GNUC__)
 #pragma GCC diagnostic pop
@@ -91,20 +85,15 @@
 
 #define OGS_SBI_INSIDE
 
-#include "sbi/types.h"
 #include "sbi/conv.h"
-#include "sbi/timer.h"
 #include "sbi/message.h"
 
 #include "sbi/server.h"
 #include "sbi/client.h"
 #include "sbi/context.h"
 
-#include "sbi/nf-sm.h"
-
 #include "sbi/nnrf-build.h"
 #include "sbi/nnrf-handler.h"
-#include "sbi/nnrf-path.h"
 
 #include "sbi/path.h"
 

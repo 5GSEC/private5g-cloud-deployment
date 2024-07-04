@@ -1,7 +1,7 @@
 /*
  * authentication_info.h
  *
- * Contains the UE id (i.e. SUCI or SUPI) and the Serving Network Name.
+ * 
  */
 
 #ifndef _OpenAPI_authentication_info_H_
@@ -32,12 +32,6 @@ typedef struct OpenAPI_authentication_info_s {
     bool is_n5gc_ind;
     int n5gc_ind;
     char *supported_features;
-    bool is_nswo_ind;
-    int nswo_ind;
-    bool is_disaster_roaming_ind;
-    int disaster_roaming_ind;
-    bool is_onboarding_ind;
-    int onboarding_ind;
 } OpenAPI_authentication_info_t;
 
 OpenAPI_authentication_info_t *OpenAPI_authentication_info_create(
@@ -51,13 +45,7 @@ OpenAPI_authentication_info_t *OpenAPI_authentication_info_create(
     OpenAPI_list_t *cell_cag_info,
     bool is_n5gc_ind,
     int n5gc_ind,
-    char *supported_features,
-    bool is_nswo_ind,
-    int nswo_ind,
-    bool is_disaster_roaming_ind,
-    int disaster_roaming_ind,
-    bool is_onboarding_ind,
-    int onboarding_ind
+    char *supported_features
 );
 void OpenAPI_authentication_info_free(OpenAPI_authentication_info_t *authentication_info);
 OpenAPI_authentication_info_t *OpenAPI_authentication_info_parseFromJSON(cJSON *authentication_infoJSON);

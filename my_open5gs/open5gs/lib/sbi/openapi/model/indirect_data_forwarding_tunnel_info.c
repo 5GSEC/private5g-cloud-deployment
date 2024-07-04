@@ -30,30 +30,19 @@ OpenAPI_indirect_data_forwarding_tunnel_info_t *OpenAPI_indirect_data_forwarding
 
 void OpenAPI_indirect_data_forwarding_tunnel_info_free(OpenAPI_indirect_data_forwarding_tunnel_info_t *indirect_data_forwarding_tunnel_info)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == indirect_data_forwarding_tunnel_info) {
         return;
     }
-    if (indirect_data_forwarding_tunnel_info->ipv4_addr) {
-        ogs_free(indirect_data_forwarding_tunnel_info->ipv4_addr);
-        indirect_data_forwarding_tunnel_info->ipv4_addr = NULL;
-    }
-    if (indirect_data_forwarding_tunnel_info->ipv6_addr) {
-        ogs_free(indirect_data_forwarding_tunnel_info->ipv6_addr);
-        indirect_data_forwarding_tunnel_info->ipv6_addr = NULL;
-    }
-    if (indirect_data_forwarding_tunnel_info->gtp_teid) {
-        ogs_free(indirect_data_forwarding_tunnel_info->gtp_teid);
-        indirect_data_forwarding_tunnel_info->gtp_teid = NULL;
-    }
+    OpenAPI_lnode_t *node;
+    ogs_free(indirect_data_forwarding_tunnel_info->ipv4_addr);
+    ogs_free(indirect_data_forwarding_tunnel_info->ipv6_addr);
+    ogs_free(indirect_data_forwarding_tunnel_info->gtp_teid);
     ogs_free(indirect_data_forwarding_tunnel_info);
 }
 
 cJSON *OpenAPI_indirect_data_forwarding_tunnel_info_convertToJSON(OpenAPI_indirect_data_forwarding_tunnel_info_t *indirect_data_forwarding_tunnel_info)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (indirect_data_forwarding_tunnel_info == NULL) {
         ogs_error("OpenAPI_indirect_data_forwarding_tunnel_info_convertToJSON() failed [IndirectDataForwardingTunnelInfo]");
@@ -75,10 +64,6 @@ cJSON *OpenAPI_indirect_data_forwarding_tunnel_info_convertToJSON(OpenAPI_indire
     }
     }
 
-    if (!indirect_data_forwarding_tunnel_info->gtp_teid) {
-        ogs_error("OpenAPI_indirect_data_forwarding_tunnel_info_convertToJSON() failed [gtp_teid]");
-        return NULL;
-    }
     if (cJSON_AddStringToObject(item, "gtpTeid", indirect_data_forwarding_tunnel_info->gtp_teid) == NULL) {
         ogs_error("OpenAPI_indirect_data_forwarding_tunnel_info_convertToJSON() failed [gtp_teid]");
         goto end;
@@ -105,39 +90,37 @@ end:
 OpenAPI_indirect_data_forwarding_tunnel_info_t *OpenAPI_indirect_data_forwarding_tunnel_info_parseFromJSON(cJSON *indirect_data_forwarding_tunnel_infoJSON)
 {
     OpenAPI_indirect_data_forwarding_tunnel_info_t *indirect_data_forwarding_tunnel_info_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *ipv4_addr = NULL;
-    cJSON *ipv6_addr = NULL;
-    cJSON *gtp_teid = NULL;
-    cJSON *drb_id = NULL;
-    cJSON *additional_tnl_nb = NULL;
-    ipv4_addr = cJSON_GetObjectItemCaseSensitive(indirect_data_forwarding_tunnel_infoJSON, "ipv4Addr");
+    cJSON *ipv4_addr = cJSON_GetObjectItemCaseSensitive(indirect_data_forwarding_tunnel_infoJSON, "ipv4Addr");
+
     if (ipv4_addr) {
-    if (!cJSON_IsString(ipv4_addr) && !cJSON_IsNull(ipv4_addr)) {
+    if (!cJSON_IsString(ipv4_addr)) {
         ogs_error("OpenAPI_indirect_data_forwarding_tunnel_info_parseFromJSON() failed [ipv4_addr]");
         goto end;
     }
     }
 
-    ipv6_addr = cJSON_GetObjectItemCaseSensitive(indirect_data_forwarding_tunnel_infoJSON, "ipv6Addr");
+    cJSON *ipv6_addr = cJSON_GetObjectItemCaseSensitive(indirect_data_forwarding_tunnel_infoJSON, "ipv6Addr");
+
     if (ipv6_addr) {
-    if (!cJSON_IsString(ipv6_addr) && !cJSON_IsNull(ipv6_addr)) {
+    if (!cJSON_IsString(ipv6_addr)) {
         ogs_error("OpenAPI_indirect_data_forwarding_tunnel_info_parseFromJSON() failed [ipv6_addr]");
         goto end;
     }
     }
 
-    gtp_teid = cJSON_GetObjectItemCaseSensitive(indirect_data_forwarding_tunnel_infoJSON, "gtpTeid");
+    cJSON *gtp_teid = cJSON_GetObjectItemCaseSensitive(indirect_data_forwarding_tunnel_infoJSON, "gtpTeid");
     if (!gtp_teid) {
         ogs_error("OpenAPI_indirect_data_forwarding_tunnel_info_parseFromJSON() failed [gtp_teid]");
         goto end;
     }
+
     if (!cJSON_IsString(gtp_teid)) {
         ogs_error("OpenAPI_indirect_data_forwarding_tunnel_info_parseFromJSON() failed [gtp_teid]");
         goto end;
     }
 
-    drb_id = cJSON_GetObjectItemCaseSensitive(indirect_data_forwarding_tunnel_infoJSON, "drbId");
+    cJSON *drb_id = cJSON_GetObjectItemCaseSensitive(indirect_data_forwarding_tunnel_infoJSON, "drbId");
+
     if (drb_id) {
     if (!cJSON_IsNumber(drb_id)) {
         ogs_error("OpenAPI_indirect_data_forwarding_tunnel_info_parseFromJSON() failed [drb_id]");
@@ -145,7 +128,8 @@ OpenAPI_indirect_data_forwarding_tunnel_info_t *OpenAPI_indirect_data_forwarding
     }
     }
 
-    additional_tnl_nb = cJSON_GetObjectItemCaseSensitive(indirect_data_forwarding_tunnel_infoJSON, "additionalTnlNb");
+    cJSON *additional_tnl_nb = cJSON_GetObjectItemCaseSensitive(indirect_data_forwarding_tunnel_infoJSON, "additionalTnlNb");
+
     if (additional_tnl_nb) {
     if (!cJSON_IsNumber(additional_tnl_nb)) {
         ogs_error("OpenAPI_indirect_data_forwarding_tunnel_info_parseFromJSON() failed [additional_tnl_nb]");
@@ -154,8 +138,8 @@ OpenAPI_indirect_data_forwarding_tunnel_info_t *OpenAPI_indirect_data_forwarding
     }
 
     indirect_data_forwarding_tunnel_info_local_var = OpenAPI_indirect_data_forwarding_tunnel_info_create (
-        ipv4_addr && !cJSON_IsNull(ipv4_addr) ? ogs_strdup(ipv4_addr->valuestring) : NULL,
-        ipv6_addr && !cJSON_IsNull(ipv6_addr) ? ogs_strdup(ipv6_addr->valuestring) : NULL,
+        ipv4_addr ? ogs_strdup(ipv4_addr->valuestring) : NULL,
+        ipv6_addr ? ogs_strdup(ipv6_addr->valuestring) : NULL,
         ogs_strdup(gtp_teid->valuestring),
         drb_id ? true : false,
         drb_id ? drb_id->valuedouble : 0,

@@ -28,7 +28,7 @@ extern "C" {
 #endif
 
 ogs_sbi_request_t *nrf_nnrf_nfm_build_nf_status_notify(
-        ogs_sbi_subscription_data_t *subscription_data,
+        ogs_sbi_subscription_t *subscription,
         OpenAPI_notification_event_type_e event,
         ogs_sbi_nf_instance_t *nf_instance);
 

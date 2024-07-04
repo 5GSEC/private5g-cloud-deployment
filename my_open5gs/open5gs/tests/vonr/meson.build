@@ -19,7 +19,6 @@ test5gc_vonr_sources = files('''
     abts-main.c
     qos-flow-test.c
     session-test.c
-    simple-test.c
     af-test.c
     video-test.c
 '''.split())

@@ -72,7 +72,7 @@ void sgwc_state_operational(ogs_fsm_t *s, sgwc_event_t *e)
 
     ogs_pfcp_node_t *pfcp_node = NULL;
     ogs_pfcp_xact_t *pfcp_xact = NULL;
-    ogs_pfcp_message_t *pfcp_message = NULL;
+    ogs_pfcp_message_t pfcp_message;
 
     sgwc_sm_debug(e);
 
@@ -93,27 +93,19 @@ void sgwc_state_operational(ogs_fsm_t *s, sgwc_event_t *e)
         ogs_assert(pfcp_node);
         ogs_assert(OGS_FSM_STATE(&pfcp_node->sm));
 
-        /*
-         * Issue #1911
-         *
-         * Because ogs_pfcp_message_t is over 80kb in size,
-         * it can cause stack overflow.
-         * To avoid this, the pfcp_message structure uses heap memory.
-         */
-        if ((pfcp_message = ogs_pfcp_parse_msg(recvbuf)) == NULL) {
+        if (ogs_pfcp_parse_msg(&pfcp_message, recvbuf) != OGS_OK) {
             ogs_error("ogs_pfcp_parse_msg() failed");
             ogs_pkbuf_free(recvbuf);
             break;
         }
 
-        rv = ogs_pfcp_xact_receive(pfcp_node, &pfcp_message->h, &pfcp_xact);
+        rv = ogs_pfcp_xact_receive(pfcp_node, &pfcp_message.h, &pfcp_xact);
         if (rv != OGS_OK) {
             ogs_pkbuf_free(recvbuf);
-            ogs_pfcp_message_free(pfcp_message);
             break;
         }
 
-        e->pfcp_message = pfcp_message;
+        e->pfcp_message = &pfcp_message;
         e->pfcp_xact = pfcp_xact;
 
         e->gtp_message = NULL;
@@ -130,7 +122,6 @@ void sgwc_state_operational(ogs_fsm_t *s, sgwc_event_t *e)
         if (pfcp_xact->gtpbuf)
             ogs_pkbuf_free(pfcp_xact->gtpbuf);
         ogs_pkbuf_free(recvbuf);
-        ogs_pfcp_message_free(pfcp_message);
         break;
 
     case SGWC_EVT_SXA_TIMER:
@@ -313,7 +304,7 @@ void sgwc_state_operational(ogs_fsm_t *s, sgwc_event_t *e)
                     sess, gtp_xact, recvbuf, &gtp_message);
             break;
         default:
-            ogs_warn("Not implemented(type:%d)", gtp_message.h.type);
+            ogs_warn("Not implmeneted(type:%d)", gtp_message.h.type);
             break;
         }
         ogs_pkbuf_free(recvbuf);

@@ -1,7 +1,7 @@
 /*
  * data_ind.h
  *
- * Possible values are - PFD - IPTV - BDT - SVC_PARAM - AM 
+ * Possible values are - PFD - IPTV - BDT - SVC_PARAM 
  */
 
 #ifndef _OpenAPI_data_ind_H_

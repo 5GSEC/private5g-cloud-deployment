@@ -20,25 +20,20 @@ OpenAPI_wireline_service_area_restriction_t *OpenAPI_wireline_service_area_restr
 
 void OpenAPI_wireline_service_area_restriction_free(OpenAPI_wireline_service_area_restriction_t *wireline_service_area_restriction)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == wireline_service_area_restriction) {
         return;
     }
-    if (wireline_service_area_restriction->areas) {
-        OpenAPI_list_for_each(wireline_service_area_restriction->areas, node) {
-            OpenAPI_wireline_area_free(node->data);
-        }
-        OpenAPI_list_free(wireline_service_area_restriction->areas);
-        wireline_service_area_restriction->areas = NULL;
+    OpenAPI_lnode_t *node;
+    OpenAPI_list_for_each(wireline_service_area_restriction->areas, node) {
+        OpenAPI_wireline_area_free(node->data);
     }
+    OpenAPI_list_free(wireline_service_area_restriction->areas);
     ogs_free(wireline_service_area_restriction);
 }
 
 cJSON *OpenAPI_wireline_service_area_restriction_convertToJSON(OpenAPI_wireline_service_area_restriction_t *wireline_service_area_restriction)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (wireline_service_area_restriction == NULL) {
         ogs_error("OpenAPI_wireline_service_area_restriction_convertToJSON() failed [WirelineServiceAreaRestriction]");
@@ -46,7 +41,7 @@ cJSON *OpenAPI_wireline_service_area_restriction_convertToJSON(OpenAPI_wireline_
     }
 
     item = cJSON_CreateObject();
-    if (wireline_service_area_restriction->restriction_type != OpenAPI_restriction_type_NULL) {
+    if (wireline_service_area_restriction->restriction_type) {
     if (cJSON_AddStringToObject(item, "restrictionType", OpenAPI_restriction_type_ToString(wireline_service_area_restriction->restriction_type)) == NULL) {
         ogs_error("OpenAPI_wireline_service_area_restriction_convertToJSON() failed [restriction_type]");
         goto end;
@@ -59,13 +54,17 @@ cJSON *OpenAPI_wireline_service_area_restriction_convertToJSON(OpenAPI_wireline_
         ogs_error("OpenAPI_wireline_service_area_restriction_convertToJSON() failed [areas]");
         goto end;
     }
-    OpenAPI_list_for_each(wireline_service_area_restriction->areas, node) {
-        cJSON *itemLocal = OpenAPI_wireline_area_convertToJSON(node->data);
-        if (itemLocal == NULL) {
-            ogs_error("OpenAPI_wireline_service_area_restriction_convertToJSON() failed [areas]");
-            goto end;
+
+    OpenAPI_lnode_t *areas_node;
+    if (wireline_service_area_restriction->areas) {
+        OpenAPI_list_for_each(wireline_service_area_restriction->areas, areas_node) {
+            cJSON *itemLocal = OpenAPI_wireline_area_convertToJSON(areas_node->data);
+            if (itemLocal == NULL) {
+                ogs_error("OpenAPI_wireline_service_area_restriction_convertToJSON() failed [areas]");
+                goto end;
+            }
+            cJSON_AddItemToArray(areasList, itemLocal);
         }
-        cJSON_AddItemToArray(areasList, itemLocal);
     }
     }
 
@@ -76,12 +75,9 @@ end:
 OpenAPI_wireline_service_area_restriction_t *OpenAPI_wireline_service_area_restriction_parseFromJSON(cJSON *wireline_service_area_restrictionJSON)
 {
     OpenAPI_wireline_service_area_restriction_t *wireline_service_area_restriction_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *restriction_type = NULL;
-    OpenAPI_restriction_type_e restriction_typeVariable = 0;
-    cJSON *areas = NULL;
-    OpenAPI_list_t *areasList = NULL;
-    restriction_type = cJSON_GetObjectItemCaseSensitive(wireline_service_area_restrictionJSON, "restrictionType");
+    cJSON *restriction_type = cJSON_GetObjectItemCaseSensitive(wireline_service_area_restrictionJSON, "restrictionType");
+
+    OpenAPI_restriction_type_e restriction_typeVariable;
     if (restriction_type) {
     if (!cJSON_IsString(restriction_type)) {
         ogs_error("OpenAPI_wireline_service_area_restriction_parseFromJSON() failed [restriction_type]");
@@ -90,28 +86,33 @@ OpenAPI_wireline_service_area_restriction_t *OpenAPI_wireline_service_area_restr
     restriction_typeVariable = OpenAPI_restriction_type_FromString(restriction_type->valuestring);
     }
 
-    areas = cJSON_GetObjectItemCaseSensitive(wireline_service_area_restrictionJSON, "areas");
+    cJSON *areas = cJSON_GetObjectItemCaseSensitive(wireline_service_area_restrictionJSON, "areas");
+
+    OpenAPI_list_t *areasList;
     if (areas) {
-        cJSON *areas_local = NULL;
-        if (!cJSON_IsArray(areas)) {
+    cJSON *areas_local_nonprimitive;
+    if (!cJSON_IsArray(areas)){
+        ogs_error("OpenAPI_wireline_service_area_restriction_parseFromJSON() failed [areas]");
+        goto end;
+    }
+
+    areasList = OpenAPI_list_create();
+
+    cJSON_ArrayForEach(areas_local_nonprimitive, areas ) {
+        if (!cJSON_IsObject(areas_local_nonprimitive)) {
             ogs_error("OpenAPI_wireline_service_area_restriction_parseFromJSON() failed [areas]");
             goto end;
         }
+        OpenAPI_wireline_area_t *areasItem = OpenAPI_wireline_area_parseFromJSON(areas_local_nonprimitive);
 
-        areasList = OpenAPI_list_create();
-
-        cJSON_ArrayForEach(areas_local, areas) {
-            if (!cJSON_IsObject(areas_local)) {
-                ogs_error("OpenAPI_wireline_service_area_restriction_parseFromJSON() failed [areas]");
-                goto end;
-            }
-            OpenAPI_wireline_area_t *areasItem = OpenAPI_wireline_area_parseFromJSON(areas_local);
-            if (!areasItem) {
-                ogs_error("No areasItem");
-                goto end;
-            }
-            OpenAPI_list_add(areasList, areasItem);
+        if (!areasItem) {
+            ogs_error("No areasItem");
+            OpenAPI_list_free(areasList);
+            goto end;
         }
+
+        OpenAPI_list_add(areasList, areasItem);
+    }
     }
 
     wireline_service_area_restriction_local_var = OpenAPI_wireline_service_area_restriction_create (
@@ -121,13 +122,6 @@ OpenAPI_wireline_service_area_restriction_t *OpenAPI_wireline_service_area_restr
 
     return wireline_service_area_restriction_local_var;
 end:
-    if (areasList) {
-        OpenAPI_list_for_each(areasList, node) {
-            OpenAPI_wireline_area_free(node->data);
-        }
-        OpenAPI_list_free(areasList);
-        areasList = NULL;
-    }
     return NULL;
 }
 

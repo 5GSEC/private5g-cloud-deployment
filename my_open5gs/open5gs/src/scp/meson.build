@@ -18,6 +18,13 @@
 libscp_sources = files('''
     context.c
     event.c
+    timer.c
+
+    nnrf-build.c
+    nnrf-handler.c
+    nf-sm.c
+
+    nscp-handler.c
 
     sbi-path.c
     scp-sm.c
@@ -27,13 +34,15 @@ libscp_sources = files('''
 
 libscp = static_library('scp',
     sources : libscp_sources,
-    dependencies : [libcrypt_dep,
+    dependencies : [libapp_dep,
+                    libcrypt_dep,
                     libsbi_dep],
     install : false)
 
 libscp_dep = declare_dependency(
     link_with : libscp,
-    dependencies : [libcrypt_dep,
+    dependencies : [libapp_dep,
+                    libcrypt_dep,
                     libsbi_dep])
 
 scp_sources = files('''

@@ -19,9 +19,9 @@
 
 #include "ogs-metrics.h"
 
-typedef struct ogs_metrics_server_s {
+typedef struct ogs_metrics_context_s {
     int unused;
-} ogs_metrics_server_t;
+} ogs_metrics_context_t;
 typedef struct ogs_metrics_spec_s {
     int unused;
 } ogs_metrics_spec_t;
@@ -29,51 +29,46 @@ typedef struct ogs_metrics_inst_s {
     int unused;
 } ogs_metrics_inst_t;
 
-void ogs_metrics_server_init(ogs_metrics_context_t *ctx)
+static ogs_metrics_context_t self;
+static int context_initialized = 0;
+
+void ogs_metrics_context_init(void)
+{
+    ogs_assert(context_initialized == 0);
+    ogs_log_install_domain(&__ogs_metrics_domain, "metrics", ogs_core()->log.level);
+    context_initialized = 1;
+}
+
+void ogs_metrics_context_final(void)
+{
+    ogs_assert(context_initialized == 1);
+    context_initialized = 0;
+}
+
+ogs_metrics_context_t *ogs_metrics_self(void)
+{
+    return &self;
+}
+
+int ogs_metrics_context_parse_config(void)
+{
+    return OGS_OK;
+}
+
+void ogs_metrics_context_open(ogs_metrics_context_t *ctx)
 {
 }
 
-void ogs_metrics_server_open(ogs_metrics_context_t *ctx)
-{
-}
-
-void ogs_metrics_server_close(ogs_metrics_context_t *ctx)
-{
-}
-
-void ogs_metrics_server_final(ogs_metrics_context_t *ctx)
-{
-}
-
-ogs_metrics_server_t *ogs_metrics_server_add(
-        ogs_sockaddr_t *addr, ogs_sockopt_t *option)
-{
-    return (ogs_metrics_server_t *)1;
-}
-
-void ogs_metrics_server_remove(ogs_metrics_server_t *server)
-{
-}
-
-void ogs_metrics_server_remove_all(void)
-{
-}
-
-void ogs_metrics_spec_init(ogs_metrics_context_t *ctx)
-{
-}
-
-void ogs_metrics_spec_final(ogs_metrics_context_t *ctx)
+void ogs_metrics_context_close(ogs_metrics_context_t *ctx)
 {
 }
 
 ogs_metrics_spec_t *ogs_metrics_spec_new(
         ogs_metrics_context_t *ctx, ogs_metrics_metric_type_t type,
         const char *name, const char *description,
-        int initial_val, unsigned int num_labels, const char ** labels,
-        ogs_metrics_histogram_params_t *histogram_params)
+        int initial_val, unsigned int num_labels, const char ** labels)
 {
-    return (ogs_metrics_spec_t *)1;
+    return (ogs_metrics_spec_t *)&self;
 }
 
 void ogs_metrics_spec_free(ogs_metrics_spec_t *spec)
@@ -84,7 +79,7 @@ ogs_metrics_inst_t *ogs_metrics_inst_new(
         ogs_metrics_spec_t *spec,
         unsigned int num_labels, const char **label_values)
 {
-    return (ogs_metrics_inst_t *)1;
+    return (ogs_metrics_inst_t *)&self;
 }
 
 void ogs_metrics_inst_free(ogs_metrics_inst_t *inst)

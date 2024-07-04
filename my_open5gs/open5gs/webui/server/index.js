@@ -17,7 +17,7 @@ const morgan = require('morgan');
 const session = require('express-session');
 
 const mongoose = require('mongoose');
-const MongoStore = require('connect-mongo');
+const MongoStore = require('connect-mongo')(session);
 
 const passport = require('passport');
 const LocalStrategy = require('passport-local').Strategy;
@@ -37,9 +37,7 @@ co(function* () {
     mongoose.set('debug', true);
   }
   const db = yield mongoose.connect(process.env.DB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 1000
+    useMongoClient: true,
     /* other options */
   })
 
@@ -72,8 +70,8 @@ co(function* () {
 
   server.use(session({
     secret: secret,
-    store: MongoStore.create({
-      mongoUrl: process.env.DB_URI,
+    store: new MongoStore({ 
+      mongooseConnection: mongoose.connection,
       ttl: 60 * 60 * 24 * 7 * 2
     }),
     resave: false,

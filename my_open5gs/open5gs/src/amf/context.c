@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019,2020 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -29,8 +29,6 @@ static OGS_POOL(amf_ue_pool, amf_ue_t);
 static OGS_POOL(ran_ue_pool, ran_ue_t);
 static OGS_POOL(amf_sess_pool, amf_sess_t);
 
-static OGS_POOL(m_tmsi_pool, amf_m_tmsi_t);
-
 static int context_initialized = 0;
 
 static int num_of_ran_ue = 0;
@@ -58,12 +56,11 @@ void amf_context_init(void)
     ogs_list_init(&self.ngap_list6);
 
     /* Allocate TWICE the pool to check if maximum number of gNBs is reached */
-    ogs_pool_init(&amf_gnb_pool, ogs_app()->max.peer*2);
+    ogs_pool_init(&amf_gnb_pool, ogs_app()->max.gnb*2);
     ogs_pool_init(&amf_ue_pool, ogs_app()->max.ue);
     ogs_pool_init(&ran_ue_pool, ogs_app()->max.ue);
     ogs_pool_init(&amf_sess_pool, ogs_app()->pool.sess);
-    ogs_pool_init(&m_tmsi_pool, ogs_app()->max.ue*2);
-    ogs_pool_random_id_generate(&m_tmsi_pool);
+    ogs_pool_init(&self.m_tmsi, ogs_app()->max.ue);
 
     ogs_list_init(&self.gnb_list);
     ogs_list_init(&self.amf_ue_list);
@@ -101,7 +98,7 @@ void amf_context_final(void)
     ogs_assert(self.supi_hash);
     ogs_hash_destroy(self.supi_hash);
 
-    ogs_pool_final(&m_tmsi_pool);
+    ogs_pool_final(&self.m_tmsi);
     ogs_pool_final(&amf_sess_pool);
     ogs_pool_final(&amf_ue_pool);
     ogs_pool_final(&ran_ue_pool);
@@ -126,8 +123,6 @@ static int amf_context_prepare(void)
 
 static int amf_context_validation(void)
 {
-    ogs_nas_gprs_timer_t gprs_timer;
-
     if (ogs_list_first(&self.ngap_list) == NULL &&
         ogs_list_first(&self.ngap_list6) == NULL) {
         ogs_error("No amf.ngap in '%s'", ogs_app()->file);
@@ -172,23 +167,8 @@ static int amf_context_validation(void)
     }
 
     if (self.num_of_ciphering_order == 0) {
-        ogs_error("No amf.security.ciphering_order in '%s'",
+        ogs_error("no amf.security.ciphering_order in '%s'",
                 ogs_app()->file);
-        return OGS_ERROR;
-    }
-    if (ogs_nas_gprs_timer_from_sec(&gprs_timer, self.time.t3502.value) !=
-        OGS_OK) {
-        ogs_error("Not support GPRS Timer 2 [%d]", (int)self.time.t3502.value);
-        return OGS_ERROR;
-    }
-    if (!self.time.t3512.value) {
-        ogs_error("No amf.time.t3512.value in '%s'",
-                ogs_app()->file);
-        return OGS_ERROR;
-    }
-    if (ogs_nas_gprs_timer_3_from_sec(&gprs_timer, self.time.t3512.value) !=
-        OGS_OK) {
-        ogs_error("Not support GPRS Timer 3 [%d]", (int)self.time.t3512.value);
         return OGS_ERROR;
     }
 
@@ -350,7 +330,7 @@ int amf_context_parse_config(void)
                         const char *region = NULL, *set = NULL;
                         const char *pointer = NULL;
                         ogs_assert(self.num_of_served_guami <
-                                OGS_MAX_NUM_OF_SERVED_GUAMI);
+                                MAX_NUM_OF_SERVED_GUAMI);
 
                         if (ogs_yaml_iter_type(&guami_array) ==
                                 YAML_MAPPING_NODE) {
@@ -441,24 +421,22 @@ int amf_context_parse_config(void)
                             YAML_SEQUENCE_NODE);
                 } else if (!strcmp(amf_key, "tai")) {
                     int num_of_list0 = 0;
-                    int num_of_list1 = 0;
                     ogs_5gs_tai0_list_t *list0 = NULL;
-                    ogs_5gs_tai1_list_t *list1 = NULL;
                     ogs_5gs_tai2_list_t *list2 = NULL;
 
                     ogs_assert(self.num_of_served_tai <
                             OGS_MAX_NUM_OF_SERVED_TAI);
                     list0 = &self.served_tai[self.num_of_served_tai].list0;
-                    list1 = &self.served_tai[self.num_of_served_tai].list1;
+                    ogs_assert(list0);
                     list2 = &self.served_tai[self.num_of_served_tai].list2;
+                    ogs_assert(list2);
 
                     ogs_yaml_iter_t tai_array, tai_iter;
                     ogs_yaml_iter_recurse(&amf_iter, &tai_array);
                     do {
                         const char *mcc = NULL, *mnc = NULL;
+                        ogs_uint24_t tac[OGS_MAX_NUM_OF_TAI];
                         int num_of_tac = 0;
-                        ogs_uint24_t start[OGS_MAX_NUM_OF_TAI];
-                        ogs_uint24_t end[OGS_MAX_NUM_OF_TAI];
 
                         if (ogs_yaml_iter_type(&tai_array) ==
                                 YAML_MAPPING_NODE) {
@@ -499,56 +477,23 @@ int amf_context_parse_config(void)
                                 ogs_yaml_iter_t tac_iter;
                                 ogs_yaml_iter_recurse(&tai_iter, &tac_iter);
                                 ogs_assert(ogs_yaml_iter_type(&tac_iter) !=
-                                            YAML_MAPPING_NODE);
-                                do {
-                                    char *v = NULL;
-                                    char *low = NULL, *high = NULL;
+                                    YAML_MAPPING_NODE);
 
+                                do {
+                                    const char *v = NULL;
+
+                                    ogs_assert(num_of_tac <
+                                            OGS_MAX_NUM_OF_TAI);
                                     if (ogs_yaml_iter_type(&tac_iter) ==
                                             YAML_SEQUENCE_NODE) {
                                         if (!ogs_yaml_iter_next(&tac_iter))
                                             break;
                                     }
 
-                                    v = (char *)ogs_yaml_iter_value(
-                                                &tac_iter);
+                                    v = ogs_yaml_iter_value(&tac_iter);
                                     if (v) {
-                                        low = strsep(&v, "-");
-                                        if (low && strlen(low) == 0)
-                                            low = NULL;
-
-                                        high = v;
-                                        if (high && strlen(high) == 0)
-                                            high = NULL;
-
-                                        if (low) {
-                                            ogs_assert(num_of_tac <
-                                                OGS_MAX_NUM_OF_TAI);
-                                            start[num_of_tac].v = atoi(low);
-                                            if (high) {
-                                                end[num_of_tac].v = atoi(high);
-                                                if (end[num_of_tac].v <
-                                                    start[num_of_tac].v)
-                                                    ogs_error(
-                                                        "Invalid TAI range: "
-                                                        "LOW:%s,HIGH:%s",
-                                                            low, high);
-                                                else if (
-                                                    (end[num_of_tac].v-
-                                                    start[num_of_tac].v+1) >
-                                                        OGS_MAX_NUM_OF_TAI)
-                                                    ogs_error(
-                                                        "Overflow TAI range: "
-                                                        "LOW:%s,HIGH:%s",
-                                                            low, high);
-                                                else
-                                                    num_of_tac++;
-                                            } else {
-                                                end[num_of_tac].v =
-                                                    start[num_of_tac].v;
-                                                num_of_tac++;
-                                            }
-                                        }
+                                        tac[num_of_tac].v = atoi(v);
+                                        num_of_tac++;
                                     }
                                 } while (
                                     ogs_yaml_iter_type(&tac_iter) ==
@@ -558,60 +503,31 @@ int amf_context_parse_config(void)
                         }
 
                         if (mcc && mnc && num_of_tac) {
-                            if (num_of_tac == 1 && start[0].v == end[0].v) {
-                                ogs_assert(list2->num < OGS_MAX_NUM_OF_TAI);
-
-                                list2->type = OGS_TAI2_TYPE;
-
+                            if (num_of_tac == 1) {
                                 ogs_plmn_id_build(
                                     &list2->tai[list2->num].plmn_id,
                                     atoi(mcc), atoi(mnc), strlen(mnc));
-                                list2->tai[list2->num].tac.v = start[0].v;
+                                list2->tai[list2->num].tac.v = tac[0].v;
 
                                 list2->num++;
-
-                            } else {
-                                int tac, count = 0;
-                                for (tac = 0; tac < num_of_tac; tac++) {
-                                    ogs_assert(end[tac].v >= start[tac].v);
-                                    if (start[tac].v == end[tac].v) {
-                                        ogs_assert(num_of_list0 <
-                                                OGS_MAX_NUM_OF_TAI);
-
-                                        list0->tai[num_of_list0].type =
-                                            OGS_TAI0_TYPE;
-
-                                        ogs_plmn_id_build(
-                                            &list0->tai[num_of_list0].plmn_id,
-                                            atoi(mcc), atoi(mnc), strlen(mnc));
-                                        list0->tai[num_of_list0].
-                                            tac[count].v = start[tac].v;
-
-                                        list0->tai[num_of_list0].num =
-                                            ++count;
-
-                                    } else if (start[tac].v < end[tac].v) {
-                                        ogs_assert(num_of_list1 <
-                                                OGS_MAX_NUM_OF_TAI);
-
-                                        list1->tai[num_of_list1].type =
-                                            OGS_TAI1_TYPE;
-
-                                        ogs_plmn_id_build(
-                                            &list1->tai[num_of_list1].plmn_id,
-                                            atoi(mcc), atoi(mnc), strlen(mnc));
-                                        list1->tai[num_of_list1].tac.v =
-                                            start[tac].v;
-
-                                        list1->tai[num_of_list1].num =
-                                            end[tac].v-start[tac].v+1;
-
-                                        num_of_list1++;
-                                    }
+                                if (list2->num > 1)
+                                    list2->type = OGS_TAI2_TYPE;
+                                else
+                                    list2->type = OGS_TAI1_TYPE;
+                            } else if (num_of_tac > 1) {
+                                int i;
+                                ogs_plmn_id_build(
+                                    &list0->tai[num_of_list0].plmn_id,
+                                    atoi(mcc), atoi(mnc), strlen(mnc));
+                                for (i = 0; i < num_of_tac; i++) {
+                                    list0->tai[num_of_list0].tac[i].v =
+                                        tac[i].v;
                                 }
 
-                                if (count)
-                                    num_of_list0++;
+                                list0->tai[num_of_list0].num = num_of_tac;
+                                list0->tai[num_of_list0].type = OGS_TAI0_TYPE;
+
+                                num_of_list0++;
                             }
                         } else {
                             ogs_warn("Ignore tai : mcc(%p), mnc(%p), "
@@ -620,7 +536,7 @@ int amf_context_parse_config(void)
                     } while (ogs_yaml_iter_type(&tai_array) ==
                             YAML_SEQUENCE_NODE);
 
-                    if (list2->num || num_of_list1 || num_of_list0) {
+                    if (list2->num || num_of_list0) {
                         self.num_of_served_tai++;
                     }
                 } else if (!strcmp(amf_key, "plmn_support")) {
@@ -763,81 +679,6 @@ int amf_context_parse_config(void)
                         }
                     } while (ogs_yaml_iter_type(&plmn_support_array) ==
                             YAML_SEQUENCE_NODE);
-                } else if (!strcmp(amf_key, "access_control")) {
-                    ogs_yaml_iter_t access_control_array, access_control_iter;
-                    ogs_yaml_iter_recurse(&amf_iter, &access_control_array);
-                    do {
-                        ogs_assert(self.num_of_access_control <
-                                OGS_MAX_NUM_OF_ACCESS_CONTROL);
-
-                        if (ogs_yaml_iter_type(&access_control_array) ==
-                                YAML_MAPPING_NODE) {
-                            memcpy(&access_control_iter, &access_control_array,
-                                    sizeof(ogs_yaml_iter_t));
-                        } else if (ogs_yaml_iter_type(&access_control_array) ==
-                            YAML_SEQUENCE_NODE) {
-                            if (!ogs_yaml_iter_next(&access_control_array))
-                                break;
-                            ogs_yaml_iter_recurse(&access_control_array,
-                                    &access_control_iter);
-                        } else if (ogs_yaml_iter_type(&access_control_array) ==
-                            YAML_SCALAR_NODE) {
-                            break;
-                        } else
-                            ogs_assert_if_reached();
-
-                        while (ogs_yaml_iter_next(&access_control_iter)) {
-                            const char *mnc = NULL, *mcc = NULL;
-                            int reject_cause = 0;
-                            const char *access_control_key =
-                                ogs_yaml_iter_key(&access_control_iter);
-                            ogs_assert(access_control_key);
-                            if (!strcmp(access_control_key,
-                                        "default_reject_cause")) {
-                                const char *v = ogs_yaml_iter_value(
-                                        &access_control_iter);
-                                if (v) self.default_reject_cause = atoi(v);
-                            } else if (!strcmp(access_control_key, "plmn_id")) {
-                                ogs_yaml_iter_t plmn_id_iter;
-
-                                ogs_yaml_iter_recurse(&access_control_iter,
-                                        &plmn_id_iter);
-                                while (ogs_yaml_iter_next(&plmn_id_iter)) {
-                                    const char *plmn_id_key =
-                                        ogs_yaml_iter_key(&plmn_id_iter);
-                                    ogs_assert(plmn_id_key);
-                                    if (!strcmp(plmn_id_key, "reject_cause")) {
-                                        const char *v = ogs_yaml_iter_value(
-                                                &plmn_id_iter);
-                                        if (v) reject_cause = atoi(v);
-                                    } else if (!strcmp(plmn_id_key, "mcc")) {
-                                        mcc = ogs_yaml_iter_value(
-                                                &plmn_id_iter);
-                                    } else if (!strcmp(plmn_id_key, "mnc")) {
-                                        mnc = ogs_yaml_iter_value(
-                                                &plmn_id_iter);
-                                    }
-                                }
-
-                                if (mcc && mnc) {
-                                    ogs_plmn_id_build(
-                                        &self.access_control[
-                                            self.num_of_access_control].
-                                                plmn_id,
-                                        atoi(mcc), atoi(mnc), strlen(mnc));
-                                    if (reject_cause)
-                                        self.access_control[
-                                            self.num_of_access_control].
-                                                reject_cause = reject_cause;
-                                    self.num_of_access_control++;
-                                }
-                            } else
-                                ogs_warn("unknown key `%s`",
-                                        access_control_key);
-                        }
-
-                    } while (ogs_yaml_iter_type(&access_control_array) ==
-                            YAML_SEQUENCE_NODE);
                 } else if (!strcmp(amf_key, "security")) {
                     ogs_yaml_iter_t security_iter;
                     ogs_yaml_iter_recurse(&amf_iter, &security_iter);
@@ -930,8 +771,7 @@ int amf_context_parse_config(void)
                             } while (
                                 ogs_yaml_iter_type(&ciphering_order_iter) ==
                                     YAML_SEQUENCE_NODE);
-                        } else
-                            ogs_warn("unknown key `%s`", security_key);
+                        }
                     }
                 } else if (!strcmp(amf_key, "network_name")) {
                     ogs_yaml_iter_t network_name_iter;
@@ -975,169 +815,20 @@ int amf_context_parse_config(void)
                             network_short_name->length = size*2+1;
                             network_short_name->coding_scheme = 1;
                             network_short_name->ext = 1;
-                        } else
-                            ogs_warn("unknown key `%s`", network_name_key);
+                        }
                     }
                 } else if (!strcmp(amf_key, "amf_name")) {
                     self.amf_name = ogs_yaml_iter_value(&amf_iter);
                 } else if (!strcmp(amf_key, "sbi")) {
                     /* handle config in sbi library */
-                } else if (!strcmp(amf_key, "service_name")) {
-                    /* handle config in sbi library */
-                } else if (!strcmp(amf_key, "discovery")) {
-                    /* handle config in sbi library */
-                } else if (!strcmp(amf_key, "metrics")) {
-                    /* handle config in metrics library */
                 } else
                     ogs_warn("unknown key `%s`", amf_key);
-            }
-        } else if (!strcmp(root_key, "time")) {
-            ogs_yaml_iter_t time_iter;
-            ogs_yaml_iter_recurse(&root_iter, &time_iter);
-            while (ogs_yaml_iter_next(&time_iter)) {
-                const char *time_key = ogs_yaml_iter_key(&time_iter);
-                ogs_assert(time_key);
-                if (!strcmp(time_key, "t3502")) {
-                    ogs_yaml_iter_t t3502_iter;
-                    ogs_yaml_iter_recurse(&time_iter, &t3502_iter);
-
-                    while (ogs_yaml_iter_next(&t3502_iter)) {
-                        const char *t3502_key =
-                            ogs_yaml_iter_key(&t3502_iter);
-                        ogs_assert(t3502_key);
-
-                        if (!strcmp(t3502_key, "value")) {
-                            const char *v = ogs_yaml_iter_value(&t3502_iter);
-                            if (v)
-                                self.time.t3502.value = atoll(v);
-                        } else
-                            ogs_warn("unknown key `%s`", t3502_key);
-                    }
-                } else if (!strcmp(time_key, "t3512")) {
-                    ogs_yaml_iter_t t3512_iter;
-                    ogs_yaml_iter_recurse(&time_iter, &t3512_iter);
-
-                    while (ogs_yaml_iter_next(&t3512_iter)) {
-                        const char *t3512_key =
-                            ogs_yaml_iter_key(&t3512_iter);
-                        ogs_assert(t3512_key);
-
-                        if (!strcmp(t3512_key, "value")) {
-                            const char *v = ogs_yaml_iter_value(&t3512_iter);
-                            if (v)
-                                self.time.t3512.value = atoll(v);
-                        } else
-                            ogs_warn("unknown key `%s`", t3512_key);
-                    }
-                } else if (!strcmp(time_key, "t3412")) {
-                    /* handle config in mme */
-                } else if (!strcmp(time_key, "nf_instance")) {
-                    /* handle config in app library */
-                } else if (!strcmp(time_key, "subscription")) {
-                    /* handle config in app library */
-                } else if (!strcmp(time_key, "message")) {
-                    /* handle config in app library */
-                } else if (!strcmp(time_key, "handover")) {
-                    /* handle config in app library */
-                } else
-                    ogs_warn("unknown key `%s`", time_key);
             }
         }
     }
 
     rv = amf_context_validation();
     if (rv != OGS_OK) return rv;
-
-    return OGS_OK;
-}
-
-int amf_context_nf_info(void)
-{
-    ogs_sbi_nf_instance_t *nf_instance = NULL;
-    ogs_sbi_nf_info_t *nf_info = NULL;
-
-    int served_i, next_new_i, info_i;
-    bool next_found;
-    served_i = 0;
-    next_new_i = 0;
-    next_found = false;
-    do {
-        nf_instance = ogs_sbi_self()->nf_instance;
-        ogs_assert(nf_instance);
-
-        nf_info = ogs_sbi_nf_info_add(
-                &nf_instance->nf_info_list, OpenAPI_nf_type_AMF);
-        ogs_assert(nf_info);
-        nf_info->amf.amf_set_id = self.served_guami[next_new_i].amf_id.set2;
-        nf_info->amf.amf_region_id = self.served_guami[next_new_i].amf_id.region;
-        next_found = false;
-        info_i = 0;
-        for (served_i = next_new_i; served_i <
-                self.num_of_served_guami; served_i++) {
-            if (self.served_guami[served_i].amf_id.set2 ==
-                    nf_info->amf.amf_set_id &&
-                    self.served_guami[served_i].amf_id.region ==
-                nf_info->amf.amf_region_id) {
-                nf_info->amf.guami[info_i] = self.served_guami[served_i];
-                nf_info->amf.num_of_guami++;
-                info_i++;
-            } else {
-                if (!next_found) {
-                    int handled_i;
-                    for (handled_i = 0; handled_i < served_i; handled_i++) {
-                        if (self.served_guami[handled_i].amf_id.set2 ==
-                                self.served_guami[served_i].amf_id.set2 &&
-                            self.served_guami[handled_i].amf_id.region ==
-                                    self.served_guami[served_i].amf_id.region) {
-                            break;
-                        }
-                    next_found = true;
-                    next_new_i = served_i;
-                    }
-                }
-            }
-        }
-
-        nf_info->amf.num_of_nr_tai = 0;
-        int i = 0, j = 0, info_tai_i = 0;
-        for (i = 0; i < self.num_of_served_tai; i++) {
-            if (self.served_tai[i].list2.num) {
-                for (j = 0; j < self.served_tai[i].list2.num; j++) {
-                    for (served_i = 0; served_i < info_i; served_i++) {
-                        if (ogs_plmn_id_hexdump
-                                (&self.served_tai[i].list2.tai[j].plmn_id) ==
-                                ogs_plmn_id_hexdump
-                                (&nf_info->amf.guami[served_i].plmn_id)) {
-                            nf_info->amf.nr_tai[info_tai_i].plmn_id =
-                                    self.served_tai[i].list2.tai[j].plmn_id;
-                            nf_info->amf.nr_tai[info_tai_i].tac =
-                                    self.served_tai[i].list2.tai[j].tac;
-                            nf_info->amf.num_of_nr_tai++;
-                            info_tai_i++;
-                        }
-                    }
-                }
-            }
-            for (j = 0; self.served_tai[i].list0.tai[j].num; j++) {
-                int k = 0;
-                for (k = 0; k < self.served_tai[i].list0.tai[j].num; k++) {
-                    for (served_i = 0; served_i < info_i; served_i++) {
-                        if (ogs_plmn_id_hexdump
-                                (&self.served_tai[i].list0.tai[j].plmn_id) ==
-                                ogs_plmn_id_hexdump
-                                (&nf_info->amf.guami[served_i].plmn_id)) {
-                            nf_info->amf.nr_tai[info_tai_i].plmn_id =
-                                    self.served_tai[i].list0.tai[j].plmn_id;
-                            nf_info->amf.nr_tai[info_tai_i].tac =
-                                    self.served_tai[i].list0.tai[j].tac[k];
-                            nf_info->amf.num_of_nr_tai++;
-                            info_tai_i++;
-                        }
-                    }
-                }
-            }
-        }
-    } while (next_found);
 
     return OGS_OK;
 }
@@ -1177,7 +868,8 @@ amf_gnb_t *amf_gnb_add(ogs_sock_t *sock, ogs_sockaddr_t *addr)
 
     memset(&e, 0, sizeof(e));
     e.gnb = gnb;
-    ogs_fsm_init(&gnb->sm, ngap_state_initial, ngap_state_final, &e);
+    ogs_fsm_create(&gnb->sm, ngap_state_initial, ngap_state_final);
+    ogs_fsm_init(&gnb->sm, &e);
 
     ogs_list_add(&self.gnb_list, gnb);
     amf_metrics_inst_global_inc(AMF_METR_GLOB_GAUGE_GNB);
@@ -1200,6 +892,7 @@ void amf_gnb_remove(amf_gnb_t *gnb)
     memset(&e, 0, sizeof(e));
     e.gnb = gnb;
     ogs_fsm_fini(&gnb->sm, &e);
+    ogs_fsm_delete(&gnb->sm);
 
     ogs_hash_set(self.gnb_addr_hash,
             gnb->sctp.addr, sizeof(ogs_sockaddr_t), NULL);
@@ -1213,7 +906,7 @@ void amf_gnb_remove(amf_gnb_t *gnb)
             ogs_list_count(&self.gnb_list));
 }
 
-void amf_gnb_remove_all(void)
+void amf_gnb_remove_all()
 {
     amf_gnb_t *gnb = NULL, *next_gnb = NULL;
 
@@ -1275,20 +968,8 @@ ran_ue_t *ran_ue_add(amf_gnb_t *gnb, uint32_t ran_ue_ngap_id)
     ogs_assert(gnb);
 
     ogs_pool_alloc(&ran_ue_pool, &ran_ue);
-    if (ran_ue == NULL) {
-        ogs_error("Could not allocate ran_ue context from pool");
-        return NULL;
-    }
-
+    ogs_assert(ran_ue);
     memset(ran_ue, 0, sizeof *ran_ue);
-
-    ran_ue->t_ng_holding = ogs_timer_add(
-            ogs_app()->timer_mgr, amf_timer_ng_holding_timer_expire, ran_ue);
-    if (!ran_ue->t_ng_holding) {
-        ogs_error("ogs_timer_add() failed");
-        ogs_pool_free(&ran_ue_pool, ran_ue);
-        return NULL;
-    }
 
     ran_ue->index = ogs_pool_index(&ran_ue_pool, ran_ue);
     ogs_assert(ran_ue->index > 0 && ran_ue->index <= ogs_app()->max.ue);
@@ -1305,6 +986,10 @@ ran_ue_t *ran_ue_add(amf_gnb_t *gnb, uint32_t ran_ue_ngap_id)
     ogs_assert((gnb->max_num_of_ostreams-1) >= 1); /* NEXT_ID(MAX >= MIN) */
     ran_ue->gnb_ostream_id =
         OGS_NEXT_ID(gnb->ostream_id, 1, gnb->max_num_of_ostreams-1);
+
+    ran_ue->t_ng_holding = ogs_timer_add(
+            ogs_app()->timer_mgr, amf_timer_ng_holding_timer_expire, ran_ue);
+    ogs_assert(ran_ue->t_ng_holding);
 
     ran_ue->gnb = gnb;
 
@@ -1473,78 +1158,8 @@ amf_ue_t *amf_ue_add(ran_ue_t *ran_ue)
     ogs_assert(gnb);
 
     ogs_pool_alloc(&amf_ue_pool, &amf_ue);
-    if (amf_ue == NULL) {
-        ogs_error("Could not allocate amf_ue context from pool");
-        return NULL;
-    }
-
+    ogs_assert(amf_ue);
     memset(amf_ue, 0, sizeof *amf_ue);
-
-    /* Add All Timers */
-    amf_ue->t3513.timer = ogs_timer_add(
-            ogs_app()->timer_mgr, amf_timer_t3513_expire, amf_ue);
-    if (!amf_ue->t3513.timer) {
-        ogs_error("ogs_timer_add() failed");
-        ogs_pool_free(&amf_ue_pool, amf_ue);
-        return NULL;
-    }
-    amf_ue->t3513.pkbuf = NULL;
-    amf_ue->t3522.timer = ogs_timer_add(
-            ogs_app()->timer_mgr, amf_timer_t3522_expire, amf_ue);
-    if (!amf_ue->t3522.timer) {
-        ogs_error("ogs_timer_add() failed");
-        ogs_pool_free(&amf_ue_pool, amf_ue);
-        return NULL;
-    }
-    amf_ue->t3522.pkbuf = NULL;
-    amf_ue->t3550.timer = ogs_timer_add(
-            ogs_app()->timer_mgr, amf_timer_t3550_expire, amf_ue);
-    if (!amf_ue->t3550.timer) {
-        ogs_error("ogs_timer_add() failed");
-        ogs_pool_free(&amf_ue_pool, amf_ue);
-        return NULL;
-    }
-    amf_ue->t3550.pkbuf = NULL;
-    amf_ue->t3555.timer = ogs_timer_add(
-            ogs_app()->timer_mgr, amf_timer_t3555_expire, amf_ue);
-    if (!amf_ue->t3555.timer) {
-        ogs_error("ogs_timer_add() failed");
-        ogs_pool_free(&amf_ue_pool, amf_ue);
-        return NULL;
-    }
-    amf_ue->t3555.pkbuf = NULL;
-    amf_ue->t3560.timer = ogs_timer_add(
-            ogs_app()->timer_mgr, amf_timer_t3560_expire, amf_ue);
-    if (!amf_ue->t3560.timer) {
-        ogs_error("ogs_timer_add() failed");
-        ogs_pool_free(&amf_ue_pool, amf_ue);
-        return NULL;
-    }
-    amf_ue->t3560.pkbuf = NULL;
-    amf_ue->t3570.timer = ogs_timer_add(
-            ogs_app()->timer_mgr, amf_timer_t3570_expire, amf_ue);
-    if (!amf_ue->t3570.timer) {
-        ogs_error("ogs_timer_add() failed");
-        ogs_pool_free(&amf_ue_pool, amf_ue);
-        return NULL;
-    }
-    amf_ue->t3570.pkbuf = NULL;
-    amf_ue->mobile_reachable.timer = ogs_timer_add(
-            ogs_app()->timer_mgr, amf_timer_mobile_reachable_expire, amf_ue);
-    if (!amf_ue->mobile_reachable.timer) {
-        ogs_error("ogs_timer_add() failed");
-        ogs_pool_free(&amf_ue_pool, amf_ue);
-        return NULL;
-    }
-    amf_ue->mobile_reachable.pkbuf = NULL;
-    amf_ue->implicit_deregistration.timer = ogs_timer_add(
-            ogs_app()->timer_mgr, amf_timer_implicit_deregistration_expire, amf_ue);
-    if (!amf_ue->implicit_deregistration.timer) {
-        ogs_error("ogs_timer_add() failed");
-        ogs_pool_free(&amf_ue_pool, amf_ue);
-        return NULL;
-    }
-    amf_ue->implicit_deregistration.pkbuf = NULL;
 
     /* SBI Type */
     amf_ue->sbi.type = OGS_SBI_OBJ_UE_TYPE;
@@ -1553,8 +1168,6 @@ amf_ue_t *amf_ue_add(ran_ue_t *ran_ue)
     OGS_SBI_FEATURES_SET(amf_ue->am_policy_control_features,
             OGS_SBI_NPCF_AM_POLICY_CONTROL_UE_AMBR_AUTHORIZATION);
 
-    amf_ue->rat_restrictions = OpenAPI_list_create();
-
     ogs_list_init(&amf_ue->sess_list);
 
     /* Initialization */
@@ -1562,6 +1175,26 @@ amf_ue_t *amf_ue_add(ran_ue_t *ran_ue)
     amf_ue->nas.access_type = OGS_ACCESS_TYPE_3GPP;
     amf_ue->nas.amf.ksi = OGS_NAS_KSI_NO_KEY_IS_AVAILABLE;
     amf_ue->abba_len = 2;
+
+    /* Add All Timers */
+    amf_ue->t3513.timer = ogs_timer_add(
+            ogs_app()->timer_mgr, amf_timer_t3513_expire, amf_ue);
+    amf_ue->t3513.pkbuf = NULL;
+    amf_ue->t3522.timer = ogs_timer_add(
+            ogs_app()->timer_mgr, amf_timer_t3522_expire, amf_ue);
+    amf_ue->t3522.pkbuf = NULL;
+    amf_ue->t3550.timer = ogs_timer_add(
+            ogs_app()->timer_mgr, amf_timer_t3550_expire, amf_ue);
+    amf_ue->t3550.pkbuf = NULL;
+    amf_ue->t3555.timer = ogs_timer_add(
+            ogs_app()->timer_mgr, amf_timer_t3555_expire, amf_ue);
+    amf_ue->t3555.pkbuf = NULL;
+    amf_ue->t3560.timer = ogs_timer_add(
+            ogs_app()->timer_mgr, amf_timer_t3560_expire, amf_ue);
+    amf_ue->t3560.pkbuf = NULL;
+    amf_ue->t3570.timer = ogs_timer_add(
+            ogs_app()->timer_mgr, amf_timer_t3570_expire, amf_ue);
+    amf_ue->t3570.pkbuf = NULL;
 
     amf_ue_fsm_init(amf_ue);
 
@@ -1591,8 +1224,6 @@ void amf_ue_remove(amf_ue_t *amf_ue)
 
     /* Clear 5GSM Message */
     AMF_UE_CLEAR_5GSM_MESSAGE(amf_ue);
-
-    OpenAPI_list_free(amf_ue->rat_restrictions);
 
     /* Remove all session context */
     amf_sess_remove_all(amf_ue);
@@ -1627,8 +1258,6 @@ void amf_ue_remove(amf_ue_t *amf_ue)
 
     if (amf_ue->policy_association_id)
         ogs_free(amf_ue->policy_association_id);
-    if (amf_ue->data_change_subscription_id)
-        ogs_free(amf_ue->data_change_subscription_id);
 
     if (amf_ue->confirmation_url_for_5g_aka)
         ogs_free(amf_ue->confirmation_url_for_5g_aka);
@@ -1647,13 +1276,8 @@ void amf_ue_remove(amf_ue_t *amf_ue)
     ogs_timer_delete(amf_ue->t3555.timer);
     ogs_timer_delete(amf_ue->t3560.timer);
     ogs_timer_delete(amf_ue->t3570.timer);
-    ogs_timer_delete(amf_ue->mobile_reachable.timer);
-    ogs_timer_delete(amf_ue->implicit_deregistration.timer);
 
     /* Free SBI object memory */
-    if (ogs_list_count(&amf_ue->sbi.xact_list))
-        ogs_error("UE transaction [%d]",
-                ogs_list_count(&amf_ue->sbi.xact_list));
     ogs_sbi_object_free(&amf_ue->sbi);
 
     amf_ue_deassociate(amf_ue);
@@ -1664,7 +1288,7 @@ void amf_ue_remove(amf_ue_t *amf_ue)
             ogs_list_count(&self.amf_ue_list));
 }
 
-void amf_ue_remove_all(void)
+void amf_ue_remove_all()
 {
     amf_ue_t *amf_ue = NULL, *next = NULL;;
 
@@ -1685,7 +1309,8 @@ void amf_ue_fsm_init(amf_ue_t *amf_ue)
 
     memset(&e, 0, sizeof(e));
     e.amf_ue = amf_ue;
-    ogs_fsm_init(&amf_ue->sm, gmm_state_initial, gmm_state_final, &e);
+    ogs_fsm_create(&amf_ue->sm, gmm_state_initial, gmm_state_final);
+    ogs_fsm_init(&amf_ue->sm, &e);
 }
 
 void amf_ue_fsm_fini(amf_ue_t *amf_ue)
@@ -1697,6 +1322,7 @@ void amf_ue_fsm_fini(amf_ue_t *amf_ue)
     memset(&e, 0, sizeof(e));
     e.amf_ue = amf_ue;
     ogs_fsm_fini(&amf_ue->sm, &e);
+    ogs_fsm_delete(&amf_ue->sm);
 }
 
 amf_ue_t *amf_ue_find_by_guti(ogs_nas_5gs_guti_t *guti)
@@ -1705,6 +1331,11 @@ amf_ue_t *amf_ue_find_by_guti(ogs_nas_5gs_guti_t *guti)
 
     return (amf_ue_t *)ogs_hash_get(
             self.guti_ue_hash, guti, sizeof(ogs_nas_5gs_guti_t));
+}
+
+amf_ue_t *amf_ue_find_by_teid(uint32_t teid)
+{
+    return ogs_pool_find(&amf_ue_pool, teid);
 }
 
 amf_ue_t *amf_ue_find_by_suci(char *suci)
@@ -1757,30 +1388,19 @@ amf_ue_t *amf_ue_find_by_message(ogs_nas_5gs_message_t *message)
             mobile_identity_suci =
                 (ogs_nas_5gs_mobile_identity_suci_t *)mobile_identity->buffer;
 
-            if (mobile_identity_suci->h.supi_format !=
-                    OGS_NAS_5GS_SUPI_FORMAT_IMSI) {
-                ogs_error("Not implemented SUPI format [%d]",
-                    mobile_identity_suci->h.supi_format);
-                return NULL;
-            }
             if (mobile_identity_suci->protection_scheme_id !=
-                    OGS_PROTECTION_SCHEME_NULL &&
+                    OGS_NAS_5GS_NULL_SCHEME &&
                 mobile_identity_suci->protection_scheme_id !=
-                    OGS_PROTECTION_SCHEME_PROFILE_A &&
+                    OGS_NAS_5GS_ECIES_SCHEME_PROFILE_A &&
                 mobile_identity_suci->protection_scheme_id !=
-                    OGS_PROTECTION_SCHEME_PROFILE_B) {
+                    OGS_NAS_5GS_ECIES_SCHEME_PROFILE_B) {
                 ogs_error("Invalid ProtectionSchemeID(%d) in SUCI",
                     mobile_identity_suci->protection_scheme_id);
                 return NULL;
             }
 
             suci = ogs_nas_5gs_suci_from_mobile_identity(mobile_identity);
-            if (!suci) {
-                ogs_error("Cannot get the SUCI from Mobilie Identity");
-                ogs_log_hexdump(OGS_LOG_ERROR,
-                        mobile_identity->buffer, mobile_identity->length);
-                return NULL;
-            }
+            ogs_assert(suci);
 
             amf_ue = amf_ue_find_by_suci(suci);
             if (amf_ue) {
@@ -2093,9 +1713,6 @@ void amf_sess_remove(amf_sess_t *sess)
     ogs_list_remove(&sess->amf_ue->sess_list, sess);
 
     /* Free SBI object memory */
-    if (ogs_list_count(&sess->sbi.xact_list))
-        ogs_error("Session transaction [%d]",
-                ogs_list_count(&sess->sbi.xact_list));
     ogs_sbi_object_free(&sess->sbi);
 
     if (sess->sm_context_ref)
@@ -2124,6 +1741,9 @@ void amf_sess_remove(amf_sess_t *sess)
         ogs_free(sess->nssf.nrf.id);
     if (sess->nssf.nrf.client)
         ogs_sbi_client_remove(sess->nssf.nrf.client);
+
+    OGS_NAS_CLEAR_DATA(&sess->ue_pco);
+    OGS_TLV_CLEAR_DATA(&sess->pgw_pco);
 
     ogs_pool_free(&amf_sess_pool, sess);
 
@@ -2160,32 +1780,23 @@ amf_sess_t *amf_sess_cycle(amf_sess_t *sess)
     return ogs_pool_cycle(&amf_sess_pool, sess);
 }
 
-static bool check_smf_info(ogs_sbi_nf_info_t *nf_info, void *context);
+static bool check_smf_info(amf_sess_t *sess, ogs_list_t *nf_info_list);
 
 void amf_sbi_select_nf(
         ogs_sbi_object_t *sbi_object,
-        ogs_sbi_service_type_e service_type,
-        OpenAPI_nf_type_e requester_nf_type,
+        OpenAPI_nf_type_e target_nf_type,
         ogs_sbi_discovery_option_t *discovery_option)
 {
-    OpenAPI_nf_type_e target_nf_type = OpenAPI_nf_type_NULL;
     ogs_sbi_nf_instance_t *nf_instance = NULL;
-    ogs_sbi_nf_info_t *nf_info = NULL;
     amf_sess_t *sess = NULL;
 
+    ogs_assert(ogs_sbi_self()->nf_state_registered);
     ogs_assert(sbi_object);
-    ogs_assert(service_type);
-    target_nf_type = ogs_sbi_service_type_to_nf_type(service_type);
     ogs_assert(target_nf_type);
-    ogs_assert(requester_nf_type);
 
     switch(sbi_object->type) {
     case OGS_SBI_OBJ_UE_TYPE:
-        nf_instance = ogs_sbi_nf_instance_find_by_discovery_param(
-                        target_nf_type, requester_nf_type, discovery_option);
-        if (nf_instance)
-            OGS_SBI_SETUP_NF_INSTANCE(
-                    sbi_object->service_type_array[service_type], nf_instance);
+        ogs_sbi_select_nf(sbi_object, target_nf_type, discovery_option);
         break;
     case OGS_SBI_OBJ_SESS_TYPE:
         sess = (amf_sess_t *)sbi_object;
@@ -2193,29 +1804,15 @@ void amf_sbi_select_nf(
 
         ogs_list_for_each(&ogs_sbi_self()->nf_instance_list, nf_instance) {
             if (ogs_sbi_discovery_param_is_matched(
-                    nf_instance,
-                    target_nf_type, requester_nf_type, discovery_option) ==
-                        false)
+                    nf_instance, target_nf_type, discovery_option) == false)
                 continue;
 
-            if ((nf_instance->nf_type == OpenAPI_nf_type_SMF) &&
-                (ogs_list_count(&nf_instance->nf_info_list) > 0)) {
-
-                ogs_list_for_each(&nf_instance->nf_info_list, nf_info) {
-                    if (nf_info->nf_type != nf_instance->nf_type)
-                        continue;
-                    if (check_smf_info(nf_info, sess) == false)
-                        continue;
-
-                    break;
-                }
-
-                if (!nf_info)
+            if (target_nf_type == OpenAPI_nf_type_SMF) {
+                if (check_smf_info(sess, &nf_instance->nf_info_list) == false)
                     continue;
             }
 
-            OGS_SBI_SETUP_NF_INSTANCE(
-                    sbi_object->service_type_array[service_type], nf_instance);
+            OGS_SBI_SETUP_NF(sbi_object, target_nf_type, nf_instance);
             break;
         }
         break;
@@ -2317,12 +1914,13 @@ int amf_find_served_tai(ogs_5gs_tai_t *nr_tai)
 
     for (i = 0; i < self.num_of_served_tai; i++) {
         ogs_5gs_tai0_list_t *list0 = &self.served_tai[i].list0;
-        ogs_5gs_tai1_list_t *list1 = &self.served_tai[i].list1;
+        ogs_assert(list0);
         ogs_5gs_tai2_list_t *list2 = &self.served_tai[i].list2;
+        ogs_assert(list2);
 
         for (j = 0; list0->tai[j].num; j++) {
             ogs_assert(list0->tai[j].type == OGS_TAI0_TYPE);
-            ogs_assert(list0->tai[j].num <= OGS_MAX_NUM_OF_TAI);
+            ogs_assert(list0->tai[j].num < OGS_MAX_NUM_OF_TAI);
 
             for (k = 0; k < list0->tai[j].num; k++) {
                 if (memcmp(&list0->tai[j].plmn_id,
@@ -2333,18 +1931,10 @@ int amf_find_served_tai(ogs_5gs_tai_t *nr_tai)
             }
         }
 
-        for (j = 0; list1->tai[j].num; j++) {
-            ogs_assert(list1->tai[j].type == OGS_TAI1_TYPE);
-            ogs_assert(list1->tai[j].num <= OGS_MAX_NUM_OF_TAI);
-
-            if (list1->tai[j].tac.v <= nr_tai->tac.v &&
-                nr_tai->tac.v < (list1->tai[j].tac.v+list1->tai[j].num))
-                return i;
-        }
-
         if (list2->num) {
-            ogs_assert(list2->type == OGS_TAI2_TYPE);
-            ogs_assert(list2->num <= OGS_MAX_NUM_OF_TAI);
+            ogs_assert(list2->type == OGS_TAI1_TYPE ||
+                        list2->type == OGS_TAI2_TYPE);
+            ogs_assert(list2->num < OGS_MAX_NUM_OF_TAI);
 
             for (j = 0; j < list2->num; j++) {
                 if (memcmp(&list2->tai[j].plmn_id,
@@ -2384,18 +1974,17 @@ ogs_s_nssai_t *amf_find_s_nssai(
     return NULL;
 }
 
-#if 0 /* DEPRECATED */
-int amf_m_tmsi_pool_generate(void)
+int amf_m_tmsi_pool_generate()
 {
-    int j;
+    int i, j;
     int index = 0;
 
     ogs_trace("M-TMSI Pool try to generate...");
-    while (index < ogs_app()->max.ue*2) {
+    for (i = 0; index < ogs_app()->max.ue; i++) {
         amf_m_tmsi_t *m_tmsi = NULL;
         int conflict = 0;
 
-        m_tmsi = &m_tmsi_pool.array[index];
+        m_tmsi = &self.m_tmsi.array[index];
         ogs_assert(m_tmsi);
         *m_tmsi = ogs_random32();
 
@@ -2404,10 +1993,10 @@ int amf_m_tmsi_pool_generate(void)
         *m_tmsi &= 0xff00ffff;
 
         for (j = 0; j < index; j++) {
-            if (*m_tmsi == m_tmsi_pool.array[j]) {
+            if (*m_tmsi == self.m_tmsi.array[j]) {
                 conflict = 1;
                 ogs_trace("[M-TMSI CONFLICT]  %d:0x%x == %d:0x%x",
-                        index, *m_tmsi, j, m_tmsi_pool.array[j]);
+                        index, *m_tmsi, j, self.m_tmsi.array[j]);
                 break;
             }
         }
@@ -2417,40 +2006,18 @@ int amf_m_tmsi_pool_generate(void)
 
         index++;
     }
-    m_tmsi_pool.size = index;
+    self.m_tmsi.size = index;
     ogs_trace("M-TMSI Pool generate...done");
 
     return OGS_OK;
 }
-#endif
 
-amf_m_tmsi_t *amf_m_tmsi_alloc(void)
+amf_m_tmsi_t *amf_m_tmsi_alloc()
 {
     amf_m_tmsi_t *m_tmsi = NULL;
 
-    ogs_pool_alloc(&m_tmsi_pool, &m_tmsi);
+    ogs_pool_alloc(&self.m_tmsi, &m_tmsi);
     ogs_assert(m_tmsi);
-
-    /* TS23.003
-     * 2.8.2.1.2 Mapping in the UE
-     *
-     * E-UTRAN <M-TMSI> maps as follows:
-     * - 6 bits of the E-UTRAN <M-TMSI> starting at bit 29 and down to bit 24
-     * are mapped into bit 29 and down to bit 24 of the GERAN/UTRAN <P-TMSI>;
-     * - 16 bits of the E-UTRAN <M-TMSI> starting at bit 15 and down to bit 0
-     * are mapped into bit 15 and down to bit 0 of the GERAN/UTRAN <P-TMSI>;
-     * - and the remaining 8 bits of the E-UTRAN <M-TMSI> are
-     * mapped into the 8 Most Significant Bits of the <P-TMSI signature> field.
-     *
-     * The UE shall fill the remaining 2 octets of the <P-TMSI signature>
-     * according to clauses 9.1.1, 9.4.1, 10.2.1, or 10.5.1
-     * of 3GPP TS.33.401 [89] , as appropriate, for RAU/Attach procedures
-     */
-
-    ogs_assert(*m_tmsi <= 0x003fffff);
-
-    *m_tmsi = ((*m_tmsi & 0xffff) | ((*m_tmsi & 0x003f0000) << 8));
-    *m_tmsi |= 0xc0000000;
 
     return m_tmsi;
 }
@@ -2458,10 +2025,7 @@ amf_m_tmsi_t *amf_m_tmsi_alloc(void)
 int amf_m_tmsi_free(amf_m_tmsi_t *m_tmsi)
 {
     ogs_assert(m_tmsi);
-
-    /* Restore M-TMSI by Issue #2307 */
-    *m_tmsi &= 0x003fffff;
-    ogs_pool_free(&m_tmsi_pool, m_tmsi);
+    ogs_pool_free(&self.m_tmsi, m_tmsi);
 
     return OGS_OK;
 }
@@ -2530,13 +2094,6 @@ static void stats_remove_ran_ue(void)
     ogs_info("[Removed] Number of gNB-UEs is now %d", num_of_ran_ue);
 }
 
-int amf_instance_get_load(void)
-{
-    return (((ogs_pool_size(&ran_ue_pool) -
-            ogs_pool_avail(&ran_ue_pool)) * 100) /
-            ogs_pool_size(&ran_ue_pool));
-}
-
 static void stats_add_amf_session(void)
 {
     amf_metrics_inst_global_inc(AMF_METR_GLOB_GAUGE_AMF_SESS);
@@ -2552,29 +2109,35 @@ static void stats_remove_amf_session(void)
 }
 
 static bool check_smf_info_s_nssai(
-        ogs_sbi_smf_info_t *smf_info, amf_sess_t *sess);
+        amf_sess_t *sess, ogs_sbi_smf_info_t *smf_info);
 static bool check_smf_info_nr_tai(
-        ogs_sbi_smf_info_t *smf_info, amf_sess_t *sess);
+        amf_sess_t *sess, ogs_sbi_smf_info_t *smf_info);
 
-static bool check_smf_info(ogs_sbi_nf_info_t *nf_info, void *context)
+static bool check_smf_info(amf_sess_t *sess, ogs_list_t *nf_info_list)
 {
-    amf_sess_t *sess = NULL;
+    ogs_sbi_nf_info_t *nf_info = NULL;
 
-    ogs_assert(nf_info);
-    ogs_assert(nf_info->nf_type == OpenAPI_nf_type_SMF);
-    sess = context;
     ogs_assert(sess);
+    ogs_assert(nf_info_list);
 
-    if (check_smf_info_s_nssai(&nf_info->smf, sess) == false)
-        return false;
-    if (check_smf_info_nr_tai(&nf_info->smf, sess) == false)
-        return false;
+    if (ogs_list_count(nf_info_list) == 0) {
+        return true;
+    }
 
-    return true;
+    ogs_list_for_each(nf_info_list, nf_info) {
+        ogs_sbi_smf_info_t *smf_info = &nf_info->smf;
+        ogs_assert(smf_info);
+
+        if (check_smf_info_s_nssai(sess, smf_info) == true &&
+            check_smf_info_nr_tai(sess, smf_info) == true)
+            return true;
+    }
+
+    return false;
 }
 
 static bool check_smf_info_s_nssai(
-        ogs_sbi_smf_info_t *smf_info, amf_sess_t *sess)
+        amf_sess_t *sess, ogs_sbi_smf_info_t *smf_info)
 {
     int i, j;
 
@@ -2587,7 +2150,7 @@ static bool check_smf_info_s_nssai(
             sess->s_nssai.sd.v == smf_info->slice[i].s_nssai.sd.v) {
 
             for (j = 0; j < smf_info->slice[i].num_of_dnn; j++) {
-                if (ogs_strcasecmp(sess->dnn, smf_info->slice[i].dnn[j]) == 0)
+                if (strcmp(sess->dnn, smf_info->slice[i].dnn[j]) == 0)
                     return true;
             }
         }
@@ -2597,7 +2160,7 @@ static bool check_smf_info_s_nssai(
 }
 
 static bool check_smf_info_nr_tai(
-        ogs_sbi_smf_info_t *smf_info, amf_sess_t *sess)
+        amf_sess_t *sess, ogs_sbi_smf_info_t *smf_info)
 {
     amf_ue_t *amf_ue = NULL;
     int i, j;
@@ -2635,80 +2198,10 @@ static bool check_smf_info_nr_tai(
     return false;
 }
 
-/*
- * Issues #2482
- *
- * Changed to that registration can be accepted only
- * when the UE slice is available in the RAN slice.
- *
- * TS23.502
- * 4.2.2 Registration Management procedures
- * 4.2.2.2 Registration procedures
- * 4.2.2.2.2 General Registration
- *
- * 21. ...
- * If the Requested NSSAI does not include S-NSSAIs which map to S-NSSAIs
- * of the HPLMN subject to Network Slice-Specific Authentication and
- * Authorization and the AMF determines that no S-NSSAI can be provided
- * in the Allowed NSSAI for the UE in the current UE's Tracking Area and
- * if no default S-NSSAI(s) not yet involved in the current UE Registration
- * procedure could be further considered, the AMF shall reject the UE
- * Registration and shall include in the rejection message the list
- * of Rejected S-NSSAIs, each of them with the appropriate rejection
- * cause value.
- */
-static bool gnb_ta_is_supported(
-        amf_gnb_t *gnb,
-        ogs_plmn_id_t *plmn_id, ogs_uint24_t tac, ogs_s_nssai_t *s_nssai)
-{
-    int i, j, k;
-
-    ogs_assert(gnb);
-    ogs_assert(plmn_id);
-
-    for (i = 0; i < gnb->num_of_supported_ta_list; i++) {
-        if (gnb->supported_ta_list[i].tac.v != tac.v)
-            continue;
-
-        for (j = 0; j < gnb->supported_ta_list[i].num_of_bplmn_list; j++) {
-            if (memcmp(&gnb->supported_ta_list[i].bplmn_list[j].plmn_id,
-                        plmn_id, sizeof(*plmn_id)) != 0)
-                continue;
-
-            for (k = 0;
-                    k < gnb->supported_ta_list[i].bplmn_list[j].num_of_s_nssai;
-                    k++) {
-                if (gnb->supported_ta_list[i].bplmn_list[j].s_nssai[k].sst ==
-                        s_nssai->sst &&
-                    gnb->supported_ta_list[i].bplmn_list[j].s_nssai[k].sd.v ==
-                        s_nssai->sd.v)
-                    return true;
-            }
-        }
-    }
-
-    return false;
-}
-
-
 bool amf_update_allowed_nssai(amf_ue_t *amf_ue)
 {
-    int i, j, k;
-    amf_gnb_t *gnb = NULL;
-    ran_ue_t *ran_ue = NULL;
-
+    int i;
     ogs_assert(amf_ue);
-    ran_ue = ran_ue_cycle(amf_ue->ran_ue);
-    if (!ran_ue) {
-        ogs_error("[%s] RAN-NG Context has already been removed",
-                    amf_ue->supi);
-        return false;
-    }
-    gnb = amf_gnb_cycle(ran_ue->gnb);
-    if (!gnb) {
-        ogs_error("gNB has already been removed");
-        return false;
-    }
 
     /*
      * TS23.501
@@ -2801,19 +2294,10 @@ bool amf_update_allowed_nssai(amf_ue_t *amf_ue)
             ogs_nas_rejected_s_nssai_t *rejected =
                     &amf_ue->rejected_nssai.
                         s_nssai[amf_ue->rejected_nssai.num_of_s_nssai];
-            bool ta_supported = false;
-
-
             slice = ogs_slice_find_by_s_nssai(
                     amf_ue->slice, amf_ue->num_of_slice,
                     (ogs_s_nssai_t *)requested);
-            if (slice)
-                ta_supported = gnb_ta_is_supported(gnb,
-                        &amf_ue->nr_tai.plmn_id, amf_ue->nr_tai.tac,
-                        &slice->s_nssai);
-
-            if (ta_supported == true) {
-
+            if (slice) {
                 allowed->sst = requested->sst;
                 allowed->sd.v = requested->sd.v;
                 allowed->mapped_hplmn_sst = requested->mapped_hplmn_sst;
@@ -2845,18 +2329,13 @@ bool amf_update_allowed_nssai(amf_ue_t *amf_ue)
                 &amf_ue->allowed_nssai.
                     s_nssai[amf_ue->allowed_nssai.num_of_s_nssai];
 
-            if (slice->default_indicator == true &&
-                gnb_ta_is_supported(gnb,
-                    &amf_ue->nr_tai.plmn_id, amf_ue->nr_tai.tac,
-                    &slice->s_nssai) == true) {
-
+            if (slice->default_indicator == true) {
                 allowed->sst = slice->s_nssai.sst;
                 allowed->sd.v = slice->s_nssai.sd.v;
                 allowed->mapped_hplmn_sst = 0;
                 allowed->mapped_hplmn_sd.v = OGS_S_NSSAI_NO_SD_VALUE;
 
                 amf_ue->allowed_nssai.num_of_s_nssai++;
-
             }
         }
     }
@@ -2889,48 +2368,8 @@ bool amf_update_allowed_nssai(amf_ue_t *amf_ue)
                     amf_ue->requested_nssai.s_nssai[i].sd.v);
         }
 
-        ogs_error("    (gNB) Number of TA List [%d]", gnb->num_of_supported_ta_list);
-        for (i = 0; i < gnb->num_of_supported_ta_list; i++) {
-            ogs_error("        TAC:%d", gnb->supported_ta_list[i].tac.v);
-            ogs_error("        Number of BPLMN List [%d]",
-                    gnb->supported_ta_list[i].num_of_bplmn_list);
-            for (j = 0; j < gnb->supported_ta_list[i].num_of_bplmn_list; j++) {
-                ogs_plmn_id_t *plmn_id =
-                    &gnb->supported_ta_list[i].bplmn_list[j].plmn_id;
-                ogs_error("        PLMN_ID[MCC:%d MNC:%d]",
-                        ogs_plmn_id_mcc(plmn_id), ogs_plmn_id_mnc(plmn_id));
-                ogs_error("        Number of S_NSSAI [%d]",
-                        gnb->supported_ta_list[i].bplmn_list[j].num_of_s_nssai);
-                for (k = 0; k <
-                        gnb->supported_ta_list[i].bplmn_list[j].num_of_s_nssai;
-                        k++) {
-                    ogs_s_nssai_t *s_nssai =
-                        &gnb->supported_ta_list[i].bplmn_list[j].s_nssai[k];
-                    ogs_error("        S_NSSAI[SST:%d SD:0x%x]",
-                            s_nssai->sst, s_nssai->sd.v);
-                }
-            }
-        }
-
         return false;
     }
 
     return true;
-}
-
-bool amf_ue_is_rat_restricted(amf_ue_t *amf_ue)
-{
-    OpenAPI_lnode_t *node = NULL;
-    OpenAPI_rat_type_e rat;
-
-    ogs_assert(amf_ue);
-
-    rat = amf_ue_rat_type(amf_ue);
-
-    OpenAPI_list_for_each(amf_ue->rat_restrictions, node) {
-        if (node->data == (void *)rat) {
-            return true;
-        }
-    }
-    return false;
 }

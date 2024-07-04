@@ -48,7 +48,6 @@ bool pcf_nudr_dr_handle_query_am_data(
         OpenAPI_policy_association_t PolicyAssociation;
         OpenAPI_ambr_t UeAmbr;
         OpenAPI_list_t *TriggerList = NULL;
-        OpenAPI_lnode_t *node = NULL;
 
         if (!recvmsg->AmPolicyData) {
             strerror = ogs_msprintf("[%s] No AmPolicyData", pcf_ue->supi);
@@ -98,10 +97,10 @@ bool pcf_nudr_dr_handle_query_am_data(
                 subscribed_ue_ambr.downlink = ogs_sbi_bitrate_from_string(
                         pcf_ue->subscribed_ue_ambr->downlink);
 
-                if (((subscribed_ue_ambr.uplink / 1000) !=
-                     (subscription_data.ambr.uplink / 1000)) ||
-                    ((subscribed_ue_ambr.downlink / 1000) !=
-                     (subscription_data.ambr.downlink / 1000))) {
+                if (((subscribed_ue_ambr.uplink / 1024) !=
+                     (subscription_data.ambr.uplink / 1024)) ||
+                    ((subscribed_ue_ambr.downlink / 1024) !=
+                     (subscription_data.ambr.downlink / 1024))) {
 
                     OpenAPI_list_add(TriggerList,
                             (void *)OpenAPI_request_trigger_UE_AMBR_CH);
@@ -148,20 +147,6 @@ bool pcf_nudr_dr_handle_query_am_data(
 
         ogs_subscription_data_free(&subscription_data);
 
-        OpenAPI_list_for_each(PolicyAssociation.request->allowed_snssais, node) {
-            struct OpenAPI_snssai_s *Snssai = node->data;
-            if (Snssai) {
-                ogs_s_nssai_t s_nssai;
-                s_nssai.sst = Snssai->sst;
-                s_nssai.sd = ogs_s_nssai_sd_from_string(Snssai->sd);
-
-                pcf_metrics_inst_by_slice_add(&pcf_ue->guami.plmn_id,
-                        &s_nssai, PCF_METR_CTR_PA_POLICYAMASSOSUCC, 1);
-            } else {
-                ogs_error("[%s] No Snssai", pcf_ue->supi);
-            }
-        }
-
         return true;
 
     DEFAULT
@@ -189,7 +174,6 @@ bool pcf_nudr_dr_handle_query_sm_data(
     char *strerror = NULL;
     pcf_ue_t *pcf_ue = NULL;
     ogs_sbi_server_t *server = NULL;
-    int r;
 
     ogs_assert(sess);
     pcf_ue = sess->pcf_ue;
@@ -202,9 +186,6 @@ bool pcf_nudr_dr_handle_query_sm_data(
 
     SWITCH(recvmsg->h.resource.component[3])
     CASE(OGS_SBI_RESOURCE_NAME_SM_DATA)
-        ogs_sbi_nf_instance_t *nf_instance = NULL;
-        ogs_sbi_service_type_e service_type = OGS_SBI_SERVICE_TYPE_NULL;
-
         if (!recvmsg->SmPolicyData) {
             strerror = ogs_msprintf("[%s:%d] No SmPolicyData",
                     pcf_ue->supi, sess->psi);
@@ -212,33 +193,9 @@ bool pcf_nudr_dr_handle_query_sm_data(
             goto cleanup;
         }
 
-        service_type = OGS_SBI_SERVICE_TYPE_NPCF_POLICYAUTHORIZATION;
-
-        nf_instance = sess->sbi.service_type_array[service_type].nf_instance;
-        if (!nf_instance) {
-            OpenAPI_nf_type_e requester_nf_type =
-                        NF_INSTANCE_TYPE(ogs_sbi_self()->nf_instance);
-            ogs_assert(requester_nf_type);
-            nf_instance = ogs_sbi_nf_instance_find_by_service_type(
-                            service_type, requester_nf_type);
-            if (nf_instance)
-                OGS_SBI_SETUP_NF_INSTANCE(
-                        sess->sbi.service_type_array[service_type],
-                        nf_instance);
-        }
-
-        if (nf_instance) {
-            r = pcf_sess_sbi_discover_and_send(
-                        OGS_SBI_SERVICE_TYPE_NBSF_MANAGEMENT, NULL,
-                        pcf_nbsf_management_build_register,
-                        sess, stream, nf_instance);
-            ogs_expect(r == OGS_OK);
-            ogs_assert(r != OGS_ERROR);
-        } else {
-            r = pcf_sess_sbi_discover_only(sess, stream, service_type);
-            ogs_expect(r == OGS_OK);
-            ogs_assert(r != OGS_ERROR);
-        }
+        ogs_assert(true ==
+            pcf_sess_sbi_discover_and_send(OpenAPI_nf_type_BSF, NULL,
+                pcf_nbsf_management_build_register, sess, stream, NULL));
 
         return true;
 

@@ -1,7 +1,6 @@
 /*
  * Copyright (C) 2019 by Sukchan Lee <acetcom@gmail.com>
  * Copyright (C) 2022 by sysmocom - s.f.m.c. GmbH <info@sysmocom.de>
- * Copyright (C) 2023 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -32,7 +31,6 @@ extern "C" {
 
 ogs_pkbuf_t *ogs_gtp1_build_echo_request(uint8_t type);
 ogs_pkbuf_t *ogs_gtp1_build_echo_response(uint8_t type, uint8_t recovery);
-
 #ifdef __cplusplus
 }
 #endif

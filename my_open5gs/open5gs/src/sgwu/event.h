@@ -20,7 +20,7 @@
 #ifndef SGWU_EVENT_H
 #define SGWU_EVENT_H
 
-#include "ogs-proto.h"
+#include "ogs-core.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,7 +33,7 @@ typedef struct ogs_pfcp_message_s ogs_pfcp_message_t;
 typedef struct sgwu_bearer_s sgwu_bearer_t;
 
 typedef enum {
-    SGWU_EVT_BASE = OGS_MAX_NUM_OF_PROTO_EVENT,
+    SGWU_EVT_BASE = OGS_FSM_USER_SIG,
 
     SGWU_EVT_SXA_MESSAGE,
     SGWU_EVT_SXA_TIMER,
@@ -45,9 +45,8 @@ typedef enum {
 
 typedef struct sgwu_event_s {
     int id;
-    int timer_id;
-
     ogs_pkbuf_t *pkbuf;
+    int timer_id;
 
     ogs_gtp_node_t *gnode;
 
@@ -57,8 +56,6 @@ typedef struct sgwu_event_s {
 
     sgwu_bearer_t *bearer;
 } sgwu_event_t;
-
-OGS_STATIC_ASSERT(OGS_EVENT_SIZE >= sizeof(sgwu_event_t));
 
 void sgwu_event_init(void);
 void sgwu_event_term(void);

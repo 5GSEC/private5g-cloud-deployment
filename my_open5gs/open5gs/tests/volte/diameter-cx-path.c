@@ -63,10 +63,10 @@ static void state_cleanup(struct sess_state *sess_data, os0_t sid, void *opaque)
 static int test_cx_fb_cb(struct msg **msg, struct avp *avp,
         struct session *sess, void *opaque, enum disp_action *act)
 {
-    /* This CB should never be called */
-    ogs_warn("Unexpected message received!");
-
-    return ENOTSUP;
+	/* This CB should never be called */
+	ogs_warn("Unexpected message received!");
+	
+	return ENOTSUP;
 }
 
 void test_cx_send_uar(test_ue_t *test_ue, int id_type)
@@ -237,28 +237,13 @@ static void test_cx_uaa_cb(void *data, struct msg **msg)
 
     /* Search the session, retrieve its data */
     ret = fd_msg_sess_get(fd_g_config->cnf_dict, *msg, &session, &new);
-    if (ret != 0) {
-        ogs_error("fd_msg_sess_get() failed");
-        return;
-    }
-    if (new != 0) {
-        ogs_error("fd_msg_sess_get() failed");
-        return;
-    }
+    ogs_expect_or_return(ret == 0);
+    ogs_expect_or_return(new == 0);
 
     ret = fd_sess_state_retrieve(test_cx_reg, session, &sess_data);
-    if (ret != 0) {
-        ogs_error("fd_sess_state_retrieve() failed");
-        return;
-    }
-    if (!sess_data) {
-        ogs_error("fd_sess_state_retrieve() failed");
-        return;
-    }
-    if ((void *)sess_data != data) {
-        ogs_error("fd_sess_state_retrieve() failed");
-        return;
-    }
+    ogs_expect_or_return(ret == 0);
+    ogs_expect_or_return(sess_data);
+    ogs_expect_or_return((void *)sess_data == data);
 
     test_ue = sess_data->test_ue;
     ogs_assert(test_ue);
@@ -449,10 +434,8 @@ static void test_cx_send_mar(struct sess_state *sess_data)
         uint64_t sqn_ms;
         int i;
 
-        ogs_hex_from_string(
-                test_ue->k_string, test_ue->k, sizeof(test_ue->k));
-        ogs_hex_from_string(
-                test_ue->opc_string, test_ue->opc, sizeof(test_ue->opc));
+        OGS_HEX(test_ue->k_string, strlen(test_ue->k_string), test_ue->k);
+        OGS_HEX(test_ue->opc_string, strlen(test_ue->opc_string), test_ue->opc);
 
         milenage_f2345(test_ue->opc, test_ue->k, test_ue->rand,
                 NULL, NULL, NULL, NULL, ak);
@@ -502,8 +485,8 @@ static void test_cx_send_mar(struct sess_state *sess_data)
     /* Set the Server-Name AVP */
     ret = fd_msg_avp_new(ogs_diam_cx_server_name, 0, &avp);
     ogs_assert(ret == 0);
-    val.os.data = (os0_t)fd_g_config->cnf_diamid;
-    val.os.len = fd_g_config->cnf_diamid_len;
+	val.os.data = (os0_t)fd_g_config->cnf_diamid;
+	val.os.len = fd_g_config->cnf_diamid_len;
     ret = fd_msg_avp_setvalue(avp, &val);
     ogs_assert(ret == 0);
     ret = fd_msg_avp_add(req, MSG_BRW_LAST_CHILD, avp);
@@ -558,28 +541,13 @@ static void test_cx_maa_cb(void *data, struct msg **msg)
 
     /* Search the session, retrieve its data */
     ret = fd_msg_sess_get(fd_g_config->cnf_dict, *msg, &session, &new);
-    if (ret != 0) {
-        ogs_error("fd_msg_sess_get() failed");
-        return;
-    }
-    if (new != 0) {
-        ogs_error("fd_msg_sess_get() failed");
-        return;
-    }
+    ogs_expect_or_return(ret == 0);
+    ogs_expect_or_return(new == 0);
 
     ret = fd_sess_state_retrieve(test_cx_reg, session, &sess_data);
-    if (ret != 0) {
-        ogs_error("fd_sess_state_retrieve() failed");
-        return;
-    }
-    if (!sess_data) {
-        ogs_error("fd_sess_state_retrieve() failed");
-        return;
-    }
-    if ((void *)sess_data != data) {
-        ogs_error("fd_sess_state_retrieve() failed");
-        return;
-    }
+    ogs_expect_or_return(ret == 0);
+    ogs_expect_or_return(sess_data);
+    ogs_expect_or_return((void *)sess_data == data);
 
     test_ue = sess_data->test_ue;
     ogs_assert(test_ue);
@@ -767,8 +735,8 @@ static void test_cx_send_sar(struct sess_state *sess_data)
     /* Set the Server-Name AVP */
     ret = fd_msg_avp_new(ogs_diam_cx_server_name, 0, &avp);
     ogs_assert(ret == 0);
-    val.os.data = (os0_t)fd_g_config->cnf_diamid;
-    val.os.len = fd_g_config->cnf_diamid_len;
+	val.os.data = (os0_t)fd_g_config->cnf_diamid;
+	val.os.len = fd_g_config->cnf_diamid_len;
     ret = fd_msg_avp_setvalue(avp, &val);
     ogs_assert(ret == 0);
     ret = fd_msg_avp_add(req, MSG_BRW_LAST_CHILD, avp);
@@ -841,28 +809,13 @@ static void test_cx_saa_cb(void *data, struct msg **msg)
 
     /* Search the session, retrieve its data */
     ret = fd_msg_sess_get(fd_g_config->cnf_dict, *msg, &session, &new);
-    if (ret != 0) {
-        ogs_error("fd_msg_sess_get() failed");
-        return;
-    }
-    if (new != 0) {
-        ogs_error("fd_msg_sess_get() failed");
-        return;
-    }
+    ogs_expect_or_return(ret == 0);
+    ogs_expect_or_return(new == 0);
 
     ret = fd_sess_state_retrieve(test_cx_reg, session, &sess_data);
-    if (ret != 0) {
-        ogs_error("fd_sess_state_retrieve() failed");
-        return;
-    }
-    if (!sess_data) {
-        ogs_error("fd_sess_state_retrieve() failed");
-        return;
-    }
-    if ((void *)sess_data != data) {
-        ogs_error("fd_sess_state_retrieve() failed");
-        return;
-    }
+    ogs_expect_or_return(ret == 0);
+    ogs_expect_or_return(sess_data);
+    ogs_expect_or_return((void *)sess_data == data);
 
     test_ue = sess_data->test_ue;
     ogs_assert(test_ue);
@@ -1085,28 +1038,13 @@ static void test_cx_lia_cb(void *data, struct msg **msg)
 
     /* Search the session, retrieve its data */
     ret = fd_msg_sess_get(fd_g_config->cnf_dict, *msg, &session, &new);
-    if (ret != 0) {
-        ogs_error("fd_msg_sess_get() failed");
-        return;
-    }
-    if (new != 0) {
-        ogs_error("fd_msg_sess_get() failed");
-        return;
-    }
+    ogs_expect_or_return(ret == 0);
+    ogs_expect_or_return(new == 0);
 
     ret = fd_sess_state_retrieve(test_cx_reg, session, &sess_data);
-    if (ret != 0) {
-        ogs_error("fd_sess_state_retrieve() failed");
-        return;
-    }
-    if (!sess_data) {
-        ogs_error("fd_sess_state_retrieve() failed");
-        return;
-    }
-    if ((void *)sess_data != data) {
-        ogs_error("fd_sess_state_retrieve() failed");
-        return;
-    }
+    ogs_expect_or_return(ret == 0);
+    ogs_expect_or_return(sess_data);
+    ogs_expect_or_return((void *)sess_data == data);
 
     test_ue = sess_data->test_ue;
     ogs_assert(test_ue);
@@ -1191,38 +1129,38 @@ static void test_cx_lia_cb(void *data, struct msg **msg)
 int test_cx_init(void)
 {
     int ret;
-    struct disp_when data;
+	struct disp_when data;
 
-    /* Install objects definitions for this application */
-    ret = ogs_diam_cx_init();
+	/* Install objects definitions for this application */
+	ret = ogs_diam_cx_init();
     ogs_assert(ret == 0);
 
     /* Create handler for sessions */
-    ret = fd_sess_handler_create(&test_cx_reg, &state_cleanup, NULL, NULL);
+	ret = fd_sess_handler_create(&test_cx_reg, &state_cleanup, NULL, NULL);
     ogs_assert(ret == 0);
 
-    /* Fallback CB if command != unexpected message received */
-    memset(&data, 0, sizeof(data));
-    data.app = ogs_diam_cx_application;
+	/* Fallback CB if command != unexpected message received */
+	memset(&data, 0, sizeof(data));
+	data.app = ogs_diam_cx_application;
 
-    ret = fd_disp_register(test_cx_fb_cb, DISP_HOW_APPID, &data, NULL,
+	ret = fd_disp_register(test_cx_fb_cb, DISP_HOW_APPID, &data, NULL,
                 &hdl_cx_fb);
     ogs_assert(ret == 0);
-
-    /* Advertise the support for the application in the peer */
-    ret = fd_disp_app_support(ogs_diam_cx_application, ogs_diam_vendor, 1, 0);
+	
+	/* Advertise the support for the application in the peer */
+	ret = fd_disp_app_support(ogs_diam_cx_application, ogs_diam_vendor, 1, 0);
     ogs_assert(ret == 0);
 
-    return 0;
+	return 0;
 }
 
 void test_cx_final(void)
 {
     int ret;
 
-    ret = fd_sess_handler_destroy(&test_cx_reg, NULL);
+	ret = fd_sess_handler_destroy(&test_cx_reg, NULL);
     ogs_assert(ret == OGS_OK);
 
-    if (hdl_cx_fb)
-        (void) fd_disp_unregister(&hdl_cx_fb, NULL);
+	if (hdl_cx_fb)
+		(void) fd_disp_unregister(&hdl_cx_fb, NULL);
 }

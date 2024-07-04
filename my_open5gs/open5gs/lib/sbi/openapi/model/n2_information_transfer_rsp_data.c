@@ -22,26 +22,18 @@ OpenAPI_n2_information_transfer_rsp_data_t *OpenAPI_n2_information_transfer_rsp_
 
 void OpenAPI_n2_information_transfer_rsp_data_free(OpenAPI_n2_information_transfer_rsp_data_t *n2_information_transfer_rsp_data)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == n2_information_transfer_rsp_data) {
         return;
     }
-    if (n2_information_transfer_rsp_data->pws_rsp_data) {
-        OpenAPI_pws_response_data_free(n2_information_transfer_rsp_data->pws_rsp_data);
-        n2_information_transfer_rsp_data->pws_rsp_data = NULL;
-    }
-    if (n2_information_transfer_rsp_data->supported_features) {
-        ogs_free(n2_information_transfer_rsp_data->supported_features);
-        n2_information_transfer_rsp_data->supported_features = NULL;
-    }
+    OpenAPI_lnode_t *node;
+    OpenAPI_pws_response_data_free(n2_information_transfer_rsp_data->pws_rsp_data);
+    ogs_free(n2_information_transfer_rsp_data->supported_features);
     ogs_free(n2_information_transfer_rsp_data);
 }
 
 cJSON *OpenAPI_n2_information_transfer_rsp_data_convertToJSON(OpenAPI_n2_information_transfer_rsp_data_t *n2_information_transfer_rsp_data)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (n2_information_transfer_rsp_data == NULL) {
         ogs_error("OpenAPI_n2_information_transfer_rsp_data_convertToJSON() failed [N2InformationTransferRspData]");
@@ -49,10 +41,6 @@ cJSON *OpenAPI_n2_information_transfer_rsp_data_convertToJSON(OpenAPI_n2_informa
     }
 
     item = cJSON_CreateObject();
-    if (n2_information_transfer_rsp_data->result == OpenAPI_n2_information_transfer_result_NULL) {
-        ogs_error("OpenAPI_n2_information_transfer_rsp_data_convertToJSON() failed [result]");
-        return NULL;
-    }
     if (cJSON_AddStringToObject(item, "result", OpenAPI_n2_information_transfer_result_ToString(n2_information_transfer_rsp_data->result)) == NULL) {
         ogs_error("OpenAPI_n2_information_transfer_rsp_data_convertToJSON() failed [result]");
         goto end;
@@ -85,35 +73,30 @@ end:
 OpenAPI_n2_information_transfer_rsp_data_t *OpenAPI_n2_information_transfer_rsp_data_parseFromJSON(cJSON *n2_information_transfer_rsp_dataJSON)
 {
     OpenAPI_n2_information_transfer_rsp_data_t *n2_information_transfer_rsp_data_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *result = NULL;
-    OpenAPI_n2_information_transfer_result_e resultVariable = 0;
-    cJSON *pws_rsp_data = NULL;
-    OpenAPI_pws_response_data_t *pws_rsp_data_local_nonprim = NULL;
-    cJSON *supported_features = NULL;
-    result = cJSON_GetObjectItemCaseSensitive(n2_information_transfer_rsp_dataJSON, "result");
+    cJSON *result = cJSON_GetObjectItemCaseSensitive(n2_information_transfer_rsp_dataJSON, "result");
     if (!result) {
         ogs_error("OpenAPI_n2_information_transfer_rsp_data_parseFromJSON() failed [result]");
         goto end;
     }
+
+    OpenAPI_n2_information_transfer_result_e resultVariable;
     if (!cJSON_IsString(result)) {
         ogs_error("OpenAPI_n2_information_transfer_rsp_data_parseFromJSON() failed [result]");
         goto end;
     }
     resultVariable = OpenAPI_n2_information_transfer_result_FromString(result->valuestring);
 
-    pws_rsp_data = cJSON_GetObjectItemCaseSensitive(n2_information_transfer_rsp_dataJSON, "pwsRspData");
+    cJSON *pws_rsp_data = cJSON_GetObjectItemCaseSensitive(n2_information_transfer_rsp_dataJSON, "pwsRspData");
+
+    OpenAPI_pws_response_data_t *pws_rsp_data_local_nonprim = NULL;
     if (pws_rsp_data) {
     pws_rsp_data_local_nonprim = OpenAPI_pws_response_data_parseFromJSON(pws_rsp_data);
-    if (!pws_rsp_data_local_nonprim) {
-        ogs_error("OpenAPI_pws_response_data_parseFromJSON failed [pws_rsp_data]");
-        goto end;
-    }
     }
 
-    supported_features = cJSON_GetObjectItemCaseSensitive(n2_information_transfer_rsp_dataJSON, "supportedFeatures");
+    cJSON *supported_features = cJSON_GetObjectItemCaseSensitive(n2_information_transfer_rsp_dataJSON, "supportedFeatures");
+
     if (supported_features) {
-    if (!cJSON_IsString(supported_features) && !cJSON_IsNull(supported_features)) {
+    if (!cJSON_IsString(supported_features)) {
         ogs_error("OpenAPI_n2_information_transfer_rsp_data_parseFromJSON() failed [supported_features]");
         goto end;
     }
@@ -122,15 +105,11 @@ OpenAPI_n2_information_transfer_rsp_data_t *OpenAPI_n2_information_transfer_rsp_
     n2_information_transfer_rsp_data_local_var = OpenAPI_n2_information_transfer_rsp_data_create (
         resultVariable,
         pws_rsp_data ? pws_rsp_data_local_nonprim : NULL,
-        supported_features && !cJSON_IsNull(supported_features) ? ogs_strdup(supported_features->valuestring) : NULL
+        supported_features ? ogs_strdup(supported_features->valuestring) : NULL
     );
 
     return n2_information_transfer_rsp_data_local_var;
 end:
-    if (pws_rsp_data_local_nonprim) {
-        OpenAPI_pws_response_data_free(pws_rsp_data_local_nonprim);
-        pws_rsp_data_local_nonprim = NULL;
-    }
     return NULL;
 }
 

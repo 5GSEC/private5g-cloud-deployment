@@ -92,114 +92,114 @@ home/open5gs/install/lib/x86_64-linux-gnu/libfdcore.so.7(+0x67c3c) [0x7f3b715f9c
 At this time, you need to check the DB schema is in the form below by using the command the below.
 
 ```
-$ mongosh
+$ mongo
 > use open5gs
 > db.subscribers.find().pretty()
 {
-    "_id" : ObjectId("60969fe79459f8b40d8d3f68"),
-    "imsi" : "999700000000001",
-    "__v" : 0,
-    "access_restriction_data" : 32,
-    "ambr" : {
-        "uplink" : {
-            "value" : 1,
-            "unit" : 3
-        },
-        "downlink" : {
-            "value" : 1,
-            "unit" : 3
-        }
-    },
-    "network_access_mode" : 2,
-    "security" : {
-        "k" : "465b5ce8b199b49faa5f0a2ee238a6bc",
-        "amf" : "8000",
-        "op" : null,
-        "opc" : "e8ed289deba952e4283b54e88e6183ca",
-        "sqn" : NumberLong(97)
-    },
-    "slice" : [
-        {
-            "sst" : 1,
-            "default_indicator" : true,
-            "_id" : ObjectId("60969fe7de8743b3c7b1a973"),
-            "session" : [
-                {
-                    "name" : "internet",
-                    "type" : 3,
-                    "_id" : ObjectId("60969fe7de8743b3c7b1a974"),
-                    "pcc_rule" : [ ],
-                    "ambr" : {
-                        "uplink" : {
-                            "value" : 1,
-                            "unit" : 3
-                        },
-                        "downlink" : {
-                            "value" : 1,
-                            "unit" : 3
-                        }
-                    },
-                    "qos" : {
-                        "index" : 9,
-                        "arp" : {
-                            "priority_level" : 8,
-                            "pre_emption_capability" : 1,
-                            "pre_emption_vulnerability" : 1
-                        }
-                    }
-                }
-            ]
-        }
-    ],
-    "subscribed_rau_tau_timer" : 12,
-    "subscriber_status" : 0
+	"_id" : ObjectId("60969fe79459f8b40d8d3f68"),
+	"imsi" : "999700000000001",
+	"__v" : 0,
+	"access_restriction_data" : 32,
+	"ambr" : {
+		"uplink" : {
+			"value" : 1,
+			"unit" : 3
+		},
+		"downlink" : {
+			"value" : 1,
+			"unit" : 3
+		}
+	},
+	"network_access_mode" : 2,
+	"security" : {
+		"k" : "465b5ce8b199b49faa5f0a2ee238a6bc",
+		"amf" : "8000",
+		"op" : null,
+		"opc" : "e8ed289deba952e4283b54e88e6183ca",
+		"sqn" : NumberLong(97)
+	},
+	"slice" : [
+		{
+			"sst" : 1,
+			"default_indicator" : true,
+			"_id" : ObjectId("60969fe7de8743b3c7b1a973"),
+			"session" : [
+				{
+					"name" : "internet",
+					"type" : 3,
+					"_id" : ObjectId("60969fe7de8743b3c7b1a974"),
+					"pcc_rule" : [ ],
+					"ambr" : {
+						"uplink" : {
+							"value" : 1,
+							"unit" : 3
+						},
+						"downlink" : {
+							"value" : 1,
+							"unit" : 3
+						}
+					},
+					"qos" : {
+						"index" : 9,
+						"arp" : {
+							"priority_level" : 8,
+							"pre_emption_capability" : 1,
+							"pre_emption_vulnerability" : 1
+						}
+					}
+				}
+			]
+		}
+	],
+	"subscribed_rau_tau_timer" : 12,
+	"subscriber_status" : 0
 }
 ```
 
 If you see below, you are using the old format DB schema.
 
 ```
-$ mongosh
+$ mongo
 > use open5gs
 > db.subscribers.find().pretty()
 {
-    "_id" : ObjectId("609715fda08851a0744e6ae7"),
-    "imsi" : "999700000021309",
-    "__v" : 0,
-    "access_restriction_data" : 32,
-    "ambr" : {
-        "downlink" : NumberLong(1000000),
-        "uplink" : NumberLong(1000000)
-    },
-    "network_access_mode" : 2,
-    "pdn" : [
-        {
-            "apn" : "internet",
-            "_id" : ObjectId("609715fd455bcd38c884ce85"),
-            "pcc_rule" : [ ],
-            "ambr" : {
-                "downlink" : NumberLong(1000000),
-                "uplink" : NumberLong(1000000)
-            },
-            "qos" : {
-                "qci" : 9,
-                "arp" : {
-                    "priority_level" : 8,
-                    "pre_emption_vulnerability" : 1,
-                    "pre_emption_capability" : 0
-                }
-            },
-            "type" : 0
-        }
-    ],
-    "security" : {
-        "k" : "70D49A71DD1A2B806A25ABE0EF749F1E",
-        "amf" : "8000",
-        "op" : null,
-        "opc" : "6F1BF53D624B3A43AF6592854E2444C7"
-    },
-    "subscribed_rau_tau_timer" : 12,
-    "subscriber_status" : 0
+	"_id" : ObjectId("609715fda08851a0744e6ae7"),
+	"imsi" : "999700000021309",
+	"__v" : 0,
+	"access_restriction_data" : 32,
+	"ambr" : {
+		"downlink" : NumberLong(1024000),
+		"uplink" : NumberLong(1024000)
+	},
+	"network_access_mode" : 2,
+	"pdn" : [
+		{
+			"apn" : "internet",
+			"_id" : ObjectId("609715fd455bcd38c884ce85"),
+			"pcc_rule" : [ ],
+			"ambr" : {
+				"downlink" : NumberLong(1024000),
+				"uplink" : NumberLong(1024000)
+			},
+			"qos" : {
+				"qci" : 9,
+				"arp" : {
+					"priority_level" : 8,
+					"pre_emption_vulnerability" : 1,
+					"pre_emption_capability" : 0
+				}
+			},
+			"type" : 0
+		}
+	],
+	"security" : {
+		"k" : "70D49A71DD1A2B806A25ABE0EF749F1E",
+		"amf" : "8000",
+		"op" : null,
+		"opc" : "6F1BF53D624B3A43AF6592854E2444C7"
+	},
+	"subscribed_rau_tau_timer" : 12,
+	"subscriber_status" : 0
 }
 ```
 
@@ -207,7 +207,7 @@ If you are using old format DB schema, please perform the following step.
 
 1. First of all, it is recommended to use the following command to remove all existing subscription DB.
 ```
-$ mongosh
+$ mongo
 > use open5gs
 switched to db open5gs
 > db.subscribers.drop()
@@ -221,17 +221,17 @@ $ curl -fsSL https://open5gs.org/open5gs/assets/webui/install | sudo -E bash -
 4. Log in to the new WebUI and add new subscriber information using your web browser.
 5. Make sure it is a new DB schema as below:
 ```
-$ mongosh
+$ mongo
 > use open5gs
 > db.subscribers.find().pretty()
 {
 ...
-    "slice" : [
-        {
-            "sst" : 1,
-            "default_indicator" : true,
-            "_id" : ObjectId("60969fe7de8743b3c7b1a973"),
-            "session" : [
+	"slice" : [
+		{
+			"sst" : 1,
+			"default_indicator" : true,
+			"_id" : ObjectId("60969fe7de8743b3c7b1a973"),
+			"session" : [
 ...
 }
 ```
@@ -256,7 +256,7 @@ This is a test program bug and has not yet been resolved.
 
 To restart the test program, first remove all subscriber information using MongoDB Client
 ```
-$ mongosh
+$ mongo
 > use open5gs
 switched to db open5gs
 > db.subscribers.find()  ### Check the test subscriber
@@ -276,7 +276,6 @@ $ sudo pkill -9 open5gs-upfd
 $ sudo pkill -9 open5gs-hssd
 $ sudo pkill -9 open5gs-pcrfd
 $ sudo pkill -9 open5gs-nrfd
-$ sudo pkill -9 open5gs-scpd
 $ sudo pkill -9 open5gs-ausfd
 $ sudo pkill -9 open5gs-udmd
 $ sudo pkill -9 open5gs-pcfd
@@ -313,7 +312,7 @@ $ diff --git a/configs/open5gs/amf.yaml.in b/configs/open5gs/amf.yaml.in
 index 7e939e81..dfe4456d 100644
 --- a/configs/open5gs/amf.yaml.in
 +++ b/configs/open5gs/amf.yaml.in
-@@ -315,6 +315,12 @@ amf:
+@@ -199,6 +199,12 @@ amf:
            mnc: 70
          s_nssai:
            - sst: 1
@@ -333,9 +332,9 @@ $ diff --git a/configs/open5gs/smf.yaml.in b/configs/open5gs/smf.yaml.in
 index d45aa60f..701ee533 100644
 --- a/configs/open5gs/smf.yaml.in
 +++ b/configs/open5gs/smf.yaml.in
-@@ -442,6 +442,11 @@ logger:
- #
-
+@@ -317,6 +317,11 @@ logger:
+ # 
+ 
  smf:
 +    info:
 +      - s_nssai:
@@ -352,7 +351,7 @@ $ diff --git a/configs/open5gs/smf.yaml.in b/configs/open5gs/smf.yaml.in
 index d45aa60f..949da220 100644
 --- a/configs/open5gs/smf.yaml.in
 +++ b/configs/open5gs/smf.yaml.in
-@@ -442,6 +442,12 @@ logger:
+@@ -317,6 +317,12 @@ logger:
  #
 
  smf:
@@ -371,7 +370,7 @@ $ diff --git a/configs/open5gs/nssf.yaml.in b/configs/open5gs/nssf.yaml.in
 index ecd4f7e2..04d9c4ba 100644
 --- a/configs/open5gs/nssf.yaml.in
 +++ b/configs/open5gs/nssf.yaml.in
-@@ -201,6 +201,12 @@ nssf:
+@@ -119,6 +119,11 @@ nssf:
          port: 7777
          s_nssai:
            sst: 1
@@ -380,10 +379,9 @@ index ecd4f7e2..04d9c4ba 100644
 +        s_nssai:
 +          sst: 1
 +          sd: 000080
-+
-
+ 
  #
- # scp:
+ # nrf:
 ```
 
 Then add a slice to MongoDB's subscriber info.
@@ -411,7 +409,6 @@ And the process below is only used in 5G, so there is no need to run it.
 
 ```bash
 $ open5gs-nrfd
-$ open5gs-scpd
 $ open5gs-amfd
 $ open5gs-ausfd
 $ open5gs-udmd
@@ -479,8 +476,8 @@ The Open5GS package contains a systemd-networkd configuration file for `ogstun`.
 
 ```diff
 $ diff -u /etc/systemd/network/99-open5gs.network /etc/systemd/network/99-open5gs.network.new
---- /etc/systemd/network/99-open5gs.network    2020-09-17 09:29:09.137392040 -0400
-+++ /etc/systemd/network/99-open5gs.network.new    2020-09-17 09:29:03.375719620 -0400
+--- /etc/systemd/network/99-open5gs.network	2020-09-17 09:29:09.137392040 -0400
++++ /etc/systemd/network/99-open5gs.network.new	2020-09-17 09:29:03.375719620 -0400
 @@ -2,5 +2,5 @@
  Name=ogstun
 
@@ -504,11 +501,11 @@ Now, you need to modify the configuration file of Open5GS to adjust the UE IP Po
 
 ```diff
 $ diff -u smf.yaml smf.yaml.new
---- smf.yaml    2020-09-17 09:31:16.547882093 -0400
-+++ smf.yaml.new    2020-09-17 09:32:18.267726844 -0400
-@@ -458,7 +458,7 @@ smf:
-         addr: 127.0.0.4
-         port: 9090
+--- smf.yaml	2020-09-17 09:31:16.547882093 -0400
++++ smf.yaml.new	2020-09-17 09:32:18.267726844 -0400
+@@ -190,7 +190,7 @@
+       - addr: 127.0.0.4
+       - addr: ::1
      subnet:
 -      - addr: 10.45.0.1/16
 +      - addr: 10.46.0.1/16
@@ -519,9 +516,9 @@ $ diff -u smf.yaml smf.yaml.new
 
 ```diff
 $ diff -u upf.yaml upf.yaml.new
---- upf.yaml    2020-09-17 09:31:16.547882093 -0400
-+++ upf.yaml.new    2020-09-17 09:32:25.199619989 -0400
-@@ -170,7 +170,7 @@ upf:
+--- upf.yaml	2020-09-17 09:31:16.547882093 -0400
++++ upf.yaml.new	2020-09-17 09:32:25.199619989 -0400
+@@ -139,7 +139,7 @@
      gtpu:
        - addr: 127.0.0.7
      subnet:
@@ -599,7 +596,7 @@ Please make sure that MongoDB server daemon is running.
 
 Then, remove all subscriber information using MongoDB Client
 ```
-$ mongosh
+$ mongo
 > use open5gs
 switched to db open5gs
 > db.subscribers.find()  ### Check the test subscriber
@@ -619,7 +616,6 @@ $ sudo pkill -9 open5gs-upfd
 $ sudo pkill -9 open5gs-hssd
 $ sudo pkill -9 open5gs-pcrfd
 $ sudo pkill -9 open5gs-nrfd
-$ sudo pkill -9 open5gs-scpd
 $ sudo pkill -9 open5gs-ausfd
 $ sudo pkill -9 open5gs-udmd
 $ sudo pkill -9 open5gs-pcfd
@@ -770,8 +766,8 @@ Create **newtables** file as below.
 
 ```diff
 $ diff -u oldtables newtables
---- oldtables    2019-06-01 23:43:50.354974226 +0900
-+++ newtables    2019-06-01 23:44:16.110931684 +0900
+--- oldtables	2019-06-01 23:43:50.354974226 +0900
++++ newtables	2019-06-01 23:44:16.110931684 +0900
 @@ -8,6 +8,7 @@
  -A PREROUTING -m addrtype --dst-type LOCAL -j DOCKER
  -A OUTPUT ! -d 127.0.0.0/8 -m addrtype --dst-type LOCAL -j DOCKER
@@ -1002,7 +998,7 @@ attach_test         : -Line 134: Condition is false, but expected true
 
 Remove all subscriber information using MongoDB Client
 ```
-$ mongosh
+$ mongo
 > db.subscribers.find()  ### Check the test subscriber
 > db.subscribers.drop()  ### Remove all subscriber
 > db.subscribers.find()  ### Check that all subscribers are empty
@@ -1081,7 +1077,6 @@ Currently, the number of UE is limited to `128*128`.
 * HSS : 127.0.0.8
 * PCRF : 127.0.0.9
 * NRF : 127.0.0.10
-* SCP : 127.0.1.10
 * AUSF : 127.0.0.11
 * UDM : 127.0.0.12
 * PCF : 127.0.0.13
@@ -1278,10 +1273,10 @@ $ echo $(cd $(dirname ./install/lib/x86_64-linux-gnu/) && pwd -P)/$(basename ./i
 $ export LD_LIBRARY_PATH=/home/acetcom/Documents/git/open5gs/install/lib/x86_64-linux-gnu
 $ ldd ./install/bin/open5gs-amfd
 ...
-    libogsapp.so.1 => /home/acetcom/Documents/git/open5gs/install/lib/x86_64-linux-gnu/libogsapp.so.1 (0x00007f161ab51000)
-    libogscore.so.1 => /home/acetcom/Documents/git/open5gs/install/lib/x86_64-linux-gnu/libogscore.so.1 (0x00007f161a922000)
-    libogssctp.so.1 => /home/acetcom/Documents/git/open5gs/install/lib/x86_64-linux-gnu/libogssctp.so.1 (0x00007f161a71d000)
-    libogss1ap.so.1 => /home/acetcom/Documents/git/open5gs/install/lib/x86_64-linux-gnu/libogss1ap.so.1 (0x00007f161a519000)
+	libogsapp.so.1 => /home/acetcom/Documents/git/open5gs/install/lib/x86_64-linux-gnu/libogsapp.so.1 (0x00007f161ab51000)
+	libogscore.so.1 => /home/acetcom/Documents/git/open5gs/install/lib/x86_64-linux-gnu/libogscore.so.1 (0x00007f161a922000)
+	libogssctp.so.1 => /home/acetcom/Documents/git/open5gs/install/lib/x86_64-linux-gnu/libogssctp.so.1 (0x00007f161a71d000)
+	libogss1ap.so.1 => /home/acetcom/Documents/git/open5gs/install/lib/x86_64-linux-gnu/libogss1ap.so.1 (0x00007f161a519000)
 ...
 ```
 

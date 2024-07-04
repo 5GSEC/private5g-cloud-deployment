@@ -23,12 +23,14 @@ static ogs_thread_t *thread;
 static void nrf_main(void *data);
 static int initialized = 0;
 
-int nrf_initialize(void)
+int nrf_initialize()
 {
     int rv;
 
-    ogs_sbi_context_init(OpenAPI_nf_type_NRF);
+    ogs_sbi_context_init();
+
     nrf_context_init();
+    nrf_event_init();
 
     rv = ogs_sbi_context_parse_config("nrf", NULL, "scp");
     if (rv != OGS_OK) return rv;
@@ -83,6 +85,8 @@ void nrf_terminate(void)
 
     nrf_context_final();
     ogs_sbi_context_final();
+
+    nrf_event_final(); /* Destroy event */
 }
 
 static void nrf_main(void *data)
@@ -90,7 +94,8 @@ static void nrf_main(void *data)
     ogs_fsm_t nrf_sm;
     int rv;
 
-    ogs_fsm_init(&nrf_sm, nrf_state_initial, nrf_state_final, 0);
+    ogs_fsm_create(&nrf_sm, nrf_state_initial, nrf_state_final);
+    ogs_fsm_init(&nrf_sm, 0);
 
     for ( ;; ) {
         ogs_pollset_poll(ogs_app()->pollset,
@@ -123,10 +128,11 @@ static void nrf_main(void *data)
 
             ogs_assert(e);
             ogs_fsm_dispatch(&nrf_sm, e);
-            ogs_event_free(e);
+            nrf_event_free(e);
         }
     }
 done:
 
     ogs_fsm_fini(&nrf_sm, 0);
+    ogs_fsm_delete(&nrf_sm);
 }

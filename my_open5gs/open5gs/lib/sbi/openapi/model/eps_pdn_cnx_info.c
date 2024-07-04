@@ -5,8 +5,8 @@
 #include "eps_pdn_cnx_info.h"
 
 OpenAPI_eps_pdn_cnx_info_t *OpenAPI_eps_pdn_cnx_info_create(
-    char *pgw_s8c_fteid,
-    char *pgw_node_name,
+    char pgw_s8c_fteid,
+    char pgw_node_name,
     bool is_linked_bearer_id,
     int linked_bearer_id
 )
@@ -24,26 +24,16 @@ OpenAPI_eps_pdn_cnx_info_t *OpenAPI_eps_pdn_cnx_info_create(
 
 void OpenAPI_eps_pdn_cnx_info_free(OpenAPI_eps_pdn_cnx_info_t *eps_pdn_cnx_info)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == eps_pdn_cnx_info) {
         return;
     }
-    if (eps_pdn_cnx_info->pgw_s8c_fteid) {
-        ogs_free(eps_pdn_cnx_info->pgw_s8c_fteid);
-        eps_pdn_cnx_info->pgw_s8c_fteid = NULL;
-    }
-    if (eps_pdn_cnx_info->pgw_node_name) {
-        ogs_free(eps_pdn_cnx_info->pgw_node_name);
-        eps_pdn_cnx_info->pgw_node_name = NULL;
-    }
+    OpenAPI_lnode_t *node;
     ogs_free(eps_pdn_cnx_info);
 }
 
 cJSON *OpenAPI_eps_pdn_cnx_info_convertToJSON(OpenAPI_eps_pdn_cnx_info_t *eps_pdn_cnx_info)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (eps_pdn_cnx_info == NULL) {
         ogs_error("OpenAPI_eps_pdn_cnx_info_convertToJSON() failed [EpsPdnCnxInfo]");
@@ -51,17 +41,13 @@ cJSON *OpenAPI_eps_pdn_cnx_info_convertToJSON(OpenAPI_eps_pdn_cnx_info_t *eps_pd
     }
 
     item = cJSON_CreateObject();
-    if (!eps_pdn_cnx_info->pgw_s8c_fteid) {
-        ogs_error("OpenAPI_eps_pdn_cnx_info_convertToJSON() failed [pgw_s8c_fteid]");
-        return NULL;
-    }
-    if (cJSON_AddStringToObject(item, "pgwS8cFteid", eps_pdn_cnx_info->pgw_s8c_fteid) == NULL) {
+    if (cJSON_AddNumberToObject(item, "pgwS8cFteid", eps_pdn_cnx_info->pgw_s8c_fteid) == NULL) {
         ogs_error("OpenAPI_eps_pdn_cnx_info_convertToJSON() failed [pgw_s8c_fteid]");
         goto end;
     }
 
     if (eps_pdn_cnx_info->pgw_node_name) {
-    if (cJSON_AddStringToObject(item, "pgwNodeName", eps_pdn_cnx_info->pgw_node_name) == NULL) {
+    if (cJSON_AddNumberToObject(item, "pgwNodeName", eps_pdn_cnx_info->pgw_node_name) == NULL) {
         ogs_error("OpenAPI_eps_pdn_cnx_info_convertToJSON() failed [pgw_node_name]");
         goto end;
     }
@@ -81,29 +67,28 @@ end:
 OpenAPI_eps_pdn_cnx_info_t *OpenAPI_eps_pdn_cnx_info_parseFromJSON(cJSON *eps_pdn_cnx_infoJSON)
 {
     OpenAPI_eps_pdn_cnx_info_t *eps_pdn_cnx_info_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *pgw_s8c_fteid = NULL;
-    cJSON *pgw_node_name = NULL;
-    cJSON *linked_bearer_id = NULL;
-    pgw_s8c_fteid = cJSON_GetObjectItemCaseSensitive(eps_pdn_cnx_infoJSON, "pgwS8cFteid");
+    cJSON *pgw_s8c_fteid = cJSON_GetObjectItemCaseSensitive(eps_pdn_cnx_infoJSON, "pgwS8cFteid");
     if (!pgw_s8c_fteid) {
         ogs_error("OpenAPI_eps_pdn_cnx_info_parseFromJSON() failed [pgw_s8c_fteid]");
         goto end;
     }
-    if (!cJSON_IsString(pgw_s8c_fteid)) {
+
+    if (!cJSON_IsNumber(pgw_s8c_fteid)) {
         ogs_error("OpenAPI_eps_pdn_cnx_info_parseFromJSON() failed [pgw_s8c_fteid]");
         goto end;
     }
 
-    pgw_node_name = cJSON_GetObjectItemCaseSensitive(eps_pdn_cnx_infoJSON, "pgwNodeName");
+    cJSON *pgw_node_name = cJSON_GetObjectItemCaseSensitive(eps_pdn_cnx_infoJSON, "pgwNodeName");
+
     if (pgw_node_name) {
-    if (!cJSON_IsString(pgw_node_name) && !cJSON_IsNull(pgw_node_name)) {
+    if (!cJSON_IsNumber(pgw_node_name)) {
         ogs_error("OpenAPI_eps_pdn_cnx_info_parseFromJSON() failed [pgw_node_name]");
         goto end;
     }
     }
 
-    linked_bearer_id = cJSON_GetObjectItemCaseSensitive(eps_pdn_cnx_infoJSON, "linkedBearerId");
+    cJSON *linked_bearer_id = cJSON_GetObjectItemCaseSensitive(eps_pdn_cnx_infoJSON, "linkedBearerId");
+
     if (linked_bearer_id) {
     if (!cJSON_IsNumber(linked_bearer_id)) {
         ogs_error("OpenAPI_eps_pdn_cnx_info_parseFromJSON() failed [linked_bearer_id]");
@@ -112,8 +97,8 @@ OpenAPI_eps_pdn_cnx_info_t *OpenAPI_eps_pdn_cnx_info_parseFromJSON(cJSON *eps_pd
     }
 
     eps_pdn_cnx_info_local_var = OpenAPI_eps_pdn_cnx_info_create (
-        ogs_strdup(pgw_s8c_fteid->valuestring),
-        pgw_node_name && !cJSON_IsNull(pgw_node_name) ? ogs_strdup(pgw_node_name->valuestring) : NULL,
+        pgw_s8c_fteid->valueint,
+        pgw_node_name ? pgw_node_name->valueint : 0,
         linked_bearer_id ? true : false,
         linked_bearer_id ? linked_bearer_id->valuedouble : 0
     );

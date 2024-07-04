@@ -67,7 +67,7 @@ void s1ap_state_operational(ogs_fsm_t *s, mme_event_t *e)
         break;
     case OGS_FSM_EXIT_SIG:
         break;
-    case MME_EVENT_S1AP_MESSAGE:
+    case MME_EVT_S1AP_MESSAGE:
         pdu = e->s1ap_message;
         ogs_assert(pdu);
 
@@ -86,9 +86,6 @@ void s1ap_state_operational(ogs_fsm_t *s, mme_event_t *e)
             switch (initiatingMessage->procedureCode) {
             case S1AP_ProcedureCode_id_S1Setup :
                 s1ap_handle_s1_setup_request(enb, pdu);
-                break;
-            case S1AP_ProcedureCode_id_ENBConfigurationUpdate:
-                s1ap_handle_enb_configuration_update(enb, pdu);
                 break;
             case S1AP_ProcedureCode_id_initialUEMessage :
                 s1ap_handle_initial_ue_message(enb, pdu);
@@ -131,9 +128,6 @@ void s1ap_state_operational(ogs_fsm_t *s, mme_event_t *e)
                 break;
             case S1AP_ProcedureCode_id_NASNonDeliveryIndication:
                 /* TODO */
-                break;
-            case S1AP_ProcedureCode_id_eNBDirectInformationTransfer:
-                s1ap_handle_enb_direct_information_transfer(enb, pdu);
                 break;
             case S1AP_ProcedureCode_id_E_RABModificationIndication:
                 s1ap_handle_e_rab_modification_indication(enb, pdu);

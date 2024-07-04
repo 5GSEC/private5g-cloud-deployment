@@ -52,32 +52,27 @@ static void security_test1(abts_case *tc, void *data)
 
     uint8_t tmp[16];
 
-    milenage_opc(ogs_hex_from_string(_k, k, sizeof(k)),
-            ogs_hex_from_string(_op, op, sizeof(op)), opc);
-    ABTS_TRUE(tc, memcmp(opc,
-                ogs_hex_from_string(_opc, tmp, sizeof(tmp)), 16) == 0);
+    milenage_opc(OGS_HEX(_k, strlen(_k), k), 
+            OGS_HEX(_op, strlen(_op), op), opc);
+    ABTS_TRUE(tc, memcmp(opc, OGS_HEX(_opc, strlen(_opc), tmp), 16) == 0);
 
     milenage_f1(opc, k, 
-        ogs_hex_from_string(_rand, rand, sizeof(rand)),
-        ogs_hex_from_string(_sqn, sqn, sizeof(sqn)),
-        ogs_hex_from_string(_amf, amf, sizeof(amf)),
+        OGS_HEX(_rand, strlen(_rand), rand),
+        OGS_HEX(_sqn, strlen(_sqn), sqn),
+        OGS_HEX(_amf, strlen(_amf), amf),
         mac_a, mac_s);
     ABTS_TRUE(tc, memcmp(mac_a, 
-        ogs_hex_from_string(_mac_a, tmp, sizeof(tmp)), 8) == 0);
+        OGS_HEX(_mac_a, strlen(_mac_a), tmp), 8) == 0);
     ABTS_TRUE(tc, memcmp(mac_s, 
-        ogs_hex_from_string(_mac_s, tmp, sizeof(tmp)), 8) == 0);
+        OGS_HEX(_mac_s, strlen(_mac_s), tmp), 8) == 0);
 
     milenage_f2345(opc, k, rand, res, ck, ik, ak, akstar);
-    ABTS_TRUE(tc, memcmp(res,
-                ogs_hex_from_string(_res, tmp, sizeof(tmp)), 8) == 0);
-    ABTS_TRUE(tc, memcmp(ck,
-                ogs_hex_from_string(_ck, tmp, sizeof(tmp)), 16) == 0);
-    ABTS_TRUE(tc, memcmp(ik,
-                ogs_hex_from_string(_ik, tmp, sizeof(tmp)), 16) == 0);
-    ABTS_TRUE(tc, memcmp(ak,
-                ogs_hex_from_string(_ak, tmp, sizeof(tmp)), 6) == 0);
+    ABTS_TRUE(tc, memcmp(res, OGS_HEX(_res, strlen(_res), tmp), 8) == 0);
+    ABTS_TRUE(tc, memcmp(ck, OGS_HEX(_ck, strlen(_ck), tmp), 16) == 0);
+    ABTS_TRUE(tc, memcmp(ik, OGS_HEX(_ik, strlen(_ik), tmp), 16) == 0);
+    ABTS_TRUE(tc, memcmp(ak, OGS_HEX(_ak, strlen(_ak), tmp), 6) == 0);
     ABTS_TRUE(tc, memcmp(akstar, 
-        ogs_hex_from_string(_akstar, tmp, sizeof(tmp)), 6) == 0);
+        OGS_HEX(_akstar, strlen(_akstar), tmp), 6) == 0);
 }
 
 static void security_test2(abts_case *tc, void *data)
@@ -91,12 +86,11 @@ static void security_test2(abts_case *tc, void *data)
     uint8_t hmac[32];
     uint8_t tmp[32];
 
-    ogs_hmac_sha256(ogs_hex_from_string(_key, key, sizeof(key)), 4,
-        ogs_hex_from_string(_message, message, sizeof(message)), 28,
+    ogs_hmac_sha256(OGS_HEX(_key, strlen(_key), key), 4,
+        OGS_HEX(_message, strlen(_message), message), 28,
         hmac, 32);
 
-    ABTS_TRUE(tc, memcmp(hmac,
-                ogs_hex_from_string(_hmac, tmp, sizeof(tmp)), 32) == 0);
+    ABTS_TRUE(tc, memcmp(hmac, OGS_HEX(_hmac, strlen(_hmac), tmp), 32) == 0);
 }
 
 static void security_test3(abts_case *tc, void *data)
@@ -117,15 +111,15 @@ static void security_test3(abts_case *tc, void *data)
     uint8_t tmp[32];
 
     ogs_auc_kasme(
-        ogs_hex_from_string(_ck, ck, sizeof(ck)),
-        ogs_hex_from_string(_ik, ik, sizeof(ik)),
-        ogs_hex_from_string(_plmn_id, plmn_id, sizeof(plmn_id)),
-        ogs_hex_from_string(_sqn, sqn, sizeof(sqn)),
-        ogs_hex_from_string(_ak, ak, sizeof(ak)),
+        OGS_HEX(_ck, strlen(_ck), ck),
+        OGS_HEX(_ik, strlen(_ik), ik),
+        OGS_HEX(_plmn_id, strlen(_plmn_id), plmn_id),
+        OGS_HEX(_sqn, strlen(_sqn), sqn),
+        OGS_HEX(_ak, strlen(_ak), ak),
         kasme);
 
     ABTS_TRUE(tc, 
-        memcmp(kasme, ogs_hex_from_string(_kasme, tmp, sizeof(tmp)), 32) == 0);
+        memcmp(kasme, OGS_HEX(_kasme, strlen(_kasme), tmp), 32) == 0);
 }
 
 static void security_test4(abts_case *tc, void *data)
@@ -142,12 +136,11 @@ static void security_test4(abts_case *tc, void *data)
     uint8_t mac[4];
     ogs_pkbuf_t *pkbuf = NULL;
 
-    snow_3g_f9(ogs_hex_from_string(_ik, ik, sizeof(ik)),
+    snow_3g_f9(OGS_HEX(_ik, strlen(_ik), ik),
         0x38a6f056, ((int64_t)0x1f << 27), 0, 
-        ogs_hex_from_string(_message, message, sizeof(message)),
+        OGS_HEX(_message, strlen(_message), message),
         SECURITY_TEST4_BIT_LEN, mact);
-    ABTS_TRUE(tc, memcmp(mact,
-                ogs_hex_from_string(_mact, tmp, sizeof(tmp)), 4) == 0);
+    ABTS_TRUE(tc, memcmp(mact, OGS_HEX(_mact, strlen(_mact), tmp), 4) == 0);
 
     pkbuf = ogs_pkbuf_alloc(NULL, OGS_NAS_HEADROOM+SECURITY_TEST4_LEN);
     ogs_assert(pkbuf);
@@ -186,22 +179,13 @@ static void security_test5(abts_case *tc, void *data)
     uint8_t tmp[SECURITY_TEST5_LEN];
     ogs_pkbuf_t *pkbuf = NULL;
 
-#if 0 /* Issue #2581 : snow_3g_f8 have memory problem */
     snow_3g_f8(
-        ogs_hex_from_string(_ck, ck, sizeof(ck)),
+        OGS_HEX(_ck, strlen(_ck), ck),
         0x72a4f20f, 0x0c, 1,
-        ogs_hex_from_string(_plain, plain, sizeof(plain)),
+        OGS_HEX(_plain, strlen(_plain), plain),
         SECURITY_TEST5_BIT_LEN);
-#else
-    SNOW_CTX ctx;
-
-    ogs_hex_from_string(_plain, plain, sizeof(plain));
-    SNOW_init(0x72a4f20f, 0x0c, 1,
-        ogs_hex_from_string(_ck, ck, sizeof(ck)), &ctx);
-    SNOW(SECURITY_TEST5_LEN, plain, plain, &ctx);
-#endif
     ABTS_TRUE(tc, memcmp(plain, 
-        ogs_hex_from_string(_cipher, tmp, sizeof(tmp)),
+        OGS_HEX(_cipher, strlen(_cipher), tmp),
         SECURITY_TEST5_LEN) == 0);
 
     pkbuf = ogs_pkbuf_alloc(NULL, OGS_NAS_HEADROOM+SECURITY_TEST5_LEN);
@@ -211,8 +195,7 @@ static void security_test5(abts_case *tc, void *data)
 
     ogs_nas_encrypt(OGS_NAS_SECURITY_ALGORITHMS_128_EEA1,
         ck, 0x72a4f20f, 0x0c, 1, pkbuf);
-    ABTS_TRUE(tc, memcmp(pkbuf->data,
-                ogs_hex_from_string(_plain, tmp, sizeof(tmp)),
+    ABTS_TRUE(tc, memcmp(pkbuf->data, OGS_HEX(_plain, strlen(_plain), tmp),
         SECURITY_TEST5_LEN) == 0);
     ogs_pkbuf_free(pkbuf);
 }
@@ -239,16 +222,13 @@ static void security_test6(abts_case *tc, void *data)
     ABTS_PTR_NOTNULL(tc, m);
     memcpy(m, &count, sizeof(uint32_t));
     m[4] = ((0x1a << 3) | (1 << 2));
-    memcpy(m+8,
-            ogs_hex_from_string(_message, message, sizeof(message)), msg_len);
+    memcpy(m+8, OGS_HEX(_message, strlen(_message), message), msg_len);
 
-    ogs_aes_cmac_calculate(mact,
-            ogs_hex_from_string(_ik, ik, sizeof(ik)), m, m_len);
+    ogs_aes_cmac_calculate(mact, OGS_HEX(_ik, strlen(_ik), ik), m, m_len);
 
     ogs_free(m);
 
-    ABTS_TRUE(tc, memcmp(mact,
-                ogs_hex_from_string(_mact, tmp, sizeof(tmp)), 4) == 0);
+    ABTS_TRUE(tc, memcmp(mact, OGS_HEX(_mact, strlen(_mact), tmp), 4) == 0);
 
     pkbuf = ogs_pkbuf_alloc(NULL, OGS_NAS_HEADROOM+SECURITY_TEST6_LEN);
     ogs_assert(pkbuf);
@@ -289,19 +269,18 @@ static void security_test7(abts_case *tc, void *data)
     ivec[4] = (0x0c << 3) | (1 << 2);
 
     ogs_aes_ctr128_encrypt(
-        ogs_hex_from_string(_ck, ck, sizeof(ck)), ivec,
-        ogs_hex_from_string(_plain, plain, sizeof(plain)), SECURITY_TEST7_LEN,
+        OGS_HEX(_ck, strlen(_ck), ck), ivec,
+        OGS_HEX(_plain, strlen(_plain), plain), SECURITY_TEST7_LEN,
         cipher);
 
-    ABTS_TRUE(tc,
-            memcmp(cipher, ogs_hex_from_string(_cipher, tmp, sizeof(tmp)),
-                        SECURITY_TEST7_LEN) == 0);
+    ABTS_TRUE(tc, memcmp(cipher, OGS_HEX(_cipher, strlen(_cipher), tmp),
+        SECURITY_TEST7_LEN) == 0);
 
     memset(ivec, 0, sizeof(ivec));
     memcpy(ivec+0, &count, sizeof(count));
     ivec[4] = (0x0c << 3) | (1 << 2);
 
-    ogs_aes_ctr128_encrypt(ogs_hex_from_string(_ck, ck, sizeof(ck)),
+    ogs_aes_ctr128_encrypt(OGS_HEX(_ck, strlen(_ck), ck),
         ivec, cipher, SECURITY_TEST7_LEN, cipher);
 
     ABTS_TRUE(tc, memcmp(cipher, plain, SECURITY_TEST7_LEN) == 0);
@@ -313,9 +292,8 @@ static void security_test7(abts_case *tc, void *data)
 
     ogs_nas_encrypt(OGS_NAS_SECURITY_ALGORITHMS_128_EEA2,
         ck, 0xc675a64b, 0x0c, 1, pkbuf);
-    ABTS_TRUE(tc,
-            memcmp(pkbuf->data, ogs_hex_from_string(_cipher, tmp, sizeof(tmp)),
-                SECURITY_TEST7_LEN) == 0);
+    ABTS_TRUE(tc, memcmp(pkbuf->data, 
+        OGS_HEX(_cipher, strlen(_cipher), tmp), SECURITY_TEST7_LEN) == 0);
     ogs_pkbuf_free(pkbuf);
 }
 
@@ -337,17 +315,17 @@ static void security_test8(abts_case *tc, void *data)
     uint8_t mac[4];
 
     zuc_eia3(
-        ogs_hex_from_string(_ik, ik, sizeof(ik)),
+        OGS_HEX(_ik, strlen(_ik), ik),
         0xa94059da,
         0xa,
         1,
         SECURITY_TEST8_BIT_LEN,
-        ogs_hex_from_string(_message, message, sizeof(message)),
+        OGS_HEX(_message, strlen(_message), message),
         &mac32);
     mac32 = ntohl(mac32);
 
     ABTS_TRUE(tc, memcmp(&mac32, 
-        ogs_hex_from_string(_mact, mact, sizeof(mact)), 4) == 0);
+        OGS_HEX(_mact, strlen(_mact), mact), 4) == 0);
 
     pkbuf = ogs_pkbuf_alloc(NULL, OGS_NAS_HEADROOM+SECURITY_TEST8_LEN);
     ogs_assert(pkbuf);
@@ -375,23 +353,23 @@ static void security_test9(abts_case *tc, void *data)
     uint8_t tmp[SECURITY_TEST9_LEN];
     ogs_pkbuf_t *pkbuf = NULL;
 
-    ogs_hex_from_string(_plain, plain, sizeof(plain));
+    OGS_HEX(_plain, strlen(_plain), plain);
     zuc_eea3(
-        ogs_hex_from_string(_ck, ck, sizeof(ck)),
+        OGS_HEX(_ck, strlen(_ck), ck),
         0x66035492, 0xf, 0,
         SECURITY_TEST9_BIT_LEN, plain, plain);
 
-    ABTS_TRUE(tc, memcmp(plain, ogs_hex_from_string(_cipher, tmp, sizeof(tmp)),
+    ABTS_TRUE(tc, memcmp(plain, OGS_HEX(_cipher, strlen(_cipher), tmp),
         SECURITY_TEST9_LEN) == 0);
 
     zuc_eea3(
-        ogs_hex_from_string(_ck, ck, sizeof(ck)),
+        OGS_HEX(_ck, strlen(_ck), ck),
         0x66035492, 0xf, 0,
         SECURITY_TEST9_BIT_LEN, 
-        ogs_hex_from_string(_plain, plain, sizeof(plain)),
+        OGS_HEX(_plain, strlen(_plain), plain),
         cipher);
 
-    ABTS_TRUE(tc, memcmp(cipher, ogs_hex_from_string(_cipher, tmp, sizeof(tmp)),
+    ABTS_TRUE(tc, memcmp(cipher, OGS_HEX(_cipher, strlen(_cipher), tmp),
         SECURITY_TEST9_LEN) == 0);
 
     pkbuf = ogs_pkbuf_alloc(NULL, OGS_NAS_HEADROOM+SECURITY_TEST9_LEN);
@@ -401,9 +379,8 @@ static void security_test9(abts_case *tc, void *data)
 
     ogs_nas_encrypt(OGS_NAS_SECURITY_ALGORITHMS_128_EEA3,
         ck, 0x66035492, 0xf, 0, pkbuf);
-    ABTS_TRUE(tc,
-        memcmp(pkbuf->data, ogs_hex_from_string(_cipher, tmp, sizeof(tmp)),
-            SECURITY_TEST9_LEN) == 0);
+    ABTS_TRUE(tc, memcmp(pkbuf->data, 
+        OGS_HEX(_cipher, strlen(_cipher), tmp), SECURITY_TEST9_LEN) == 0);
     ogs_pkbuf_free(pkbuf);
 }
 

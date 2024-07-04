@@ -22,18 +22,16 @@ OpenAPI_ec_restriction_data_wb_t *OpenAPI_ec_restriction_data_wb_create(
 
 void OpenAPI_ec_restriction_data_wb_free(OpenAPI_ec_restriction_data_wb_t *ec_restriction_data_wb)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == ec_restriction_data_wb) {
         return;
     }
+    OpenAPI_lnode_t *node;
     ogs_free(ec_restriction_data_wb);
 }
 
 cJSON *OpenAPI_ec_restriction_data_wb_convertToJSON(OpenAPI_ec_restriction_data_wb_t *ec_restriction_data_wb)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (ec_restriction_data_wb == NULL) {
         ogs_error("OpenAPI_ec_restriction_data_wb_convertToJSON() failed [EcRestrictionDataWb]");
@@ -60,10 +58,8 @@ end:
 OpenAPI_ec_restriction_data_wb_t *OpenAPI_ec_restriction_data_wb_parseFromJSON(cJSON *ec_restriction_data_wbJSON)
 {
     OpenAPI_ec_restriction_data_wb_t *ec_restriction_data_wb_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *ec_mode_a_restricted = NULL;
-    cJSON *ec_mode_b_restricted = NULL;
-    ec_mode_a_restricted = cJSON_GetObjectItemCaseSensitive(ec_restriction_data_wbJSON, "ecModeARestricted");
+    cJSON *ec_mode_a_restricted = cJSON_GetObjectItemCaseSensitive(ec_restriction_data_wbJSON, "ecModeARestricted");
+
     if (ec_mode_a_restricted) {
     if (!cJSON_IsBool(ec_mode_a_restricted)) {
         ogs_error("OpenAPI_ec_restriction_data_wb_parseFromJSON() failed [ec_mode_a_restricted]");
@@ -71,11 +67,12 @@ OpenAPI_ec_restriction_data_wb_t *OpenAPI_ec_restriction_data_wb_parseFromJSON(c
     }
     }
 
-    ec_mode_b_restricted = cJSON_GetObjectItemCaseSensitive(ec_restriction_data_wbJSON, "ecModeBRestricted");
+    cJSON *ec_mode_b_restricted = cJSON_GetObjectItemCaseSensitive(ec_restriction_data_wbJSON, "ecModeBRestricted");
     if (!ec_mode_b_restricted) {
         ogs_error("OpenAPI_ec_restriction_data_wb_parseFromJSON() failed [ec_mode_b_restricted]");
         goto end;
     }
+
     if (!cJSON_IsBool(ec_mode_b_restricted)) {
         ogs_error("OpenAPI_ec_restriction_data_wb_parseFromJSON() failed [ec_mode_b_restricted]");
         goto end;

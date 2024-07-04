@@ -130,10 +130,7 @@ int ogs_addaddrinfo(ogs_sockaddr_t **sa_list,
             continue;
 
         new = ogs_calloc(1, sizeof(ogs_sockaddr_t));
-        if (!new) {
-            ogs_error("ogs_calloc() failed");
-            return OGS_ERROR;
-        }
+        ogs_expect_or_return_val(new, OGS_ERROR);
         memcpy(&new->sa, ai->ai_addr, ai->ai_addrlen);
         new->ogs_sin_port = htobe16(port);
 
@@ -207,24 +204,15 @@ int ogs_copyaddrinfo(ogs_sockaddr_t **dst, const ogs_sockaddr_t *src)
     for (*dst = d = NULL, s = src; s; s = s->next) {
         if (!d) {
             *dst = d = ogs_memdup(s, sizeof *s);
-            if (!(*dst)) {
-                ogs_error("ogs_memdup() failed");
-                return OGS_ERROR;
-            }
+            ogs_expect_or_return_val(*dst, OGS_ERROR);
         } else {
             d = d->next = ogs_memdup(s, sizeof *s);
-            if (!d) {
-                ogs_error("ogs_memdup() failed");
-                return OGS_ERROR;
-            }
+            ogs_expect_or_return_val(d, OGS_ERROR);
         }
         if (s->hostname) {
             if (s == src || s->hostname != src->hostname) {
                 d->hostname = ogs_strdup(s->hostname);
-                if (!d->hostname) {
-                    ogs_error("ogs_memdup() failed");
-                    return OGS_ERROR;
-                }
+                ogs_expect_or_return_val(d->hostname, OGS_ERROR);
             } else {
                 d->hostname = (*dst)->hostname;
             }
@@ -267,23 +255,23 @@ int ogs_sortaddrinfo(ogs_sockaddr_t **sa_list, int family)
 ogs_sockaddr_t *ogs_link_local_addr(const char *dev, const ogs_sockaddr_t *sa)
 {
 #if defined(HAVE_GETIFADDRS)
-    struct ifaddrs *iflist, *cur;
+	struct ifaddrs *iflist, *cur;
     int rc;
 
-    rc = getifaddrs(&iflist);
+	rc = getifaddrs(&iflist);
     if (rc != 0) {
         ogs_log_message(OGS_LOG_ERROR, ogs_socket_errno, "getifaddrs failed");
         return NULL;
     }
 
-    for (cur = iflist; cur != NULL; cur = cur->ifa_next) {
+	for (cur = iflist; cur != NULL; cur = cur->ifa_next) {
         ogs_sockaddr_t *ifa_addr = NULL;
         ogs_sockaddr_t *addr = NULL;
 
         ifa_addr = (ogs_sockaddr_t *)cur->ifa_addr;
 
-        if (ifa_addr == NULL) /* may happen with ppp interfaces */
-            continue;
+		if (ifa_addr == NULL) /* may happen with ppp interfaces */
+			continue;
 
         if (ifa_addr->ogs_sa_family == AF_INET)
             continue;
@@ -299,18 +287,15 @@ ogs_sockaddr_t *ogs_link_local_addr(const char *dev, const ogs_sockaddr_t *sa)
             continue;
 
         addr = ogs_calloc(1, sizeof(ogs_sockaddr_t));
-        if (!addr) {
-            ogs_error("ogs_calloc() failed");
-            return NULL;
-        }
+        ogs_expect_or_return_val(addr, NULL);
         ogs_assert(addr);
         memcpy(&addr->sa, cur->ifa_addr, ogs_sockaddr_len(cur->ifa_addr));
 
         freeifaddrs(iflist);
         return addr;
-    }
+	}
 
-    freeifaddrs(iflist);
+	freeifaddrs(iflist);
 #endif
     return NULL;
 }

@@ -26,26 +26,18 @@ OpenAPI_qos_flow_usage_report_t *OpenAPI_qos_flow_usage_report_create(
 
 void OpenAPI_qos_flow_usage_report_free(OpenAPI_qos_flow_usage_report_t *qos_flow_usage_report)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == qos_flow_usage_report) {
         return;
     }
-    if (qos_flow_usage_report->start_time_stamp) {
-        ogs_free(qos_flow_usage_report->start_time_stamp);
-        qos_flow_usage_report->start_time_stamp = NULL;
-    }
-    if (qos_flow_usage_report->end_time_stamp) {
-        ogs_free(qos_flow_usage_report->end_time_stamp);
-        qos_flow_usage_report->end_time_stamp = NULL;
-    }
+    OpenAPI_lnode_t *node;
+    ogs_free(qos_flow_usage_report->start_time_stamp);
+    ogs_free(qos_flow_usage_report->end_time_stamp);
     ogs_free(qos_flow_usage_report);
 }
 
 cJSON *OpenAPI_qos_flow_usage_report_convertToJSON(OpenAPI_qos_flow_usage_report_t *qos_flow_usage_report)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (qos_flow_usage_report == NULL) {
         ogs_error("OpenAPI_qos_flow_usage_report_convertToJSON() failed [QosFlowUsageReport]");
@@ -58,19 +50,11 @@ cJSON *OpenAPI_qos_flow_usage_report_convertToJSON(OpenAPI_qos_flow_usage_report
         goto end;
     }
 
-    if (!qos_flow_usage_report->start_time_stamp) {
-        ogs_error("OpenAPI_qos_flow_usage_report_convertToJSON() failed [start_time_stamp]");
-        return NULL;
-    }
     if (cJSON_AddStringToObject(item, "startTimeStamp", qos_flow_usage_report->start_time_stamp) == NULL) {
         ogs_error("OpenAPI_qos_flow_usage_report_convertToJSON() failed [start_time_stamp]");
         goto end;
     }
 
-    if (!qos_flow_usage_report->end_time_stamp) {
-        ogs_error("OpenAPI_qos_flow_usage_report_convertToJSON() failed [end_time_stamp]");
-        return NULL;
-    }
     if (cJSON_AddStringToObject(item, "endTimeStamp", qos_flow_usage_report->end_time_stamp) == NULL) {
         ogs_error("OpenAPI_qos_flow_usage_report_convertToJSON() failed [end_time_stamp]");
         goto end;
@@ -93,57 +77,56 @@ end:
 OpenAPI_qos_flow_usage_report_t *OpenAPI_qos_flow_usage_report_parseFromJSON(cJSON *qos_flow_usage_reportJSON)
 {
     OpenAPI_qos_flow_usage_report_t *qos_flow_usage_report_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *qfi = NULL;
-    cJSON *start_time_stamp = NULL;
-    cJSON *end_time_stamp = NULL;
-    cJSON *downlink_volume = NULL;
-    cJSON *uplink_volume = NULL;
-    qfi = cJSON_GetObjectItemCaseSensitive(qos_flow_usage_reportJSON, "qfi");
+    cJSON *qfi = cJSON_GetObjectItemCaseSensitive(qos_flow_usage_reportJSON, "qfi");
     if (!qfi) {
         ogs_error("OpenAPI_qos_flow_usage_report_parseFromJSON() failed [qfi]");
         goto end;
     }
+
     if (!cJSON_IsNumber(qfi)) {
         ogs_error("OpenAPI_qos_flow_usage_report_parseFromJSON() failed [qfi]");
         goto end;
     }
 
-    start_time_stamp = cJSON_GetObjectItemCaseSensitive(qos_flow_usage_reportJSON, "startTimeStamp");
+    cJSON *start_time_stamp = cJSON_GetObjectItemCaseSensitive(qos_flow_usage_reportJSON, "startTimeStamp");
     if (!start_time_stamp) {
         ogs_error("OpenAPI_qos_flow_usage_report_parseFromJSON() failed [start_time_stamp]");
         goto end;
     }
-    if (!cJSON_IsString(start_time_stamp) && !cJSON_IsNull(start_time_stamp)) {
+
+    if (!cJSON_IsString(start_time_stamp)) {
         ogs_error("OpenAPI_qos_flow_usage_report_parseFromJSON() failed [start_time_stamp]");
         goto end;
     }
 
-    end_time_stamp = cJSON_GetObjectItemCaseSensitive(qos_flow_usage_reportJSON, "endTimeStamp");
+    cJSON *end_time_stamp = cJSON_GetObjectItemCaseSensitive(qos_flow_usage_reportJSON, "endTimeStamp");
     if (!end_time_stamp) {
         ogs_error("OpenAPI_qos_flow_usage_report_parseFromJSON() failed [end_time_stamp]");
         goto end;
     }
-    if (!cJSON_IsString(end_time_stamp) && !cJSON_IsNull(end_time_stamp)) {
+
+    if (!cJSON_IsString(end_time_stamp)) {
         ogs_error("OpenAPI_qos_flow_usage_report_parseFromJSON() failed [end_time_stamp]");
         goto end;
     }
 
-    downlink_volume = cJSON_GetObjectItemCaseSensitive(qos_flow_usage_reportJSON, "downlinkVolume");
+    cJSON *downlink_volume = cJSON_GetObjectItemCaseSensitive(qos_flow_usage_reportJSON, "downlinkVolume");
     if (!downlink_volume) {
         ogs_error("OpenAPI_qos_flow_usage_report_parseFromJSON() failed [downlink_volume]");
         goto end;
     }
+
     if (!cJSON_IsNumber(downlink_volume)) {
         ogs_error("OpenAPI_qos_flow_usage_report_parseFromJSON() failed [downlink_volume]");
         goto end;
     }
 
-    uplink_volume = cJSON_GetObjectItemCaseSensitive(qos_flow_usage_reportJSON, "uplinkVolume");
+    cJSON *uplink_volume = cJSON_GetObjectItemCaseSensitive(qos_flow_usage_reportJSON, "uplinkVolume");
     if (!uplink_volume) {
         ogs_error("OpenAPI_qos_flow_usage_report_parseFromJSON() failed [uplink_volume]");
         goto end;
     }
+
     if (!cJSON_IsNumber(uplink_volume)) {
         ogs_error("OpenAPI_qos_flow_usage_report_parseFromJSON() failed [uplink_volume]");
         goto end;

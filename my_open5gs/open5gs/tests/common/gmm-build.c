@@ -87,9 +87,9 @@ ogs_pkbuf_t *testgmm_build_registration_request(
 
     } else {
         registration_request->mobile_identity.length =
-            test_ue->mobile_identity.length;
+            test_ue->mobile_identity_suci_length;
         registration_request->mobile_identity.buffer =
-            test_ue->mobile_identity.buffer;
+            &test_ue->mobile_identity_suci;
     }
 
     if (test_ue->registration_request_param.uplink_data_status) {
@@ -423,9 +423,9 @@ ogs_pkbuf_t *testgmm_build_de_registration_request(
             &mobile_identity_guti;
     } else {
         deregistration_request_from_ue->mobile_identity.length =
-            test_ue->mobile_identity.length;
+            test_ue->mobile_identity_suci_length;
         deregistration_request_from_ue->mobile_identity.buffer =
-            test_ue->mobile_identity.buffer;
+            &test_ue->mobile_identity_suci;
     }
 
     if (integrity_protected)
@@ -449,9 +449,9 @@ ogs_pkbuf_t *testgmm_build_identity_response(test_ue_t *test_ue)
     message.gmm.h.message_type = OGS_NAS_5GS_IDENTITY_RESPONSE;
 
     identity_response->mobile_identity.length =
-        test_ue->mobile_identity.length;
+        test_ue->mobile_identity_suci_length;
     identity_response->mobile_identity.buffer =
-        test_ue->mobile_identity.buffer;
+        &test_ue->mobile_identity_suci;
 
     return ogs_nas_5gs_plain_encode(&message);
 }

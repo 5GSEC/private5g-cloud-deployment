@@ -35,12 +35,11 @@ void testgtpu_recv(test_ue_t *test_ue, ogs_pkbuf_t *pkbuf);
 
 int test_gtpu_send(
         ogs_socknode_t *node, test_bearer_t *bearer,
-        ogs_gtp2_header_desc_t *header_desc, ogs_pkbuf_t *pkbuf);
+        ogs_gtp2_header_t *gtp_hdesc, ogs_gtp2_extension_header_t *ext_hdesc,
+        ogs_pkbuf_t *pkbuf);
 int test_gtpu_send_ping(
         ogs_socknode_t *node, test_bearer_t *bearer, const char *dst_ip);
 int test_gtpu_send_slacc_rs(ogs_socknode_t *node, test_bearer_t *bearer);
-int test_gtpu_send_slacc_rs_with_unspecified_source_address(
-        ogs_socknode_t *node, test_bearer_t *bearer);
 int test_gtpu_send_error_indication(
         ogs_socknode_t *node, test_bearer_t *bearer);
 int test_gtpu_send_indirect_data_forwarding(

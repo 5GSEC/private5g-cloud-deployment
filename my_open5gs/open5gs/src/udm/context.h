@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019,2020 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -25,10 +25,13 @@
 #include "ogs-sbi.h"
 
 #include "udm-sm.h"
+#include "timer.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define MAX_NUM_OF_SERVED_GUAMI     8
 
 extern int __udm_log_domain;
 
@@ -58,7 +61,6 @@ struct udm_ue_s {
     char *amf_instance_id;
 
     char *dereg_callback_uri;
-    char *data_change_callback_uri;
 
     uint8_t k[OGS_KEY_LEN];
     uint8_t opc[OGS_KEY_LEN];
@@ -71,21 +73,21 @@ struct udm_ue_s {
     OpenAPI_auth_type_e auth_type;
     OpenAPI_rat_type_e rat_type;
 
-    ogs_list_t sess_list;
-};
-
-struct udm_sess_s {
-    ogs_sbi_object_t sbi;
-    ogs_fsm_t sm;
-
-    uint8_t psi; /* PDU Session Identity */
-
-    OpenAPI_smf_registration_t *smf_registration;
-
-    char *smf_instance_id;
-
-    /* Related Context */
-    udm_ue_t *udm_ue;
+#define UDM_NF_INSTANCE_CLEAR(_cAUSE, _nFInstance) \
+    do { \
+        ogs_assert(_nFInstance); \
+        if ((_nFInstance)->reference_count == 1) { \
+            ogs_info("[%s] (%s) NF removed", (_nFInstance)->id, (_cAUSE)); \
+            udm_nf_fsm_fini((_nFInstance)); \
+        } else { \
+            /* There is an assocation with other context */ \
+            ogs_info("[%s:%d] (%s) NF suspended", \
+                    _nFInstance->id, _nFInstance->reference_count, (_cAUSE)); \
+            OGS_FSM_TRAN(&_nFInstance->sm, udm_nf_state_de_registered); \
+            ogs_fsm_dispatch(&_nFInstance->sm, NULL); \
+        } \
+        ogs_sbi_nf_instance_remove(_nFInstance); \
+    } while(0)
 };
 
 void udm_context_init(void);
@@ -102,15 +104,7 @@ udm_ue_t *udm_ue_find_by_supi(char *supi);
 udm_ue_t *udm_ue_find_by_suci_or_supi(char *suci_or_supi);
 udm_ue_t *udm_ue_find_by_ctx_id(char *ctx_id);
 
-udm_sess_t *udm_sess_add(udm_ue_t *udm_ue, uint8_t psi);
-void udm_sess_remove(udm_sess_t *sess);
-void udm_sess_remove_all(udm_ue_t *udm_ue);
-udm_sess_t *udm_sess_find_by_psi(udm_ue_t *udm_ue, uint8_t psi);
-
 udm_ue_t *udm_ue_cycle(udm_ue_t *udm_ue);
-udm_sess_t *udm_sess_cycle(udm_sess_t *sess);
-
-int get_ue_load(void);
 
 #ifdef __cplusplus
 }

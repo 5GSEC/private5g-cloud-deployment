@@ -37,7 +37,7 @@
 #pragma GCC diagnostic pop
 #endif
 
-#include "proto/ogs-proto.h"
+#include "ogs-core.h"
 
 #define OGS_DIAMETER_INSIDE
 

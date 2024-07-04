@@ -22,22 +22,17 @@ OpenAPI_time_period_t *OpenAPI_time_period_create(
 
 void OpenAPI_time_period_free(OpenAPI_time_period_t *time_period)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == time_period) {
         return;
     }
-    if (time_period->period) {
-        OpenAPI_periodicity_free(time_period->period);
-        time_period->period = NULL;
-    }
+    OpenAPI_lnode_t *node;
+    OpenAPI_periodicity_free(time_period->period);
     ogs_free(time_period);
 }
 
 cJSON *OpenAPI_time_period_convertToJSON(OpenAPI_time_period_t *time_period)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (time_period == NULL) {
         ogs_error("OpenAPI_time_period_convertToJSON() failed [TimePeriod]");
@@ -45,10 +40,6 @@ cJSON *OpenAPI_time_period_convertToJSON(OpenAPI_time_period_t *time_period)
     }
 
     item = cJSON_CreateObject();
-    if (!time_period->period) {
-        ogs_error("OpenAPI_time_period_convertToJSON() failed [period]");
-        return NULL;
-    }
     cJSON *period_local_JSON = OpenAPI_periodicity_convertToJSON(time_period->period);
     if (period_local_JSON == NULL) {
         ogs_error("OpenAPI_time_period_convertToJSON() failed [period]");
@@ -74,22 +65,17 @@ end:
 OpenAPI_time_period_t *OpenAPI_time_period_parseFromJSON(cJSON *time_periodJSON)
 {
     OpenAPI_time_period_t *time_period_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *period = NULL;
-    OpenAPI_periodicity_t *period_local_nonprim = NULL;
-    cJSON *max_num_period = NULL;
-    period = cJSON_GetObjectItemCaseSensitive(time_periodJSON, "period");
+    cJSON *period = cJSON_GetObjectItemCaseSensitive(time_periodJSON, "period");
     if (!period) {
         ogs_error("OpenAPI_time_period_parseFromJSON() failed [period]");
         goto end;
     }
-    period_local_nonprim = OpenAPI_periodicity_parseFromJSON(period);
-    if (!period_local_nonprim) {
-        ogs_error("OpenAPI_periodicity_parseFromJSON failed [period]");
-        goto end;
-    }
 
-    max_num_period = cJSON_GetObjectItemCaseSensitive(time_periodJSON, "maxNumPeriod");
+    OpenAPI_periodicity_t *period_local_nonprim = NULL;
+    period_local_nonprim = OpenAPI_periodicity_parseFromJSON(period);
+
+    cJSON *max_num_period = cJSON_GetObjectItemCaseSensitive(time_periodJSON, "maxNumPeriod");
+
     if (max_num_period) {
     if (!cJSON_IsNumber(max_num_period)) {
         ogs_error("OpenAPI_time_period_parseFromJSON() failed [max_num_period]");
@@ -105,10 +91,6 @@ OpenAPI_time_period_t *OpenAPI_time_period_parseFromJSON(cJSON *time_periodJSON)
 
     return time_period_local_var;
 end:
-    if (period_local_nonprim) {
-        OpenAPI_periodicity_free(period_local_nonprim);
-        period_local_nonprim = NULL;
-    }
     return NULL;
 }
 

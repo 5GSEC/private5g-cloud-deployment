@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019,2020 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -20,6 +20,7 @@
 #ifndef PCF_SBI_PATH_H
 #define PCF_SBI_PATH_H
 
+#include "nnrf-build.h"
 #include "nudr-build.h"
 #include "nbsf-build.h"
 #include "namf-build.h"
@@ -34,20 +35,19 @@ int pcf_sbi_open(void);
 void pcf_sbi_close(void);
 
 bool pcf_sbi_send_request(
-        ogs_sbi_nf_instance_t *nf_instance, ogs_sbi_xact_t *xact);
-int pcf_ue_sbi_discover_and_send(
-        ogs_sbi_service_type_e service_type,
+        ogs_sbi_object_t *sbi_object,
+        OpenAPI_nf_type_e target_nf_type,
+        void *data);
+bool pcf_ue_sbi_discover_and_send(
+        OpenAPI_nf_type_e target_nf_type,
         ogs_sbi_discovery_option_t *discovery_option,
         ogs_sbi_request_t *(*build)(pcf_ue_t *pcf_ue, void *data),
         pcf_ue_t *pcf_ue, ogs_sbi_stream_t *stream, void *data);
-int pcf_sess_sbi_discover_and_send(
-        ogs_sbi_service_type_e service_type,
+bool pcf_sess_sbi_discover_and_send(
+        OpenAPI_nf_type_e target_nf_type,
         ogs_sbi_discovery_option_t *discovery_option,
         ogs_sbi_request_t *(*build)(pcf_sess_t *sess, void *data),
         pcf_sess_t *sess, ogs_sbi_stream_t *stream, void *data);
-int pcf_sess_sbi_discover_only(
-        pcf_sess_t *sess, ogs_sbi_stream_t *stream,
-        ogs_sbi_service_type_e service_type);
 
 bool pcf_sbi_send_am_policy_control_notify(pcf_ue_t *pcf_ue);
 bool pcf_sbi_send_smpolicycontrol_update_notify(
@@ -55,6 +55,7 @@ bool pcf_sbi_send_smpolicycontrol_update_notify(
 bool pcf_sbi_send_smpolicycontrol_delete_notify(
         pcf_sess_t *sess, pcf_app_t *app_session,
         OpenAPI_sm_policy_decision_t *SmPolicyDecision);
+bool pcf_sbi_send_smpolicycontrol_terminate_notify(pcf_sess_t *sess);
 
 bool pcf_sbi_send_policyauthorization_terminate_notify(pcf_app_t *app);
 

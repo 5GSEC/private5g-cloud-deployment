@@ -24,17 +24,12 @@
 bool pcf_npcf_am_policy_contrtol_handle_create(pcf_ue_t *pcf_ue,
         ogs_sbi_stream_t *stream, ogs_sbi_message_t *message)
 {
-    bool rc;
-    int r;
-
     OpenAPI_policy_association_request_t *PolicyAssociationRequest = NULL;
     OpenAPI_guami_t *Guami = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     uint64_t supported_features = 0;
 
     ogs_sbi_client_t *client = NULL;
-    OpenAPI_uri_scheme_e scheme = OpenAPI_uri_scheme_NULL;
     ogs_sockaddr_t *addr = NULL;
 
     ogs_assert(pcf_ue);
@@ -74,9 +69,8 @@ bool pcf_npcf_am_policy_contrtol_handle_create(pcf_ue_t *pcf_ue,
         return false;
     }
 
-    rc = ogs_sbi_getaddr_from_uri(&scheme, &addr,
-            PolicyAssociationRequest->notification_uri);
-    if (rc == false || scheme == OpenAPI_uri_scheme_NULL) {
+    addr = ogs_sbi_getaddr_from_uri(PolicyAssociationRequest->notification_uri);
+    if (!addr) {
         ogs_error("[%s] Invalid URI [%s]",
                 pcf_ue->supi, PolicyAssociationRequest->notification_uri);
         ogs_assert(true ==
@@ -91,12 +85,13 @@ bool pcf_npcf_am_policy_contrtol_handle_create(pcf_ue_t *pcf_ue,
             PolicyAssociationRequest->notification_uri);
     ogs_assert(pcf_ue->notification_uri);
 
-    client = ogs_sbi_client_find(scheme, addr);
+    client = ogs_sbi_client_find(addr);
     if (!client) {
-        client = ogs_sbi_client_add(scheme, addr);
+        client = ogs_sbi_client_add(addr);
         ogs_assert(client);
     }
     OGS_SBI_SETUP_CLIENT(&pcf_ue->namf, client);
+
     ogs_freeaddrinfo(addr);
 
     supported_features =
@@ -112,29 +107,32 @@ bool pcf_npcf_am_policy_contrtol_handle_create(pcf_ue_t *pcf_ue,
     pcf_ue->access_type = PolicyAssociationRequest->access_type;
 
     if (PolicyAssociationRequest->pei) {
+        char *type = NULL, *value = NULL;
         if (pcf_ue->pei)
             ogs_free(pcf_ue->pei);
         pcf_ue->pei = ogs_strdup(PolicyAssociationRequest->pei);
+
+        type = ogs_id_get_type(pcf_ue->pei);
+        ogs_assert(type);
+        value = ogs_id_get_value(pcf_ue->pei);
+        ogs_assert(value);
+
+        if (strcmp(type, "imeisv") == 0) {
+            ogs_assert(OGS_OK == ogs_dbi_update_imeisv(pcf_ue->supi, value));
+        } else {
+            ogs_fatal("Unknown Type = %s", type);
+            ogs_assert_if_reached();
+        }
+
+
+        ogs_free(type);
+        ogs_free(value);
     }
 
     Guami = PolicyAssociationRequest->guami;
     if (Guami && Guami->amf_id &&
         Guami->plmn_id && Guami->plmn_id->mnc && Guami->plmn_id->mcc) {
         ogs_sbi_parse_guami(&pcf_ue->guami, PolicyAssociationRequest->guami);
-    }
-
-    OpenAPI_list_for_each(PolicyAssociationRequest->allowed_snssais, node) {
-        struct OpenAPI_snssai_s *Snssai = node->data;
-        if (Snssai) {
-            ogs_s_nssai_t s_nssai;
-            s_nssai.sst = Snssai->sst;
-            s_nssai.sd = ogs_s_nssai_sd_from_string(Snssai->sd);
-
-            pcf_metrics_inst_by_slice_add(&pcf_ue->guami.plmn_id,
-                    &s_nssai, PCF_METR_CTR_PA_POLICYAMASSOREQ, 1);
-        } else {
-            ogs_error("[%s] No Snssai", pcf_ue->supi);
-        }
     }
 
     if (PolicyAssociationRequest->rat_type)
@@ -149,28 +147,26 @@ bool pcf_npcf_am_policy_contrtol_handle_create(pcf_ue_t *pcf_ue,
         pcf_ue->subscribed_ue_ambr = OpenAPI_ambr_copy(
                 pcf_ue->subscribed_ue_ambr, PolicyAssociationRequest->ue_ambr);
 
-    r = pcf_ue_sbi_discover_and_send(OGS_SBI_SERVICE_TYPE_NUDR_DR, NULL,
-            pcf_nudr_dr_build_query_am_data, pcf_ue, stream, NULL);
-    ogs_expect(r == OGS_OK);
-    ogs_assert(r != OGS_ERROR);
+    ogs_assert(true ==
+        pcf_ue_sbi_discover_and_send(OpenAPI_nf_type_UDR, NULL,
+            pcf_nudr_dr_build_query_am_data, pcf_ue, stream, NULL));
 
-    return (r == OGS_OK);
+    return true;
 }
 
 bool pcf_npcf_smpolicycontrol_handle_create(pcf_sess_t *sess,
         ogs_sbi_stream_t *stream, ogs_sbi_message_t *message)
 {
-    bool rc;
     int status = 0;
-    int r;
     char *strerror = NULL;
     pcf_ue_t *pcf_ue = NULL;
 
     OpenAPI_sm_policy_context_data_t *SmPolicyContextData = NULL;
     OpenAPI_snssai_t *sliceInfo = NULL;
 
+    uint64_t supported_features = 0;
+
     ogs_sbi_client_t *client = NULL;
-    OpenAPI_uri_scheme_e scheme = OpenAPI_uri_scheme_NULL;
     ogs_sockaddr_t *addr = NULL;
 
     ogs_assert(sess);
@@ -245,9 +241,8 @@ bool pcf_npcf_smpolicycontrol_handle_create(pcf_sess_t *sess,
         goto cleanup;
     }
 
-    rc = ogs_sbi_getaddr_from_uri(&scheme, &addr,
-            SmPolicyContextData->notification_uri);
-    if (rc == false || scheme == OpenAPI_uri_scheme_NULL) {
+    addr = ogs_sbi_getaddr_from_uri(SmPolicyContextData->notification_uri);
+    if (!addr) {
         strerror = ogs_msprintf("[%s:%d] Invalid URI [%s]",
                 pcf_ue->supi, sess->psi, SmPolicyContextData->notification_uri);
         status = OGS_SBI_HTTP_STATUS_BAD_REQUEST;
@@ -255,7 +250,7 @@ bool pcf_npcf_smpolicycontrol_handle_create(pcf_sess_t *sess,
     }
 
     if (SmPolicyContextData->supp_feat) {
-        uint64_t supported_features =
+        supported_features =
             ogs_uint64_from_string(SmPolicyContextData->supp_feat);
         sess->smpolicycontrol_features &= supported_features;
     } else {
@@ -274,12 +269,13 @@ bool pcf_npcf_smpolicycontrol_handle_create(pcf_sess_t *sess,
     sess->notification_uri = ogs_strdup(SmPolicyContextData->notification_uri);
     ogs_assert(sess->notification_uri);
 
-    client = ogs_sbi_client_find(scheme, addr);
+    client = ogs_sbi_client_find(addr);
     if (!client) {
-        client = ogs_sbi_client_add(scheme, addr);
+        client = ogs_sbi_client_add(addr);
         ogs_assert(client);
     }
     OGS_SBI_SETUP_CLIENT(&sess->nsmf, client);
+
     ogs_freeaddrinfo(addr);
 
     if (SmPolicyContextData->ipv4_address)
@@ -290,37 +286,8 @@ bool pcf_npcf_smpolicycontrol_handle_create(pcf_sess_t *sess,
             pcf_sess_set_ipv6prefix(
                 sess, SmPolicyContextData->ipv6_address_prefix));
 
-    if (SmPolicyContextData->ipv4_frame_route_list) {
-        OpenAPI_lnode_t *node = NULL;
-
-        OpenAPI_clear_and_free_string_list(sess->ipv4_frame_route_list);
-        sess->ipv4_frame_route_list = OpenAPI_list_create();
-        OpenAPI_list_for_each(SmPolicyContextData->ipv4_frame_route_list, node) {
-            if (!node->data)
-                continue;
-            OpenAPI_list_add(sess->ipv4_frame_route_list, ogs_strdup(node->data));
-        }
-    }
-
-    if (SmPolicyContextData->ipv6_frame_route_list) {
-        OpenAPI_lnode_t *node = NULL;
-
-        OpenAPI_clear_and_free_string_list(sess->ipv6_frame_route_list);
-        sess->ipv6_frame_route_list = OpenAPI_list_create();
-        OpenAPI_list_for_each(SmPolicyContextData->ipv6_frame_route_list, node) {
-            if (!node->data)
-                continue;
-            OpenAPI_list_add(sess->ipv6_frame_route_list, ogs_strdup(node->data));
-        }
-    }
-
     sess->s_nssai.sst = sliceInfo->sst;
     sess->s_nssai.sd = ogs_s_nssai_sd_from_string(sliceInfo->sd);
-
-    pcf_metrics_inst_by_slice_add(&pcf_ue->guami.plmn_id,
-            &sess->s_nssai, PCF_METR_GAUGE_PA_SESSIONNBR, 1);
-    pcf_metrics_inst_by_slice_add(&pcf_ue->guami.plmn_id,
-            &sess->s_nssai, PCF_METR_CTR_PA_POLICYSMASSOREQ, 1);
 
     if (SmPolicyContextData->subs_sess_ambr)
         sess->subscribed_sess_ambr = OpenAPI_ambr_copy(
@@ -330,13 +297,11 @@ bool pcf_npcf_smpolicycontrol_handle_create(pcf_sess_t *sess,
         sess->subscribed_default_qos = OpenAPI_subscribed_default_qos_copy(
             sess->subscribed_default_qos, SmPolicyContextData->subs_def_qos);
 
-    r = pcf_sess_sbi_discover_and_send(
-            OGS_SBI_SERVICE_TYPE_NUDR_DR, NULL,
-            pcf_nudr_dr_build_query_sm_data, sess, stream, NULL);
-    ogs_expect(r == OGS_OK);
-    ogs_assert(r != OGS_ERROR);
+    ogs_assert(true ==
+        pcf_sess_sbi_discover_and_send(OpenAPI_nf_type_UDR, NULL,
+            pcf_nudr_dr_build_query_sm_data, sess, stream, NULL));
 
-    return (r == OGS_OK);
+    return true;
 
 cleanup:
     ogs_assert(status);
@@ -352,7 +317,6 @@ cleanup:
 bool pcf_npcf_smpolicycontrol_handle_delete(pcf_sess_t *sess,
         ogs_sbi_stream_t *stream, ogs_sbi_message_t *message)
 {
-    int r;
     int status = 0;
     char *strerror = NULL;
     pcf_ue_t *pcf_ue = NULL;
@@ -387,11 +351,9 @@ bool pcf_npcf_smpolicycontrol_handle_delete(pcf_sess_t *sess,
         ogs_assert(response);
         ogs_assert(true == ogs_sbi_server_send_response(stream, response));
     } else {
-        r = pcf_sess_sbi_discover_and_send(
-                OGS_SBI_SERVICE_TYPE_NBSF_MANAGEMENT, NULL,
-                pcf_nbsf_management_build_de_register, sess, stream, NULL);
-        ogs_expect(r == OGS_OK);
-        ogs_assert(r != OGS_ERROR);
+        ogs_assert(true ==
+            pcf_sess_sbi_discover_and_send(OpenAPI_nf_type_BSF, NULL,
+                pcf_nbsf_management_build_de_register, sess, stream, NULL));
     }
 
     return true;
@@ -410,14 +372,12 @@ cleanup:
 bool pcf_npcf_policyauthorization_handle_create(pcf_sess_t *sess,
         ogs_sbi_stream_t *stream, ogs_sbi_message_t *recvmsg)
 {
-    bool rc;
     int i, j, rv, status = 0;
     char *strerror = NULL;
     pcf_ue_t *pcf_ue = NULL;
     pcf_app_t *app_session = NULL;
 
     ogs_sbi_client_t *client = NULL;
-    OpenAPI_uri_scheme_e scheme = OpenAPI_uri_scheme_NULL;
     ogs_sockaddr_t *addr = NULL;
 
     OpenAPI_app_session_context_t *AppSessionContext = NULL;
@@ -466,9 +426,6 @@ bool pcf_npcf_policyauthorization_handle_create(pcf_sess_t *sess,
     server = ogs_sbi_server_from_stream(stream);
     ogs_assert(server);
 
-    memset(&ims_data, 0, sizeof(ims_data));
-    memset(&session_data, 0, sizeof(ogs_session_data_t));
-
     AppSessionContext = recvmsg->AppSessionContext;
     if (!AppSessionContext) {
         strerror = ogs_msprintf("[%s:%d] No AppSessionContext",
@@ -506,8 +463,8 @@ bool pcf_npcf_policyauthorization_handle_create(pcf_sess_t *sess,
         goto cleanup;
     }
 
-    rc = ogs_sbi_getaddr_from_uri(&scheme, &addr, AscReqData->notif_uri);
-    if (rc == false || scheme == OpenAPI_uri_scheme_NULL) {
+    addr = ogs_sbi_getaddr_from_uri(AscReqData->notif_uri);
+    if (!addr) {
         strerror = ogs_msprintf("[%s:%d] Invalid URI [%s]",
                 pcf_ue->supi, sess->psi, AscReqData->notif_uri);
         status = OGS_SBI_HTTP_STATUS_BAD_REQUEST;
@@ -523,6 +480,8 @@ bool pcf_npcf_policyauthorization_handle_create(pcf_sess_t *sess,
             ogs_uint64_to_string(sess->policyauthorization_features);
         ogs_assert(AscReqData->supp_feat);
     }
+
+    memset(&ims_data, 0, sizeof(ims_data));
 
     MediaComponentList = AscReqData->med_components;
     OpenAPI_list_for_each(MediaComponentList, node) {
@@ -597,14 +556,16 @@ bool pcf_npcf_policyauthorization_handle_create(pcf_sess_t *sess,
     app_session->notif_uri = ogs_strdup(AscReqData->notif_uri);
     ogs_assert(app_session->notif_uri);
 
-    client = ogs_sbi_client_find(scheme, addr);
+    client = ogs_sbi_client_find(addr);
     if (!client) {
-        client = ogs_sbi_client_add(scheme, addr);
+        client = ogs_sbi_client_add(addr);
         ogs_assert(client);
     }
     OGS_SBI_SETUP_CLIENT(&app_session->naf, client);
+
     ogs_freeaddrinfo(addr);
 
+    memset(&session_data, 0, sizeof(ogs_session_data_t));
     rv = ogs_dbi_session_data(
             pcf_ue->supi, &sess->s_nssai, sess->dnn, &session_data);
     if (rv != OGS_OK) {
@@ -630,13 +591,6 @@ bool pcf_npcf_policyauthorization_handle_create(pcf_sess_t *sess,
         uint8_t qos_index = 0;
         ogs_media_component_t *media_component = &ims_data.media_component[i];
 
-        if (media_component->media_type == OpenAPI_media_type_NULL) {
-            strerror = ogs_msprintf("[%s:%d] Media-Type is Required",
-                    pcf_ue->supi, sess->psi);
-            status = OGS_SBI_HTTP_STATUS_BAD_REQUEST;
-            goto cleanup;
-        }
-
         switch(media_component->media_type) {
         case OpenAPI_media_type_AUDIO:
             qos_index = OGS_QOS_INDEX_1;
@@ -648,9 +602,9 @@ bool pcf_npcf_policyauthorization_handle_create(pcf_sess_t *sess,
             qos_index = OGS_QOS_INDEX_5;
             break;
         default:
-            strerror = ogs_msprintf("[%s:%d] Unknown Media-Type [%d]",
+            strerror = ogs_msprintf("[%s:%d] Not implemented : [Media-Type:%d]",
                     pcf_ue->supi, sess->psi, media_component->media_type);
-            status = OGS_SBI_HTTP_STATUS_BAD_REQUEST;
+            status = OGS_SBI_HTTP_STATUS_INTERNAL_SERVER_ERROR;
             goto cleanup;
         }
 
@@ -932,9 +886,6 @@ bool pcf_npcf_policyauthorization_handle_update(
     ogs_assert(stream);
     ogs_assert(recvmsg);
 
-    memset(&ims_data, 0, sizeof(ims_data));
-    memset(&session_data, 0, sizeof(ogs_session_data_t));
-
     AppSessionContextUpdateDataPatch =
         recvmsg->AppSessionContextUpdateDataPatch;
     if (!AppSessionContextUpdateDataPatch) {
@@ -958,6 +909,8 @@ bool pcf_npcf_policyauthorization_handle_update(
         status = OGS_SBI_HTTP_STATUS_BAD_REQUEST;
         goto cleanup;
     }
+
+    memset(&ims_data, 0, sizeof(ims_data));
 
     MediaComponentList = AscUpdateData->med_components;
     OpenAPI_list_for_each(MediaComponentList, node) {
@@ -1025,6 +978,7 @@ bool pcf_npcf_policyauthorization_handle_update(
         }
     }
 
+    memset(&session_data, 0, sizeof(ogs_session_data_t));
     rv = ogs_dbi_session_data(
             pcf_ue->supi, &sess->s_nssai, sess->dnn, &session_data);
     if (rv != OGS_OK) {
@@ -1050,13 +1004,6 @@ bool pcf_npcf_policyauthorization_handle_update(
         uint8_t qos_index = 0;
         ogs_media_component_t *media_component = &ims_data.media_component[i];
 
-        if (media_component->media_type == OpenAPI_media_type_NULL) {
-            strerror = ogs_msprintf("[%s:%d] Media-Type is Required",
-                    pcf_ue->supi, sess->psi);
-            status = OGS_SBI_HTTP_STATUS_BAD_REQUEST;
-            goto cleanup;
-        }
-
         switch(media_component->media_type) {
         case OpenAPI_media_type_AUDIO:
             qos_index = OGS_QOS_INDEX_1;
@@ -1068,9 +1015,9 @@ bool pcf_npcf_policyauthorization_handle_update(
             qos_index = OGS_QOS_INDEX_5;
             break;
         default:
-            strerror = ogs_msprintf("[%s:%d] Unknown Media-Type [%d]",
+            strerror = ogs_msprintf("[%s:%d] Not implemented : [Media-Type:%d]",
                     pcf_ue->supi, sess->psi, media_component->media_type);
-            status = OGS_SBI_HTTP_STATUS_BAD_REQUEST;
+            status = OGS_SBI_HTTP_STATUS_INTERNAL_SERVER_ERROR;
             goto cleanup;
         }
 

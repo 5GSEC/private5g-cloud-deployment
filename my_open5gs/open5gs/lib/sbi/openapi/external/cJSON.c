@@ -588,7 +588,7 @@ static cJSON_bool print_number(const cJSON * const item, printbuffer * const out
 	}
     else
     {
-        /* Try 15 decimal places of precision to avoid insignificant nonzero digits */
+        /* Try 15 decimal places of precision to avoid nonsignificant nonzero digits */
         length = sprintf((char*)number_buffer, "%1.15g", d);
 
         /* Check whether the original double can be recovered */
@@ -1679,7 +1679,7 @@ static cJSON_bool parse_object(cJSON * const item, parse_buffer * const input_bu
         buffer_skip_whitespace(input_buffer);
         if (!parse_string(current_item, input_buffer))
         {
-            goto fail; /* fail to parse name */
+            goto fail; /* failed to parse name */
         }
         buffer_skip_whitespace(input_buffer);
 

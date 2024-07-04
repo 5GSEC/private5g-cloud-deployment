@@ -9,7 +9,6 @@ OpenAPI_media_component_rm_t *OpenAPI_media_component_rm_create(
     OpenAPI_af_routing_requirement_rm_t *af_rout_req,
     char *qos_reference,
     OpenAPI_list_t *alt_ser_reqs,
-    OpenAPI_list_t *alt_ser_reqs_data,
     bool is_dis_ue_notif,
     int dis_ue_notif,
     bool is_cont_ver,
@@ -48,9 +47,7 @@ OpenAPI_media_component_rm_t *OpenAPI_media_component_rm_create(
     int sharing_key_ul,
     OpenAPI_tsn_qos_container_rm_t *tsn_qos,
     OpenAPI_tscai_input_container_t *tscai_input_dl,
-    OpenAPI_tscai_input_container_t *tscai_input_ul,
-    bool is_tscai_time_dom,
-    int tscai_time_dom
+    OpenAPI_tscai_input_container_t *tscai_input_ul
 )
 {
     OpenAPI_media_component_rm_t *media_component_rm_local_var = ogs_malloc(sizeof(OpenAPI_media_component_rm_t));
@@ -60,7 +57,6 @@ OpenAPI_media_component_rm_t *OpenAPI_media_component_rm_create(
     media_component_rm_local_var->af_rout_req = af_rout_req;
     media_component_rm_local_var->qos_reference = qos_reference;
     media_component_rm_local_var->alt_ser_reqs = alt_ser_reqs;
-    media_component_rm_local_var->alt_ser_reqs_data = alt_ser_reqs_data;
     media_component_rm_local_var->is_dis_ue_notif = is_dis_ue_notif;
     media_component_rm_local_var->dis_ue_notif = dis_ue_notif;
     media_component_rm_local_var->is_cont_ver = is_cont_ver;
@@ -100,133 +96,56 @@ OpenAPI_media_component_rm_t *OpenAPI_media_component_rm_create(
     media_component_rm_local_var->tsn_qos = tsn_qos;
     media_component_rm_local_var->tscai_input_dl = tscai_input_dl;
     media_component_rm_local_var->tscai_input_ul = tscai_input_ul;
-    media_component_rm_local_var->is_tscai_time_dom = is_tscai_time_dom;
-    media_component_rm_local_var->tscai_time_dom = tscai_time_dom;
 
     return media_component_rm_local_var;
 }
 
 void OpenAPI_media_component_rm_free(OpenAPI_media_component_rm_t *media_component_rm)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == media_component_rm) {
         return;
     }
-    if (media_component_rm->af_app_id) {
-        ogs_free(media_component_rm->af_app_id);
-        media_component_rm->af_app_id = NULL;
+    OpenAPI_lnode_t *node;
+    ogs_free(media_component_rm->af_app_id);
+    OpenAPI_af_routing_requirement_rm_free(media_component_rm->af_rout_req);
+    ogs_free(media_component_rm->qos_reference);
+    OpenAPI_list_for_each(media_component_rm->alt_ser_reqs, node) {
+        ogs_free(node->data);
     }
-    if (media_component_rm->af_rout_req) {
-        OpenAPI_af_routing_requirement_rm_free(media_component_rm->af_rout_req);
-        media_component_rm->af_rout_req = NULL;
+    OpenAPI_list_free(media_component_rm->alt_ser_reqs);
+    OpenAPI_list_for_each(media_component_rm->codecs, node) {
+        ogs_free(node->data);
     }
-    if (media_component_rm->qos_reference) {
-        ogs_free(media_component_rm->qos_reference);
-        media_component_rm->qos_reference = NULL;
+    OpenAPI_list_free(media_component_rm->codecs);
+    ogs_free(media_component_rm->flus_id);
+    ogs_free(media_component_rm->mar_bw_dl);
+    ogs_free(media_component_rm->mar_bw_ul);
+    ogs_free(media_component_rm->max_supp_bw_dl);
+    ogs_free(media_component_rm->max_supp_bw_ul);
+    OpenAPI_list_for_each(media_component_rm->med_sub_comps, node) {
+        OpenAPI_map_t *localKeyValue = (OpenAPI_map_t*)node->data;
+        ogs_free(localKeyValue->key);
+        OpenAPI_media_sub_component_rm_free(localKeyValue->value);
+        ogs_free(localKeyValue);
     }
-    if (media_component_rm->alt_ser_reqs) {
-        OpenAPI_list_for_each(media_component_rm->alt_ser_reqs, node) {
-            ogs_free(node->data);
-        }
-        OpenAPI_list_free(media_component_rm->alt_ser_reqs);
-        media_component_rm->alt_ser_reqs = NULL;
-    }
-    if (media_component_rm->alt_ser_reqs_data) {
-        OpenAPI_list_for_each(media_component_rm->alt_ser_reqs_data, node) {
-            OpenAPI_alternative_service_requirements_data_free(node->data);
-        }
-        OpenAPI_list_free(media_component_rm->alt_ser_reqs_data);
-        media_component_rm->alt_ser_reqs_data = NULL;
-    }
-    if (media_component_rm->codecs) {
-        OpenAPI_list_for_each(media_component_rm->codecs, node) {
-            ogs_free(node->data);
-        }
-        OpenAPI_list_free(media_component_rm->codecs);
-        media_component_rm->codecs = NULL;
-    }
-    if (media_component_rm->flus_id) {
-        ogs_free(media_component_rm->flus_id);
-        media_component_rm->flus_id = NULL;
-    }
-    if (media_component_rm->mar_bw_dl) {
-        ogs_free(media_component_rm->mar_bw_dl);
-        media_component_rm->mar_bw_dl = NULL;
-    }
-    if (media_component_rm->mar_bw_ul) {
-        ogs_free(media_component_rm->mar_bw_ul);
-        media_component_rm->mar_bw_ul = NULL;
-    }
-    if (media_component_rm->max_supp_bw_dl) {
-        ogs_free(media_component_rm->max_supp_bw_dl);
-        media_component_rm->max_supp_bw_dl = NULL;
-    }
-    if (media_component_rm->max_supp_bw_ul) {
-        ogs_free(media_component_rm->max_supp_bw_ul);
-        media_component_rm->max_supp_bw_ul = NULL;
-    }
-    if (media_component_rm->med_sub_comps) {
-        OpenAPI_list_for_each(media_component_rm->med_sub_comps, node) {
-            OpenAPI_map_t *localKeyValue = (OpenAPI_map_t*)node->data;
-            ogs_free(localKeyValue->key);
-            OpenAPI_media_sub_component_rm_free(localKeyValue->value);
-            OpenAPI_map_free(localKeyValue);
-        }
-        OpenAPI_list_free(media_component_rm->med_sub_comps);
-        media_component_rm->med_sub_comps = NULL;
-    }
-    if (media_component_rm->min_des_bw_dl) {
-        ogs_free(media_component_rm->min_des_bw_dl);
-        media_component_rm->min_des_bw_dl = NULL;
-    }
-    if (media_component_rm->min_des_bw_ul) {
-        ogs_free(media_component_rm->min_des_bw_ul);
-        media_component_rm->min_des_bw_ul = NULL;
-    }
-    if (media_component_rm->mir_bw_dl) {
-        ogs_free(media_component_rm->mir_bw_dl);
-        media_component_rm->mir_bw_dl = NULL;
-    }
-    if (media_component_rm->mir_bw_ul) {
-        ogs_free(media_component_rm->mir_bw_ul);
-        media_component_rm->mir_bw_ul = NULL;
-    }
-    if (media_component_rm->preempt_cap) {
-        OpenAPI_preemption_capability_rm_free(media_component_rm->preempt_cap);
-        media_component_rm->preempt_cap = NULL;
-    }
-    if (media_component_rm->preempt_vuln) {
-        OpenAPI_preemption_vulnerability_rm_free(media_component_rm->preempt_vuln);
-        media_component_rm->preempt_vuln = NULL;
-    }
-    if (media_component_rm->rr_bw) {
-        ogs_free(media_component_rm->rr_bw);
-        media_component_rm->rr_bw = NULL;
-    }
-    if (media_component_rm->rs_bw) {
-        ogs_free(media_component_rm->rs_bw);
-        media_component_rm->rs_bw = NULL;
-    }
-    if (media_component_rm->tsn_qos) {
-        OpenAPI_tsn_qos_container_rm_free(media_component_rm->tsn_qos);
-        media_component_rm->tsn_qos = NULL;
-    }
-    if (media_component_rm->tscai_input_dl) {
-        OpenAPI_tscai_input_container_free(media_component_rm->tscai_input_dl);
-        media_component_rm->tscai_input_dl = NULL;
-    }
-    if (media_component_rm->tscai_input_ul) {
-        OpenAPI_tscai_input_container_free(media_component_rm->tscai_input_ul);
-        media_component_rm->tscai_input_ul = NULL;
-    }
+    OpenAPI_list_free(media_component_rm->med_sub_comps);
+    ogs_free(media_component_rm->min_des_bw_dl);
+    ogs_free(media_component_rm->min_des_bw_ul);
+    ogs_free(media_component_rm->mir_bw_dl);
+    ogs_free(media_component_rm->mir_bw_ul);
+    OpenAPI_preemption_capability_rm_free(media_component_rm->preempt_cap);
+    OpenAPI_preemption_vulnerability_rm_free(media_component_rm->preempt_vuln);
+    ogs_free(media_component_rm->rr_bw);
+    ogs_free(media_component_rm->rs_bw);
+    OpenAPI_tsn_qos_container_rm_free(media_component_rm->tsn_qos);
+    OpenAPI_tscai_input_container_free(media_component_rm->tscai_input_dl);
+    OpenAPI_tscai_input_container_free(media_component_rm->tscai_input_ul);
     ogs_free(media_component_rm);
 }
 
 cJSON *OpenAPI_media_component_rm_convertToJSON(OpenAPI_media_component_rm_t *media_component_rm)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (media_component_rm == NULL) {
         ogs_error("OpenAPI_media_component_rm_convertToJSON() failed [MediaComponentRm]");
@@ -262,33 +181,19 @@ cJSON *OpenAPI_media_component_rm_convertToJSON(OpenAPI_media_component_rm_t *me
     }
 
     if (media_component_rm->alt_ser_reqs) {
-    cJSON *alt_ser_reqsList = cJSON_AddArrayToObject(item, "altSerReqs");
-    if (alt_ser_reqsList == NULL) {
+    cJSON *alt_ser_reqs = cJSON_AddArrayToObject(item, "altSerReqs");
+    if (alt_ser_reqs == NULL) {
         ogs_error("OpenAPI_media_component_rm_convertToJSON() failed [alt_ser_reqs]");
         goto end;
     }
-    OpenAPI_list_for_each(media_component_rm->alt_ser_reqs, node) {
-        if (cJSON_AddStringToObject(alt_ser_reqsList, "", (char*)node->data) == NULL) {
-            ogs_error("OpenAPI_media_component_rm_convertToJSON() failed [alt_ser_reqs]");
-            goto end;
-        }
-    }
-    }
 
-    if (media_component_rm->alt_ser_reqs_data) {
-    cJSON *alt_ser_reqs_dataList = cJSON_AddArrayToObject(item, "altSerReqsData");
-    if (alt_ser_reqs_dataList == NULL) {
-        ogs_error("OpenAPI_media_component_rm_convertToJSON() failed [alt_ser_reqs_data]");
+    OpenAPI_lnode_t *alt_ser_reqs_node;
+    OpenAPI_list_for_each(media_component_rm->alt_ser_reqs, alt_ser_reqs_node)  {
+    if (cJSON_AddStringToObject(alt_ser_reqs, "", (char*)alt_ser_reqs_node->data) == NULL) {
+        ogs_error("OpenAPI_media_component_rm_convertToJSON() failed [alt_ser_reqs]");
         goto end;
     }
-    OpenAPI_list_for_each(media_component_rm->alt_ser_reqs_data, node) {
-        cJSON *itemLocal = OpenAPI_alternative_service_requirements_data_convertToJSON(node->data);
-        if (itemLocal == NULL) {
-            ogs_error("OpenAPI_media_component_rm_convertToJSON() failed [alt_ser_reqs_data]");
-            goto end;
-        }
-        cJSON_AddItemToArray(alt_ser_reqs_dataList, itemLocal);
-    }
+                    }
     }
 
     if (media_component_rm->is_dis_ue_notif) {
@@ -306,17 +211,19 @@ cJSON *OpenAPI_media_component_rm_convertToJSON(OpenAPI_media_component_rm_t *me
     }
 
     if (media_component_rm->codecs) {
-    cJSON *codecsList = cJSON_AddArrayToObject(item, "codecs");
-    if (codecsList == NULL) {
+    cJSON *codecs = cJSON_AddArrayToObject(item, "codecs");
+    if (codecs == NULL) {
         ogs_error("OpenAPI_media_component_rm_convertToJSON() failed [codecs]");
         goto end;
     }
-    OpenAPI_list_for_each(media_component_rm->codecs, node) {
-        if (cJSON_AddStringToObject(codecsList, "", (char*)node->data) == NULL) {
-            ogs_error("OpenAPI_media_component_rm_convertToJSON() failed [codecs]");
-            goto end;
-        }
+
+    OpenAPI_lnode_t *codecs_node;
+    OpenAPI_list_for_each(media_component_rm->codecs, codecs_node)  {
+    if (cJSON_AddStringToObject(codecs, "", (char*)codecs_node->data) == NULL) {
+        ogs_error("OpenAPI_media_component_rm_convertToJSON() failed [codecs]");
+        goto end;
     }
+                    }
     }
 
     if (media_component_rm->is_des_max_latency) {
@@ -340,7 +247,7 @@ cJSON *OpenAPI_media_component_rm_convertToJSON(OpenAPI_media_component_rm_t *me
     }
     }
 
-    if (media_component_rm->f_status != OpenAPI_flow_status_NULL) {
+    if (media_component_rm->f_status) {
     if (cJSON_AddStringToObject(item, "fStatus", OpenAPI_flow_status_ToString(media_component_rm->f_status)) == NULL) {
         ogs_error("OpenAPI_media_component_rm_convertToJSON() failed [f_status]");
         goto end;
@@ -401,30 +308,23 @@ cJSON *OpenAPI_media_component_rm_convertToJSON(OpenAPI_media_component_rm_t *me
         goto end;
     }
     cJSON *localMapObject = med_sub_comps;
+    OpenAPI_lnode_t *med_sub_comps_node;
     if (media_component_rm->med_sub_comps) {
-        OpenAPI_list_for_each(media_component_rm->med_sub_comps, node) {
-            OpenAPI_map_t *localKeyValue = (OpenAPI_map_t*)node->data;
-            if (localKeyValue == NULL) {
-                ogs_error("OpenAPI_media_component_rm_convertToJSON() failed [med_sub_comps]");
-                goto end;
+        OpenAPI_list_for_each(media_component_rm->med_sub_comps, med_sub_comps_node) {
+            OpenAPI_map_t *localKeyValue = (OpenAPI_map_t*)med_sub_comps_node->data;
+        cJSON *itemLocal = localKeyValue->value ?
+            OpenAPI_media_sub_component_rm_convertToJSON(localKeyValue->value) :
+            cJSON_CreateNull();
+        if (itemLocal == NULL) {
+            ogs_error("OpenAPI_media_component_rm_convertToJSON() failed [med_sub_comps]");
+            goto end;
+        }
+        cJSON_AddItemToObject(med_sub_comps, localKeyValue->key, itemLocal);
             }
-            if (localKeyValue->key == NULL) {
-                ogs_error("OpenAPI_media_component_rm_convertToJSON() failed [med_sub_comps]");
-                goto end;
-            }
-            cJSON *itemLocal = localKeyValue->value ?
-                OpenAPI_media_sub_component_rm_convertToJSON(localKeyValue->value) :
-                cJSON_CreateNull();
-            if (itemLocal == NULL) {
-                ogs_error("OpenAPI_media_component_rm_convertToJSON() failed [inner]");
-                goto end;
-            }
-            cJSON_AddItemToObject(localMapObject, localKeyValue->key, itemLocal);
         }
     }
-    }
 
-    if (media_component_rm->med_type != OpenAPI_media_type_NULL) {
+    if (media_component_rm->med_type) {
     if (cJSON_AddStringToObject(item, "medType", OpenAPI_media_type_ToString(media_component_rm->med_type)) == NULL) {
         ogs_error("OpenAPI_media_component_rm_convertToJSON() failed [med_type]");
         goto end;
@@ -485,14 +385,14 @@ cJSON *OpenAPI_media_component_rm_convertToJSON(OpenAPI_media_component_rm_t *me
     }
     }
 
-    if (media_component_rm->prio_sharing_ind != OpenAPI_priority_sharing_indicator_NULL) {
+    if (media_component_rm->prio_sharing_ind) {
     if (cJSON_AddStringToObject(item, "prioSharingInd", OpenAPI_priority_sharing_indicator_ToString(media_component_rm->prio_sharing_ind)) == NULL) {
         ogs_error("OpenAPI_media_component_rm_convertToJSON() failed [prio_sharing_ind]");
         goto end;
     }
     }
 
-    if (media_component_rm->res_prio != OpenAPI_reserv_priority_NULL) {
+    if (media_component_rm->res_prio) {
     if (cJSON_AddStringToObject(item, "resPrio", OpenAPI_reserv_priority_ToString(media_component_rm->res_prio)) == NULL) {
         ogs_error("OpenAPI_media_component_rm_convertToJSON() failed [res_prio]");
         goto end;
@@ -566,13 +466,6 @@ cJSON *OpenAPI_media_component_rm_convertToJSON(OpenAPI_media_component_rm_t *me
     }
     }
 
-    if (media_component_rm->is_tscai_time_dom) {
-    if (cJSON_AddNumberToObject(item, "tscaiTimeDom", media_component_rm->tscai_time_dom) == NULL) {
-        ogs_error("OpenAPI_media_component_rm_convertToJSON() failed [tscai_time_dom]");
-        goto end;
-    }
-    }
-
 end:
     return item;
 }
@@ -580,129 +473,53 @@ end:
 OpenAPI_media_component_rm_t *OpenAPI_media_component_rm_parseFromJSON(cJSON *media_component_rmJSON)
 {
     OpenAPI_media_component_rm_t *media_component_rm_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *af_app_id = NULL;
-    cJSON *af_rout_req = NULL;
-    OpenAPI_af_routing_requirement_rm_t *af_rout_req_local_nonprim = NULL;
-    cJSON *qos_reference = NULL;
-    cJSON *alt_ser_reqs = NULL;
-    OpenAPI_list_t *alt_ser_reqsList = NULL;
-    cJSON *alt_ser_reqs_data = NULL;
-    OpenAPI_list_t *alt_ser_reqs_dataList = NULL;
-    cJSON *dis_ue_notif = NULL;
-    cJSON *cont_ver = NULL;
-    cJSON *codecs = NULL;
-    OpenAPI_list_t *codecsList = NULL;
-    cJSON *des_max_latency = NULL;
-    cJSON *des_max_loss = NULL;
-    cJSON *flus_id = NULL;
-    cJSON *f_status = NULL;
-    OpenAPI_flow_status_e f_statusVariable = 0;
-    cJSON *mar_bw_dl = NULL;
-    cJSON *mar_bw_ul = NULL;
-    cJSON *max_packet_loss_rate_dl = NULL;
-    cJSON *max_packet_loss_rate_ul = NULL;
-    cJSON *max_supp_bw_dl = NULL;
-    cJSON *max_supp_bw_ul = NULL;
-    cJSON *med_comp_n = NULL;
-    cJSON *med_sub_comps = NULL;
-    OpenAPI_list_t *med_sub_compsList = NULL;
-    cJSON *med_type = NULL;
-    OpenAPI_media_type_e med_typeVariable = 0;
-    cJSON *min_des_bw_dl = NULL;
-    cJSON *min_des_bw_ul = NULL;
-    cJSON *mir_bw_dl = NULL;
-    cJSON *mir_bw_ul = NULL;
-    cJSON *preempt_cap = NULL;
-    OpenAPI_preemption_capability_rm_t *preempt_cap_local_nonprim = NULL;
-    cJSON *preempt_vuln = NULL;
-    OpenAPI_preemption_vulnerability_rm_t *preempt_vuln_local_nonprim = NULL;
-    cJSON *prio_sharing_ind = NULL;
-    OpenAPI_priority_sharing_indicator_e prio_sharing_indVariable = 0;
-    cJSON *res_prio = NULL;
-    OpenAPI_reserv_priority_e res_prioVariable = 0;
-    cJSON *rr_bw = NULL;
-    cJSON *rs_bw = NULL;
-    cJSON *sharing_key_dl = NULL;
-    cJSON *sharing_key_ul = NULL;
-    cJSON *tsn_qos = NULL;
-    OpenAPI_tsn_qos_container_rm_t *tsn_qos_local_nonprim = NULL;
-    cJSON *tscai_input_dl = NULL;
-    OpenAPI_tscai_input_container_t *tscai_input_dl_local_nonprim = NULL;
-    cJSON *tscai_input_ul = NULL;
-    OpenAPI_tscai_input_container_t *tscai_input_ul_local_nonprim = NULL;
-    cJSON *tscai_time_dom = NULL;
-    af_app_id = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "afAppId");
+    cJSON *af_app_id = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "afAppId");
+
     if (af_app_id) {
-    if (!cJSON_IsString(af_app_id) && !cJSON_IsNull(af_app_id)) {
+    if (!cJSON_IsString(af_app_id)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [af_app_id]");
         goto end;
     }
     }
 
-    af_rout_req = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "afRoutReq");
+    cJSON *af_rout_req = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "afRoutReq");
+
+    OpenAPI_af_routing_requirement_rm_t *af_rout_req_local_nonprim = NULL;
     if (af_rout_req) {
     af_rout_req_local_nonprim = OpenAPI_af_routing_requirement_rm_parseFromJSON(af_rout_req);
-    if (!af_rout_req_local_nonprim) {
-        ogs_error("OpenAPI_af_routing_requirement_rm_parseFromJSON failed [af_rout_req]");
-        goto end;
-    }
     }
 
-    qos_reference = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "qosReference");
+    cJSON *qos_reference = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "qosReference");
+
     if (qos_reference) {
-    if (!cJSON_IsString(qos_reference) && !cJSON_IsNull(qos_reference)) {
+    if (!cJSON_IsString(qos_reference)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [qos_reference]");
         goto end;
     }
     }
 
-    alt_ser_reqs = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "altSerReqs");
+    cJSON *alt_ser_reqs = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "altSerReqs");
+
+    OpenAPI_list_t *alt_ser_reqsList;
     if (alt_ser_reqs) {
-        cJSON *alt_ser_reqs_local = NULL;
-        if (!cJSON_IsArray(alt_ser_reqs)) {
-            ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [alt_ser_reqs]");
-            goto end;
-        }
+    cJSON *alt_ser_reqs_local;
+    if (!cJSON_IsArray(alt_ser_reqs)) {
+        ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [alt_ser_reqs]");
+        goto end;
+    }
+    alt_ser_reqsList = OpenAPI_list_create();
 
-        alt_ser_reqsList = OpenAPI_list_create();
-
-        cJSON_ArrayForEach(alt_ser_reqs_local, alt_ser_reqs) {
-            double *localDouble = NULL;
-            int *localInt = NULL;
-            if (!cJSON_IsString(alt_ser_reqs_local)) {
-                ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [alt_ser_reqs]");
-                goto end;
-            }
-            OpenAPI_list_add(alt_ser_reqsList, ogs_strdup(alt_ser_reqs_local->valuestring));
-        }
+    cJSON_ArrayForEach(alt_ser_reqs_local, alt_ser_reqs) {
+    if (!cJSON_IsString(alt_ser_reqs_local)) {
+        ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [alt_ser_reqs]");
+        goto end;
+    }
+    OpenAPI_list_add(alt_ser_reqsList , ogs_strdup(alt_ser_reqs_local->valuestring));
+    }
     }
 
-    alt_ser_reqs_data = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "altSerReqsData");
-    if (alt_ser_reqs_data) {
-        cJSON *alt_ser_reqs_data_local = NULL;
-        if (!cJSON_IsArray(alt_ser_reqs_data)) {
-            ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [alt_ser_reqs_data]");
-            goto end;
-        }
+    cJSON *dis_ue_notif = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "disUeNotif");
 
-        alt_ser_reqs_dataList = OpenAPI_list_create();
-
-        cJSON_ArrayForEach(alt_ser_reqs_data_local, alt_ser_reqs_data) {
-            if (!cJSON_IsObject(alt_ser_reqs_data_local)) {
-                ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [alt_ser_reqs_data]");
-                goto end;
-            }
-            OpenAPI_alternative_service_requirements_data_t *alt_ser_reqs_dataItem = OpenAPI_alternative_service_requirements_data_parseFromJSON(alt_ser_reqs_data_local);
-            if (!alt_ser_reqs_dataItem) {
-                ogs_error("No alt_ser_reqs_dataItem");
-                goto end;
-            }
-            OpenAPI_list_add(alt_ser_reqs_dataList, alt_ser_reqs_dataItem);
-        }
-    }
-
-    dis_ue_notif = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "disUeNotif");
     if (dis_ue_notif) {
     if (!cJSON_IsBool(dis_ue_notif)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [dis_ue_notif]");
@@ -710,7 +527,8 @@ OpenAPI_media_component_rm_t *OpenAPI_media_component_rm_parseFromJSON(cJSON *me
     }
     }
 
-    cont_ver = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "contVer");
+    cJSON *cont_ver = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "contVer");
+
     if (cont_ver) {
     if (!cJSON_IsNumber(cont_ver)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [cont_ver]");
@@ -718,28 +536,28 @@ OpenAPI_media_component_rm_t *OpenAPI_media_component_rm_parseFromJSON(cJSON *me
     }
     }
 
-    codecs = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "codecs");
+    cJSON *codecs = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "codecs");
+
+    OpenAPI_list_t *codecsList;
     if (codecs) {
-        cJSON *codecs_local = NULL;
-        if (!cJSON_IsArray(codecs)) {
-            ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [codecs]");
-            goto end;
-        }
+    cJSON *codecs_local;
+    if (!cJSON_IsArray(codecs)) {
+        ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [codecs]");
+        goto end;
+    }
+    codecsList = OpenAPI_list_create();
 
-        codecsList = OpenAPI_list_create();
-
-        cJSON_ArrayForEach(codecs_local, codecs) {
-            double *localDouble = NULL;
-            int *localInt = NULL;
-            if (!cJSON_IsString(codecs_local)) {
-                ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [codecs]");
-                goto end;
-            }
-            OpenAPI_list_add(codecsList, ogs_strdup(codecs_local->valuestring));
-        }
+    cJSON_ArrayForEach(codecs_local, codecs) {
+    if (!cJSON_IsString(codecs_local)) {
+        ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [codecs]");
+        goto end;
+    }
+    OpenAPI_list_add(codecsList , ogs_strdup(codecs_local->valuestring));
+    }
     }
 
-    des_max_latency = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "desMaxLatency");
+    cJSON *des_max_latency = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "desMaxLatency");
+
     if (des_max_latency) {
     if (!cJSON_IsNumber(des_max_latency)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [des_max_latency]");
@@ -747,7 +565,8 @@ OpenAPI_media_component_rm_t *OpenAPI_media_component_rm_parseFromJSON(cJSON *me
     }
     }
 
-    des_max_loss = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "desMaxLoss");
+    cJSON *des_max_loss = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "desMaxLoss");
+
     if (des_max_loss) {
     if (!cJSON_IsNumber(des_max_loss)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [des_max_loss]");
@@ -755,15 +574,18 @@ OpenAPI_media_component_rm_t *OpenAPI_media_component_rm_parseFromJSON(cJSON *me
     }
     }
 
-    flus_id = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "flusId");
+    cJSON *flus_id = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "flusId");
+
     if (flus_id) {
-    if (!cJSON_IsString(flus_id) && !cJSON_IsNull(flus_id)) {
+    if (!cJSON_IsString(flus_id)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [flus_id]");
         goto end;
     }
     }
 
-    f_status = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "fStatus");
+    cJSON *f_status = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "fStatus");
+
+    OpenAPI_flow_status_e f_statusVariable;
     if (f_status) {
     if (!cJSON_IsString(f_status)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [f_status]");
@@ -772,23 +594,26 @@ OpenAPI_media_component_rm_t *OpenAPI_media_component_rm_parseFromJSON(cJSON *me
     f_statusVariable = OpenAPI_flow_status_FromString(f_status->valuestring);
     }
 
-    mar_bw_dl = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "marBwDl");
+    cJSON *mar_bw_dl = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "marBwDl");
+
     if (mar_bw_dl) {
-    if (!cJSON_IsString(mar_bw_dl) && !cJSON_IsNull(mar_bw_dl)) {
+    if (!cJSON_IsString(mar_bw_dl)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [mar_bw_dl]");
         goto end;
     }
     }
 
-    mar_bw_ul = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "marBwUl");
+    cJSON *mar_bw_ul = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "marBwUl");
+
     if (mar_bw_ul) {
-    if (!cJSON_IsString(mar_bw_ul) && !cJSON_IsNull(mar_bw_ul)) {
+    if (!cJSON_IsString(mar_bw_ul)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [mar_bw_ul]");
         goto end;
     }
     }
 
-    max_packet_loss_rate_dl = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "maxPacketLossRateDl");
+    cJSON *max_packet_loss_rate_dl = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "maxPacketLossRateDl");
+
     if (max_packet_loss_rate_dl) {
     if (!cJSON_IsNumber(max_packet_loss_rate_dl)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [max_packet_loss_rate_dl]");
@@ -796,7 +621,8 @@ OpenAPI_media_component_rm_t *OpenAPI_media_component_rm_parseFromJSON(cJSON *me
     }
     }
 
-    max_packet_loss_rate_ul = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "maxPacketLossRateUl");
+    cJSON *max_packet_loss_rate_ul = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "maxPacketLossRateUl");
+
     if (max_packet_loss_rate_ul) {
     if (!cJSON_IsNumber(max_packet_loss_rate_ul)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [max_packet_loss_rate_ul]");
@@ -804,59 +630,64 @@ OpenAPI_media_component_rm_t *OpenAPI_media_component_rm_parseFromJSON(cJSON *me
     }
     }
 
-    max_supp_bw_dl = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "maxSuppBwDl");
+    cJSON *max_supp_bw_dl = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "maxSuppBwDl");
+
     if (max_supp_bw_dl) {
-    if (!cJSON_IsString(max_supp_bw_dl) && !cJSON_IsNull(max_supp_bw_dl)) {
+    if (!cJSON_IsString(max_supp_bw_dl)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [max_supp_bw_dl]");
         goto end;
     }
     }
 
-    max_supp_bw_ul = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "maxSuppBwUl");
+    cJSON *max_supp_bw_ul = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "maxSuppBwUl");
+
     if (max_supp_bw_ul) {
-    if (!cJSON_IsString(max_supp_bw_ul) && !cJSON_IsNull(max_supp_bw_ul)) {
+    if (!cJSON_IsString(max_supp_bw_ul)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [max_supp_bw_ul]");
         goto end;
     }
     }
 
-    med_comp_n = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "medCompN");
+    cJSON *med_comp_n = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "medCompN");
     if (!med_comp_n) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [med_comp_n]");
         goto end;
     }
+
     if (!cJSON_IsNumber(med_comp_n)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [med_comp_n]");
         goto end;
     }
 
-    med_sub_comps = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "medSubComps");
+    cJSON *med_sub_comps = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "medSubComps");
+
+    OpenAPI_list_t *med_sub_compsList;
     if (med_sub_comps) {
-        cJSON *med_sub_comps_local_map = NULL;
-        if (!cJSON_IsObject(med_sub_comps) && !cJSON_IsNull(med_sub_comps)) {
+    cJSON *med_sub_comps_local_map;
+    if (!cJSON_IsObject(med_sub_comps)) {
+        ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [med_sub_comps]");
+        goto end;
+    }
+    med_sub_compsList = OpenAPI_list_create();
+    OpenAPI_map_t *localMapKeyPair = NULL;
+    cJSON_ArrayForEach(med_sub_comps_local_map, med_sub_comps) {
+        cJSON *localMapObject = med_sub_comps_local_map;
+        if (cJSON_IsObject(med_sub_comps_local_map)) {
+            localMapKeyPair = OpenAPI_map_create(
+                ogs_strdup(localMapObject->string), OpenAPI_media_sub_component_rm_parseFromJSON(localMapObject));
+        } else if (cJSON_IsNull(med_sub_comps_local_map)) {
+            localMapKeyPair = OpenAPI_map_create(ogs_strdup(localMapObject->string), NULL);
+        } else {
             ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [med_sub_comps]");
             goto end;
         }
-        if (cJSON_IsObject(med_sub_comps)) {
-            med_sub_compsList = OpenAPI_list_create();
-            OpenAPI_map_t *localMapKeyPair = NULL;
-            cJSON_ArrayForEach(med_sub_comps_local_map, med_sub_comps) {
-                cJSON *localMapObject = med_sub_comps_local_map;
-                if (cJSON_IsObject(localMapObject)) {
-                    localMapKeyPair = OpenAPI_map_create(
-                        ogs_strdup(localMapObject->string), OpenAPI_media_sub_component_rm_parseFromJSON(localMapObject));
-                } else if (cJSON_IsNull(localMapObject)) {
-                    localMapKeyPair = OpenAPI_map_create(ogs_strdup(localMapObject->string), NULL);
-                } else {
-                    ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [inner]");
-                    goto end;
-                }
-                OpenAPI_list_add(med_sub_compsList, localMapKeyPair);
-            }
-        }
+        OpenAPI_list_add(med_sub_compsList , localMapKeyPair);
+    }
     }
 
-    med_type = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "medType");
+    cJSON *med_type = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "medType");
+
+    OpenAPI_media_type_e med_typeVariable;
     if (med_type) {
     if (!cJSON_IsString(med_type)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [med_type]");
@@ -865,57 +696,59 @@ OpenAPI_media_component_rm_t *OpenAPI_media_component_rm_parseFromJSON(cJSON *me
     med_typeVariable = OpenAPI_media_type_FromString(med_type->valuestring);
     }
 
-    min_des_bw_dl = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "minDesBwDl");
+    cJSON *min_des_bw_dl = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "minDesBwDl");
+
     if (min_des_bw_dl) {
-    if (!cJSON_IsString(min_des_bw_dl) && !cJSON_IsNull(min_des_bw_dl)) {
+    if (!cJSON_IsString(min_des_bw_dl)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [min_des_bw_dl]");
         goto end;
     }
     }
 
-    min_des_bw_ul = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "minDesBwUl");
+    cJSON *min_des_bw_ul = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "minDesBwUl");
+
     if (min_des_bw_ul) {
-    if (!cJSON_IsString(min_des_bw_ul) && !cJSON_IsNull(min_des_bw_ul)) {
+    if (!cJSON_IsString(min_des_bw_ul)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [min_des_bw_ul]");
         goto end;
     }
     }
 
-    mir_bw_dl = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "mirBwDl");
+    cJSON *mir_bw_dl = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "mirBwDl");
+
     if (mir_bw_dl) {
-    if (!cJSON_IsString(mir_bw_dl) && !cJSON_IsNull(mir_bw_dl)) {
+    if (!cJSON_IsString(mir_bw_dl)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [mir_bw_dl]");
         goto end;
     }
     }
 
-    mir_bw_ul = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "mirBwUl");
+    cJSON *mir_bw_ul = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "mirBwUl");
+
     if (mir_bw_ul) {
-    if (!cJSON_IsString(mir_bw_ul) && !cJSON_IsNull(mir_bw_ul)) {
+    if (!cJSON_IsString(mir_bw_ul)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [mir_bw_ul]");
         goto end;
     }
     }
 
-    preempt_cap = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "preemptCap");
+    cJSON *preempt_cap = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "preemptCap");
+
+    OpenAPI_preemption_capability_rm_t *preempt_cap_local_nonprim = NULL;
     if (preempt_cap) {
     preempt_cap_local_nonprim = OpenAPI_preemption_capability_rm_parseFromJSON(preempt_cap);
-    if (!preempt_cap_local_nonprim) {
-        ogs_error("OpenAPI_preemption_capability_rm_parseFromJSON failed [preempt_cap]");
-        goto end;
-    }
     }
 
-    preempt_vuln = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "preemptVuln");
+    cJSON *preempt_vuln = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "preemptVuln");
+
+    OpenAPI_preemption_vulnerability_rm_t *preempt_vuln_local_nonprim = NULL;
     if (preempt_vuln) {
     preempt_vuln_local_nonprim = OpenAPI_preemption_vulnerability_rm_parseFromJSON(preempt_vuln);
-    if (!preempt_vuln_local_nonprim) {
-        ogs_error("OpenAPI_preemption_vulnerability_rm_parseFromJSON failed [preempt_vuln]");
-        goto end;
-    }
     }
 
-    prio_sharing_ind = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "prioSharingInd");
+    cJSON *prio_sharing_ind = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "prioSharingInd");
+
+    OpenAPI_priority_sharing_indicator_e prio_sharing_indVariable;
     if (prio_sharing_ind) {
     if (!cJSON_IsString(prio_sharing_ind)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [prio_sharing_ind]");
@@ -924,7 +757,9 @@ OpenAPI_media_component_rm_t *OpenAPI_media_component_rm_parseFromJSON(cJSON *me
     prio_sharing_indVariable = OpenAPI_priority_sharing_indicator_FromString(prio_sharing_ind->valuestring);
     }
 
-    res_prio = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "resPrio");
+    cJSON *res_prio = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "resPrio");
+
+    OpenAPI_reserv_priority_e res_prioVariable;
     if (res_prio) {
     if (!cJSON_IsString(res_prio)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [res_prio]");
@@ -933,23 +768,26 @@ OpenAPI_media_component_rm_t *OpenAPI_media_component_rm_parseFromJSON(cJSON *me
     res_prioVariable = OpenAPI_reserv_priority_FromString(res_prio->valuestring);
     }
 
-    rr_bw = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "rrBw");
+    cJSON *rr_bw = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "rrBw");
+
     if (rr_bw) {
-    if (!cJSON_IsString(rr_bw) && !cJSON_IsNull(rr_bw)) {
+    if (!cJSON_IsString(rr_bw)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [rr_bw]");
         goto end;
     }
     }
 
-    rs_bw = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "rsBw");
+    cJSON *rs_bw = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "rsBw");
+
     if (rs_bw) {
-    if (!cJSON_IsString(rs_bw) && !cJSON_IsNull(rs_bw)) {
+    if (!cJSON_IsString(rs_bw)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [rs_bw]");
         goto end;
     }
     }
 
-    sharing_key_dl = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "sharingKeyDl");
+    cJSON *sharing_key_dl = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "sharingKeyDl");
+
     if (sharing_key_dl) {
     if (!cJSON_IsNumber(sharing_key_dl)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [sharing_key_dl]");
@@ -957,7 +795,8 @@ OpenAPI_media_component_rm_t *OpenAPI_media_component_rm_parseFromJSON(cJSON *me
     }
     }
 
-    sharing_key_ul = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "sharingKeyUl");
+    cJSON *sharing_key_ul = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "sharingKeyUl");
+
     if (sharing_key_ul) {
     if (!cJSON_IsNumber(sharing_key_ul)) {
         ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [sharing_key_ul]");
@@ -965,47 +804,32 @@ OpenAPI_media_component_rm_t *OpenAPI_media_component_rm_parseFromJSON(cJSON *me
     }
     }
 
-    tsn_qos = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "tsnQos");
+    cJSON *tsn_qos = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "tsnQos");
+
+    OpenAPI_tsn_qos_container_rm_t *tsn_qos_local_nonprim = NULL;
     if (tsn_qos) {
     tsn_qos_local_nonprim = OpenAPI_tsn_qos_container_rm_parseFromJSON(tsn_qos);
-    if (!tsn_qos_local_nonprim) {
-        ogs_error("OpenAPI_tsn_qos_container_rm_parseFromJSON failed [tsn_qos]");
-        goto end;
-    }
     }
 
-    tscai_input_dl = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "tscaiInputDl");
+    cJSON *tscai_input_dl = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "tscaiInputDl");
+
+    OpenAPI_tscai_input_container_t *tscai_input_dl_local_nonprim = NULL;
     if (tscai_input_dl) {
     tscai_input_dl_local_nonprim = OpenAPI_tscai_input_container_parseFromJSON(tscai_input_dl);
-    if (!tscai_input_dl_local_nonprim) {
-        ogs_error("OpenAPI_tscai_input_container_parseFromJSON failed [tscai_input_dl]");
-        goto end;
-    }
     }
 
-    tscai_input_ul = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "tscaiInputUl");
+    cJSON *tscai_input_ul = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "tscaiInputUl");
+
+    OpenAPI_tscai_input_container_t *tscai_input_ul_local_nonprim = NULL;
     if (tscai_input_ul) {
     tscai_input_ul_local_nonprim = OpenAPI_tscai_input_container_parseFromJSON(tscai_input_ul);
-    if (!tscai_input_ul_local_nonprim) {
-        ogs_error("OpenAPI_tscai_input_container_parseFromJSON failed [tscai_input_ul]");
-        goto end;
-    }
-    }
-
-    tscai_time_dom = cJSON_GetObjectItemCaseSensitive(media_component_rmJSON, "tscaiTimeDom");
-    if (tscai_time_dom) {
-    if (!cJSON_IsNumber(tscai_time_dom)) {
-        ogs_error("OpenAPI_media_component_rm_parseFromJSON() failed [tscai_time_dom]");
-        goto end;
-    }
     }
 
     media_component_rm_local_var = OpenAPI_media_component_rm_create (
-        af_app_id && !cJSON_IsNull(af_app_id) ? ogs_strdup(af_app_id->valuestring) : NULL,
+        af_app_id ? ogs_strdup(af_app_id->valuestring) : NULL,
         af_rout_req ? af_rout_req_local_nonprim : NULL,
-        qos_reference && !cJSON_IsNull(qos_reference) ? ogs_strdup(qos_reference->valuestring) : NULL,
+        qos_reference ? ogs_strdup(qos_reference->valuestring) : NULL,
         alt_ser_reqs ? alt_ser_reqsList : NULL,
-        alt_ser_reqs_data ? alt_ser_reqs_dataList : NULL,
         dis_ue_notif ? true : false,
         dis_ue_notif ? dis_ue_notif->valueint : 0,
         cont_ver ? true : false,
@@ -1015,98 +839,41 @@ OpenAPI_media_component_rm_t *OpenAPI_media_component_rm_parseFromJSON(cJSON *me
         des_max_latency ? des_max_latency->valuedouble : 0,
         des_max_loss ? true : false,
         des_max_loss ? des_max_loss->valuedouble : 0,
-        flus_id && !cJSON_IsNull(flus_id) ? ogs_strdup(flus_id->valuestring) : NULL,
+        flus_id ? ogs_strdup(flus_id->valuestring) : NULL,
         f_status ? f_statusVariable : 0,
-        mar_bw_dl && !cJSON_IsNull(mar_bw_dl) ? ogs_strdup(mar_bw_dl->valuestring) : NULL,
-        mar_bw_ul && !cJSON_IsNull(mar_bw_ul) ? ogs_strdup(mar_bw_ul->valuestring) : NULL,
+        mar_bw_dl ? ogs_strdup(mar_bw_dl->valuestring) : NULL,
+        mar_bw_ul ? ogs_strdup(mar_bw_ul->valuestring) : NULL,
         max_packet_loss_rate_dl ? true : false,
         max_packet_loss_rate_dl ? max_packet_loss_rate_dl->valuedouble : 0,
         max_packet_loss_rate_ul ? true : false,
         max_packet_loss_rate_ul ? max_packet_loss_rate_ul->valuedouble : 0,
-        max_supp_bw_dl && !cJSON_IsNull(max_supp_bw_dl) ? ogs_strdup(max_supp_bw_dl->valuestring) : NULL,
-        max_supp_bw_ul && !cJSON_IsNull(max_supp_bw_ul) ? ogs_strdup(max_supp_bw_ul->valuestring) : NULL,
+        max_supp_bw_dl ? ogs_strdup(max_supp_bw_dl->valuestring) : NULL,
+        max_supp_bw_ul ? ogs_strdup(max_supp_bw_ul->valuestring) : NULL,
         
         med_comp_n->valuedouble,
         med_sub_comps ? med_sub_compsList : NULL,
         med_type ? med_typeVariable : 0,
-        min_des_bw_dl && !cJSON_IsNull(min_des_bw_dl) ? ogs_strdup(min_des_bw_dl->valuestring) : NULL,
-        min_des_bw_ul && !cJSON_IsNull(min_des_bw_ul) ? ogs_strdup(min_des_bw_ul->valuestring) : NULL,
-        mir_bw_dl && !cJSON_IsNull(mir_bw_dl) ? ogs_strdup(mir_bw_dl->valuestring) : NULL,
-        mir_bw_ul && !cJSON_IsNull(mir_bw_ul) ? ogs_strdup(mir_bw_ul->valuestring) : NULL,
+        min_des_bw_dl ? ogs_strdup(min_des_bw_dl->valuestring) : NULL,
+        min_des_bw_ul ? ogs_strdup(min_des_bw_ul->valuestring) : NULL,
+        mir_bw_dl ? ogs_strdup(mir_bw_dl->valuestring) : NULL,
+        mir_bw_ul ? ogs_strdup(mir_bw_ul->valuestring) : NULL,
         preempt_cap ? preempt_cap_local_nonprim : NULL,
         preempt_vuln ? preempt_vuln_local_nonprim : NULL,
         prio_sharing_ind ? prio_sharing_indVariable : 0,
         res_prio ? res_prioVariable : 0,
-        rr_bw && !cJSON_IsNull(rr_bw) ? ogs_strdup(rr_bw->valuestring) : NULL,
-        rs_bw && !cJSON_IsNull(rs_bw) ? ogs_strdup(rs_bw->valuestring) : NULL,
+        rr_bw ? ogs_strdup(rr_bw->valuestring) : NULL,
+        rs_bw ? ogs_strdup(rs_bw->valuestring) : NULL,
         sharing_key_dl ? true : false,
         sharing_key_dl ? sharing_key_dl->valuedouble : 0,
         sharing_key_ul ? true : false,
         sharing_key_ul ? sharing_key_ul->valuedouble : 0,
         tsn_qos ? tsn_qos_local_nonprim : NULL,
         tscai_input_dl ? tscai_input_dl_local_nonprim : NULL,
-        tscai_input_ul ? tscai_input_ul_local_nonprim : NULL,
-        tscai_time_dom ? true : false,
-        tscai_time_dom ? tscai_time_dom->valuedouble : 0
+        tscai_input_ul ? tscai_input_ul_local_nonprim : NULL
     );
 
     return media_component_rm_local_var;
 end:
-    if (af_rout_req_local_nonprim) {
-        OpenAPI_af_routing_requirement_rm_free(af_rout_req_local_nonprim);
-        af_rout_req_local_nonprim = NULL;
-    }
-    if (alt_ser_reqsList) {
-        OpenAPI_list_for_each(alt_ser_reqsList, node) {
-            ogs_free(node->data);
-        }
-        OpenAPI_list_free(alt_ser_reqsList);
-        alt_ser_reqsList = NULL;
-    }
-    if (alt_ser_reqs_dataList) {
-        OpenAPI_list_for_each(alt_ser_reqs_dataList, node) {
-            OpenAPI_alternative_service_requirements_data_free(node->data);
-        }
-        OpenAPI_list_free(alt_ser_reqs_dataList);
-        alt_ser_reqs_dataList = NULL;
-    }
-    if (codecsList) {
-        OpenAPI_list_for_each(codecsList, node) {
-            ogs_free(node->data);
-        }
-        OpenAPI_list_free(codecsList);
-        codecsList = NULL;
-    }
-    if (med_sub_compsList) {
-        OpenAPI_list_for_each(med_sub_compsList, node) {
-            OpenAPI_map_t *localKeyValue = (OpenAPI_map_t*) node->data;
-            ogs_free(localKeyValue->key);
-            OpenAPI_media_sub_component_rm_free(localKeyValue->value);
-            OpenAPI_map_free(localKeyValue);
-        }
-        OpenAPI_list_free(med_sub_compsList);
-        med_sub_compsList = NULL;
-    }
-    if (preempt_cap_local_nonprim) {
-        OpenAPI_preemption_capability_rm_free(preempt_cap_local_nonprim);
-        preempt_cap_local_nonprim = NULL;
-    }
-    if (preempt_vuln_local_nonprim) {
-        OpenAPI_preemption_vulnerability_rm_free(preempt_vuln_local_nonprim);
-        preempt_vuln_local_nonprim = NULL;
-    }
-    if (tsn_qos_local_nonprim) {
-        OpenAPI_tsn_qos_container_rm_free(tsn_qos_local_nonprim);
-        tsn_qos_local_nonprim = NULL;
-    }
-    if (tscai_input_dl_local_nonprim) {
-        OpenAPI_tscai_input_container_free(tscai_input_dl_local_nonprim);
-        tscai_input_dl_local_nonprim = NULL;
-    }
-    if (tscai_input_ul_local_nonprim) {
-        OpenAPI_tscai_input_container_free(tscai_input_ul_local_nonprim);
-        tscai_input_ul_local_nonprim = NULL;
-    }
     return NULL;
 }
 

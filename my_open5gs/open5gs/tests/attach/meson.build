@@ -18,7 +18,6 @@
 testapp_attach_sources = files('''
     abts-main.c
     s1setup-test.c
-    simple-test.c
     guti-test.c
     auth-test.c
     idle-test.c
@@ -26,7 +25,6 @@ testapp_attach_sources = files('''
     reset-test.c
     ue-context-test.c
     issues-test.c
-    crash-test.c
 '''.split())
 
 testapp_attach_exe = executable('attach',

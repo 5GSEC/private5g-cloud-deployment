@@ -41,7 +41,7 @@ int smf_fd_init(void)
     rv = smf_gy_init();
     ogs_assert(rv == OGS_OK);
 
-    rv = ogs_diam_rx_init();
+	rv = ogs_diam_rx_init();
     ogs_assert(rv == 0);
     rv = smf_s6b_init();
     ogs_assert(rv == OGS_OK);
@@ -49,27 +49,19 @@ int smf_fd_init(void)
     rv = ogs_diam_start();
     ogs_assert(rv == 0);
 
-    return OGS_OK;
+	return OGS_OK;
 }
 
 void smf_fd_final(void)
 {
-    if (smf_self()->diam_conf_path == NULL &&
-        (smf_self()->diam_config->cnf_diamid == NULL ||
-        smf_self()->diam_config->cnf_diamrlm == NULL ||
-        smf_self()->diam_config->cnf_addr == NULL)) {
-        return;
-    }
-
     smf_gx_final();
-    smf_gy_final();
     smf_s6b_final();
 
     ogs_diam_final();
 }
 
 /* Append 3GPP-User-Location-Info, 3GPP TS 29.061 16.4.7.2 22 */
-void smf_fd_msg_avp_add_3gpp_uli(smf_sess_t *sess, struct msg *req)
+void smf_fd_msg_avp_add_3gpp_uli(smf_sess_t *sess, struct avp *avp)
 {
     struct avp *avpch1;
     union avp_value val;
@@ -92,7 +84,7 @@ void smf_fd_msg_avp_add_3gpp_uli(smf_sess_t *sess, struct msg *req)
         val.os.len = sess->gtp.user_location_information.len;
         ret = fd_msg_avp_setvalue(avpch1, &val);
         ogs_assert(ret == 0);
-        ret = fd_msg_avp_add(req, MSG_BRW_LAST_CHILD, avpch1);
+        ret = fd_msg_avp_add(avp, MSG_BRW_LAST_CHILD, avpch1);
         ogs_assert(ret == 0);
         return;
     }
@@ -149,7 +141,7 @@ void smf_fd_msg_avp_add_3gpp_uli(smf_sess_t *sess, struct msg *req)
     val.os.len = uli_len;
     ret = fd_msg_avp_setvalue(avpch1, &val);
     ogs_assert(ret == 0);
-    ret = fd_msg_avp_add(req, MSG_BRW_LAST_CHILD, avpch1);
+    ret = fd_msg_avp_add(avp, MSG_BRW_LAST_CHILD, avpch1);
     ogs_assert(ret == 0);
 
 }

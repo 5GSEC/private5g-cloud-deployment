@@ -12,7 +12,6 @@
 #include "../include/list.h"
 #include "../include/keyValuePair.h"
 #include "../include/binary.h"
-#include "pcscf_address.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,12 +20,10 @@ extern "C" {
 typedef struct OpenAPI_pcscf_restoration_notification_s OpenAPI_pcscf_restoration_notification_t;
 typedef struct OpenAPI_pcscf_restoration_notification_s {
     char *supi;
-    struct OpenAPI_pcscf_address_s *failed_pcscf;
 } OpenAPI_pcscf_restoration_notification_t;
 
 OpenAPI_pcscf_restoration_notification_t *OpenAPI_pcscf_restoration_notification_create(
-    char *supi,
-    OpenAPI_pcscf_address_t *failed_pcscf
+    char *supi
 );
 void OpenAPI_pcscf_restoration_notification_free(OpenAPI_pcscf_restoration_notification_t *pcscf_restoration_notification);
 OpenAPI_pcscf_restoration_notification_t *OpenAPI_pcscf_restoration_notification_parseFromJSON(cJSON *pcscf_restoration_notificationJSON);

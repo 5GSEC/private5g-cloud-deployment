@@ -16,18 +16,16 @@ OpenAPI_ue_reachability_t *OpenAPI_ue_reachability_create(
 
 void OpenAPI_ue_reachability_free(OpenAPI_ue_reachability_t *ue_reachability)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == ue_reachability) {
         return;
     }
+    OpenAPI_lnode_t *node;
     ogs_free(ue_reachability);
 }
 
 cJSON *OpenAPI_ue_reachability_convertToJSON(OpenAPI_ue_reachability_t *ue_reachability)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (ue_reachability == NULL) {
         ogs_error("OpenAPI_ue_reachability_convertToJSON() failed [UeReachability]");
@@ -42,7 +40,6 @@ end:
 OpenAPI_ue_reachability_t *OpenAPI_ue_reachability_parseFromJSON(cJSON *ue_reachabilityJSON)
 {
     OpenAPI_ue_reachability_t *ue_reachability_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
     ue_reachability_local_var = OpenAPI_ue_reachability_create (
     );
 

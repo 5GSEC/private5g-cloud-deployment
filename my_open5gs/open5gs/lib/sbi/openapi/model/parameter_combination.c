@@ -22,30 +22,19 @@ OpenAPI_parameter_combination_t *OpenAPI_parameter_combination_create(
 
 void OpenAPI_parameter_combination_free(OpenAPI_parameter_combination_t *parameter_combination)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == parameter_combination) {
         return;
     }
-    if (parameter_combination->supi) {
-        ogs_free(parameter_combination->supi);
-        parameter_combination->supi = NULL;
-    }
-    if (parameter_combination->dnn) {
-        ogs_free(parameter_combination->dnn);
-        parameter_combination->dnn = NULL;
-    }
-    if (parameter_combination->snssai) {
-        OpenAPI_snssai_free(parameter_combination->snssai);
-        parameter_combination->snssai = NULL;
-    }
+    OpenAPI_lnode_t *node;
+    ogs_free(parameter_combination->supi);
+    ogs_free(parameter_combination->dnn);
+    OpenAPI_snssai_free(parameter_combination->snssai);
     ogs_free(parameter_combination);
 }
 
 cJSON *OpenAPI_parameter_combination_convertToJSON(OpenAPI_parameter_combination_t *parameter_combination)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (parameter_combination == NULL) {
         ogs_error("OpenAPI_parameter_combination_convertToJSON() failed [ParameterCombination]");
@@ -87,48 +76,39 @@ end:
 OpenAPI_parameter_combination_t *OpenAPI_parameter_combination_parseFromJSON(cJSON *parameter_combinationJSON)
 {
     OpenAPI_parameter_combination_t *parameter_combination_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *supi = NULL;
-    cJSON *dnn = NULL;
-    cJSON *snssai = NULL;
-    OpenAPI_snssai_t *snssai_local_nonprim = NULL;
-    supi = cJSON_GetObjectItemCaseSensitive(parameter_combinationJSON, "supi");
+    cJSON *supi = cJSON_GetObjectItemCaseSensitive(parameter_combinationJSON, "supi");
+
     if (supi) {
-    if (!cJSON_IsString(supi) && !cJSON_IsNull(supi)) {
+    if (!cJSON_IsString(supi)) {
         ogs_error("OpenAPI_parameter_combination_parseFromJSON() failed [supi]");
         goto end;
     }
     }
 
-    dnn = cJSON_GetObjectItemCaseSensitive(parameter_combinationJSON, "dnn");
+    cJSON *dnn = cJSON_GetObjectItemCaseSensitive(parameter_combinationJSON, "dnn");
+
     if (dnn) {
-    if (!cJSON_IsString(dnn) && !cJSON_IsNull(dnn)) {
+    if (!cJSON_IsString(dnn)) {
         ogs_error("OpenAPI_parameter_combination_parseFromJSON() failed [dnn]");
         goto end;
     }
     }
 
-    snssai = cJSON_GetObjectItemCaseSensitive(parameter_combinationJSON, "snssai");
+    cJSON *snssai = cJSON_GetObjectItemCaseSensitive(parameter_combinationJSON, "snssai");
+
+    OpenAPI_snssai_t *snssai_local_nonprim = NULL;
     if (snssai) {
     snssai_local_nonprim = OpenAPI_snssai_parseFromJSON(snssai);
-    if (!snssai_local_nonprim) {
-        ogs_error("OpenAPI_snssai_parseFromJSON failed [snssai]");
-        goto end;
-    }
     }
 
     parameter_combination_local_var = OpenAPI_parameter_combination_create (
-        supi && !cJSON_IsNull(supi) ? ogs_strdup(supi->valuestring) : NULL,
-        dnn && !cJSON_IsNull(dnn) ? ogs_strdup(dnn->valuestring) : NULL,
+        supi ? ogs_strdup(supi->valuestring) : NULL,
+        dnn ? ogs_strdup(dnn->valuestring) : NULL,
         snssai ? snssai_local_nonprim : NULL
     );
 
     return parameter_combination_local_var;
 end:
-    if (snssai_local_nonprim) {
-        OpenAPI_snssai_free(snssai_local_nonprim);
-        snssai_local_nonprim = NULL;
-    }
     return NULL;
 }
 

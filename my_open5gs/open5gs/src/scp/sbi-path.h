@@ -20,7 +20,7 @@
 #ifndef SCP_SBI_PATH_H
 #define SCP_SBI_PATH_H
 
-#include "context.h"
+#include "nnrf-build.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,6 +28,14 @@ extern "C" {
 
 int scp_sbi_open(void);
 void scp_sbi_close(void);
+
+bool scp_sbi_send(ogs_sbi_nf_instance_t *nf_instance, ogs_sbi_xact_t *xact);
+
+bool scp_sbi_discover_and_send(
+        OpenAPI_nf_type_e target_nf_type,
+        ogs_sbi_discovery_option_t *discovery_option,
+        ogs_sbi_request_t *(*build)(scp_conn_t *conn, void *data),
+        scp_conn_t *conn, ogs_sbi_stream_t *stream, void *data);
 
 #ifdef __cplusplus
 }

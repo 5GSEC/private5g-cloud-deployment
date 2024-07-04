@@ -17,6 +17,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include "ogs-app.h"
 #include "ogs-sbi.h"
 
 extern const ogs_sbi_server_actions_t ogs_mhd_server_actions;
@@ -179,7 +180,7 @@ bool ogs_sbi_server_send_error(ogs_sbi_stream_t *stream,
     if (message) {
         problem.type = ogs_msprintf("/%s/%s",
                 message->h.service.name, message->h.api.version);
-        ogs_expect(problem.type);
+        ogs_expect_or_return_val(problem.type, false);
         if (message->h.resource.component[1])
             problem.instance = ogs_msprintf("/%s/%s",
                     message->h.resource.component[0],
@@ -187,7 +188,7 @@ bool ogs_sbi_server_send_error(ogs_sbi_stream_t *stream,
         else
             problem.instance =
                     ogs_msprintf("/%s", message->h.resource.component[0]);
-        ogs_expect(problem.instance);
+        ogs_expect_or_return_val(problem.instance, NULL);
     }
     if (status) {
         problem.is_status = true;

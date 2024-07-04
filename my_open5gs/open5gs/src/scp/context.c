@@ -23,11 +23,11 @@ static scp_context_t self;
 
 int __scp_log_domain;
 
-static OGS_POOL(scp_assoc_pool, scp_assoc_t);
+static OGS_POOL(scp_conn_pool, scp_conn_t);
 
 static int context_initialized = 0;
 
-static int max_num_of_scp_assoc = 0;
+static int max_num_of_scp_conn = 0;
 
 void scp_context_init(void)
 {
@@ -38,10 +38,10 @@ void scp_context_init(void)
 
     ogs_log_install_domain(&__scp_log_domain, "scp", ogs_core()->log.level);
 
-#define MAX_NUM_OF_SCP_ASSOC 8
-    max_num_of_scp_assoc = ogs_app()->max.ue * MAX_NUM_OF_SCP_ASSOC;
+#define MAX_NUM_OF_SCP_CONN 8
+    max_num_of_scp_conn = ogs_app()->max.ue * MAX_NUM_OF_SCP_CONN;
 
-    ogs_pool_init(&scp_assoc_pool, max_num_of_scp_assoc);
+    ogs_pool_init(&scp_conn_pool, max_num_of_scp_conn);
 
     context_initialized = 1;
 }
@@ -50,9 +50,9 @@ void scp_context_final(void)
 {
     ogs_assert(context_initialized == 1);
 
-    scp_assoc_remove_all();
+    scp_conn_remove_all();
 
-    ogs_pool_final(&scp_assoc_pool);
+    ogs_pool_final(&scp_conn_pool);
 
     context_initialized = 0;
 }
@@ -96,150 +96,6 @@ int scp_context_parse_config(void)
                 ogs_assert(scp_key);
                 if (!strcmp(scp_key, "sbi")) {
                     /* handle config in sbi library */
-                } else if (!strcmp(scp_key, "service_name")) {
-                    /* handle config in sbi library */
-                } else if (!strcmp(scp_key, "discovery")) {
-                    /* handle config in sbi library */
-                } else if (!strcmp(scp_key, "info")) {
-                    ogs_sbi_nf_instance_t *nf_instance = NULL;
-                    ogs_sbi_nf_info_t *nf_info = NULL;
-                    ogs_sbi_scp_info_t *scp_info = NULL;
-
-                    ogs_yaml_iter_t info_iter;
-                    ogs_yaml_iter_recurse(&scp_iter, &info_iter);
-
-                    nf_instance = ogs_sbi_self()->nf_instance;
-                    ogs_assert(nf_instance);
-
-                    nf_info = ogs_sbi_nf_info_add(
-                                &nf_instance->nf_info_list,
-                                    OpenAPI_nf_type_SCP);
-                    ogs_assert(nf_info);
-
-                    scp_info = &nf_info->scp;
-
-                    while (ogs_yaml_iter_next(&info_iter)) {
-                        const char *info_key =
-                            ogs_yaml_iter_key(&info_iter);
-                        ogs_assert(info_key);
-                        if (!strcmp(info_key, "domain")) {
-                            ogs_yaml_iter_t domain_array, domain_iter;
-                            ogs_yaml_iter_recurse(&info_iter, &domain_array);
-
-                            do {
-                                if (ogs_yaml_iter_type(&domain_array) ==
-                                        YAML_MAPPING_NODE) {
-                                    memcpy(&domain_iter, &domain_array,
-                                            sizeof(ogs_yaml_iter_t));
-                                } else if (ogs_yaml_iter_type(&domain_array) ==
-                                            YAML_SEQUENCE_NODE) {
-                                    if (!ogs_yaml_iter_next(&domain_array))
-                                        break;
-                                    ogs_yaml_iter_recurse(&domain_array,
-                                            &domain_iter);
-                                } else if (ogs_yaml_iter_type(&domain_array) ==
-                                            YAML_SCALAR_NODE) {
-                                    break;
-                                } else
-                                    ogs_assert_if_reached();
-
-                                while (ogs_yaml_iter_next(&domain_iter)) {
-                                    const char *domain_key =
-                                        ogs_yaml_iter_key(&domain_iter);
-                                    ogs_assert(domain_key);
-                                    if (!strcmp(domain_key, "port")) {
-                                        ogs_yaml_iter_t port_iter;
-                                        ogs_yaml_iter_recurse(&domain_iter,
-                                                &port_iter);
-                                        while (ogs_yaml_iter_next(&port_iter)) {
-                                            const char *port_key =
-                                                ogs_yaml_iter_key(&port_iter);
-                                            ogs_assert(port_key);
-                                            if (!strcmp(port_key, "http")) {
-                                                const char *v =
-                                                    ogs_yaml_iter_value(
-                                                            &port_iter);
-                                                if (v) {
-                                                    scp_info->domain[
-                                                        scp_info->
-                                                            num_of_domain].
-                                                            http.presence =
-                                                                true;
-                                                    scp_info->domain[
-                                                        scp_info->
-                                                            num_of_domain].
-                                                            http.port = atoi(v);
-                                                }
-                                            } else if (!strcmp(port_key,
-                                                        "https")) {
-                                                const char *v =
-                                                    ogs_yaml_iter_value(
-                                                            &port_iter);
-                                                if (v) {
-                                                    scp_info->domain[
-                                                        scp_info->
-                                                            num_of_domain].
-                                                            https.presence =
-                                                                true;
-                                                    scp_info->domain[
-                                                        scp_info->
-                                                            num_of_domain].
-                                                            https.port =
-                                                                atoi(v);
-                                                }
-                                            } else
-                                                ogs_warn("unknown key `%s`",
-                                                        port_key);
-                                        }
-                                    } else if (!strcmp(domain_key, "name")) {
-                                        scp_info->domain[
-                                            scp_info->num_of_domain].
-                                            name = (char *)ogs_yaml_iter_value(
-                                                    &domain_iter);
-                                    } else if (!strcmp(domain_key, "fqdn")) {
-                                        scp_info->domain[
-                                            scp_info->num_of_domain].
-                                            fqdn = (char *)ogs_yaml_iter_value(
-                                                    &domain_iter);
-                                    } else
-                                        ogs_warn("unknown key `%s`",
-                                                domain_key);
-                                }
-
-                                if (scp_info->domain[
-                                        scp_info->num_of_domain].name)
-                                    scp_info->num_of_domain++;
-
-                            } while (ogs_yaml_iter_type(&domain_array) ==
-                                    YAML_SEQUENCE_NODE);
-
-                        } else if (!strcmp(info_key, "port")) {
-                            ogs_yaml_iter_t port_iter;
-                            ogs_yaml_iter_recurse(&info_iter, &port_iter);
-                            while (ogs_yaml_iter_next(&port_iter)) {
-                                const char *port_key =
-                                    ogs_yaml_iter_key(&port_iter);
-                                ogs_assert(port_key);
-                                if (!strcmp(port_key, "http")) {
-                                    const char *v =
-                                        ogs_yaml_iter_value(&port_iter);
-                                    if (v) {
-                                        scp_info->http.presence = true;
-                                        scp_info->http.port = atoi(v);
-                                    }
-                                } else if (!strcmp(port_key, "https")) {
-                                    const char *v =
-                                        ogs_yaml_iter_value(&port_iter);
-                                    if (v) {
-                                        scp_info->https.presence = true;
-                                        scp_info->https.port = atoi(v);
-                                    }
-                                } else
-                                    ogs_warn("unknown key `%s`", port_key);
-                            }
-                        } else
-                            ogs_warn("unknown key `%s`", info_key);
-                    }
                 } else
                     ogs_warn("unknown key `%s`", scp_key);
             }
@@ -252,50 +108,48 @@ int scp_context_parse_config(void)
     return OGS_OK;
 }
 
-scp_assoc_t *scp_assoc_add(ogs_sbi_stream_t *stream)
+scp_conn_t *scp_conn_add(ogs_sbi_stream_t *stream)
 {
-    scp_assoc_t *assoc = NULL;
+    scp_conn_t *conn = NULL;
 
     ogs_assert(stream);
 
-    ogs_pool_alloc(&scp_assoc_pool, &assoc);
-    if (!assoc) {
-        ogs_error("Maximum number of association[%d] reached",
-                    max_num_of_scp_assoc);
+    ogs_pool_alloc(&scp_conn_pool, &conn);
+    if (!conn) {
+        ogs_error("Maximum number of connection[%d] reached",
+                    max_num_of_scp_conn);
         return NULL;
     }
-    memset(assoc, 0, sizeof *assoc);
+    memset(conn, 0, sizeof *conn);
 
-    assoc->stream = stream;
+    conn->stream = stream;
 
-    ogs_list_add(&self.assoc_list, assoc);
+    ogs_list_add(&self.conn_list, conn);
 
-    return assoc;
+    return conn;
 }
 
-void scp_assoc_remove(scp_assoc_t *assoc)
+void scp_conn_remove(scp_conn_t *conn)
 {
-    ogs_assert(assoc);
+    ogs_assert(conn);
 
-    ogs_list_remove(&self.assoc_list, assoc);
+    ogs_list_remove(&self.conn_list, conn);
 
-    if (assoc->client)
-        ogs_sbi_client_remove(assoc->client);
-    if (assoc->nrf_client)
-        ogs_sbi_client_remove(assoc->nrf_client);
+    if (conn->client)
+        ogs_sbi_client_remove(conn->client);
 
-    ogs_pool_free(&scp_assoc_pool, assoc);
+    ogs_pool_free(&scp_conn_pool, conn);
 }
 
-void scp_assoc_remove_all(void)
+void scp_conn_remove_all(void)
 {
-    scp_assoc_t *assoc = NULL, *next_assoc = NULL;
+    scp_conn_t *conn = NULL, *next_conn = NULL;
 
-    ogs_list_for_each_safe(&self.assoc_list, next_assoc, assoc)
-        scp_assoc_remove(assoc);
+    ogs_list_for_each_safe(&self.conn_list, next_conn, conn)
+        scp_conn_remove(conn);
 }
 
-scp_assoc_t *scp_assoc_find(uint32_t index)
+scp_conn_t *scp_conn_find(uint32_t index)
 {
-    return ogs_pool_find(&scp_assoc_pool, index);
+    return ogs_pool_find(&scp_conn_pool, index);
 }

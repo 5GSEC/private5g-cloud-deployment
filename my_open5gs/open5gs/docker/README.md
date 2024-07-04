@@ -1,32 +1,52 @@
 Docker running example
 ===========================================
-* Development
+* Build Image
   
-  `$ docker compose run dev`
+  `$ docker-compose build`
 
-* Run WebUI
+* Development 
   
-  `$ docker-compose up webui`
+  `$ docker-compose run dev`
+
+* Runtime
+  ```
+  $ docker-compose \
+    -f docker-compose.yml -f docker-compose.run.yml run run
+  ```
 
 * Test
+  ```
+  $ docker-compose \
+    -f docker-compose.yml -f docker-compose.test.yml run test
+  ```
 
-  `$ docker compose run test`
-
-* Test(ubuntu:focal)
-
-  `$ TAG=focal docker compose run test`
+* Test(ubuntu:artful)
+  ```
+  $ TAG=eoan docker-compose build
+  $ TAG=eoan docker-compose \
+    -f docker-compose.yml -f docker-compose.test.yml run test
+  ```
 
 * Development(fedora:latest)
+  ```
+  $ DIST=fedora docker-compose build
+  $ DIST=fedora docker-compose run dev
+  ```
 
-  `$ DIST=fedora docker compose run dev`
+* Runtime(debian:jessie)
+  ```
+  $ DIST=debian TAG=stretch docker-compose build
+  $ DIST=debian TAG=stretch docker-compose 
+    -f docker-compose.yml -f docker-compose.run.yml run run
+  ```
 
 * All Test with All Environment
   
   `$ ./check.sh`
 
-* Runtime
-
-  `$ docker compose run run`
+* Run WebUI 
+  
+  `$ docker-compose up -d`
 
 For OpenSUSE Build Service Release
 ===========================================
@@ -80,25 +100,15 @@ export DEBEMAIL='acetcom@gmail.com'
 * Version Change
   
   ```
-  $ cat ./meson.build
-  $ cat ./webui/package.json
-  $ cat ./webui/package-lock.json
-  $ cat ./docs/assets/webui/install
-  ```
-
-* New NF
-  ```
-  $ cat debian/control
-  $ cat configs/systemd/open5gs-scpd.service.in
-  $ cat configs/logrotate/open5gs.in
-  $ cat configs/newsyslog/open5gs.conf.in
+  $ vi meson.build
+  $ ./misc/git-version-gen . > .tarball-version 2>/dev/null
   ```
 
 * Upload OpenBuildService
   
   ```
   $ dch -i
-  $ meson subprojects download freeDiameter prometheus-client-c
+  $ meson subprojects download freeDiameter
   $ debuild -S -uc -us -d
   $ osc co home:acetcom:open5gs latest
   $ cd home\:acetcom\:open5gs/latest/
@@ -110,7 +120,7 @@ export DEBEMAIL='acetcom@gmail.com'
   
   ```
   $ dch -i
-  $ meson subprojects download freeDiameter prometheus-client-c
+  $ meson subprojects download freeDiameter
   $ debuild -S -d
   $ dput ppa:open5gs/latest *.source.changes
   ```

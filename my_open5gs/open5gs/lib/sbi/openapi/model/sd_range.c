@@ -20,26 +20,18 @@ OpenAPI_sd_range_t *OpenAPI_sd_range_create(
 
 void OpenAPI_sd_range_free(OpenAPI_sd_range_t *sd_range)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == sd_range) {
         return;
     }
-    if (sd_range->start) {
-        ogs_free(sd_range->start);
-        sd_range->start = NULL;
-    }
-    if (sd_range->end) {
-        ogs_free(sd_range->end);
-        sd_range->end = NULL;
-    }
+    OpenAPI_lnode_t *node;
+    ogs_free(sd_range->start);
+    ogs_free(sd_range->end);
     ogs_free(sd_range);
 }
 
 cJSON *OpenAPI_sd_range_convertToJSON(OpenAPI_sd_range_t *sd_range)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (sd_range == NULL) {
         ogs_error("OpenAPI_sd_range_convertToJSON() failed [SdRange]");
@@ -68,28 +60,27 @@ end:
 OpenAPI_sd_range_t *OpenAPI_sd_range_parseFromJSON(cJSON *sd_rangeJSON)
 {
     OpenAPI_sd_range_t *sd_range_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *start = NULL;
-    cJSON *end = NULL;
-    start = cJSON_GetObjectItemCaseSensitive(sd_rangeJSON, "start");
+    cJSON *start = cJSON_GetObjectItemCaseSensitive(sd_rangeJSON, "start");
+
     if (start) {
-    if (!cJSON_IsString(start) && !cJSON_IsNull(start)) {
+    if (!cJSON_IsString(start)) {
         ogs_error("OpenAPI_sd_range_parseFromJSON() failed [start]");
         goto end;
     }
     }
 
-    end = cJSON_GetObjectItemCaseSensitive(sd_rangeJSON, "end");
+    cJSON *end = cJSON_GetObjectItemCaseSensitive(sd_rangeJSON, "end");
+
     if (end) {
-    if (!cJSON_IsString(end) && !cJSON_IsNull(end)) {
+    if (!cJSON_IsString(end)) {
         ogs_error("OpenAPI_sd_range_parseFromJSON() failed [end]");
         goto end;
     }
     }
 
     sd_range_local_var = OpenAPI_sd_range_create (
-        start && !cJSON_IsNull(start) ? ogs_strdup(start->valuestring) : NULL,
-        end && !cJSON_IsNull(end) ? ogs_strdup(end->valuestring) : NULL
+        start ? ogs_strdup(start->valuestring) : NULL,
+        end ? ogs_strdup(end->valuestring) : NULL
     );
 
     return sd_range_local_var;

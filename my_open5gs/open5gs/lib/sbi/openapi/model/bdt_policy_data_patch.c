@@ -18,22 +18,17 @@ OpenAPI_bdt_policy_data_patch_t *OpenAPI_bdt_policy_data_patch_create(
 
 void OpenAPI_bdt_policy_data_patch_free(OpenAPI_bdt_policy_data_patch_t *bdt_policy_data_patch)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == bdt_policy_data_patch) {
         return;
     }
-    if (bdt_policy_data_patch->bdt_ref_id) {
-        ogs_free(bdt_policy_data_patch->bdt_ref_id);
-        bdt_policy_data_patch->bdt_ref_id = NULL;
-    }
+    OpenAPI_lnode_t *node;
+    ogs_free(bdt_policy_data_patch->bdt_ref_id);
     ogs_free(bdt_policy_data_patch);
 }
 
 cJSON *OpenAPI_bdt_policy_data_patch_convertToJSON(OpenAPI_bdt_policy_data_patch_t *bdt_policy_data_patch)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (bdt_policy_data_patch == NULL) {
         ogs_error("OpenAPI_bdt_policy_data_patch_convertToJSON() failed [BdtPolicyDataPatch]");
@@ -41,10 +36,6 @@ cJSON *OpenAPI_bdt_policy_data_patch_convertToJSON(OpenAPI_bdt_policy_data_patch
     }
 
     item = cJSON_CreateObject();
-    if (!bdt_policy_data_patch->bdt_ref_id) {
-        ogs_error("OpenAPI_bdt_policy_data_patch_convertToJSON() failed [bdt_ref_id]");
-        return NULL;
-    }
     if (cJSON_AddStringToObject(item, "bdtRefId", bdt_policy_data_patch->bdt_ref_id) == NULL) {
         ogs_error("OpenAPI_bdt_policy_data_patch_convertToJSON() failed [bdt_ref_id]");
         goto end;
@@ -57,13 +48,12 @@ end:
 OpenAPI_bdt_policy_data_patch_t *OpenAPI_bdt_policy_data_patch_parseFromJSON(cJSON *bdt_policy_data_patchJSON)
 {
     OpenAPI_bdt_policy_data_patch_t *bdt_policy_data_patch_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *bdt_ref_id = NULL;
-    bdt_ref_id = cJSON_GetObjectItemCaseSensitive(bdt_policy_data_patchJSON, "bdtRefId");
+    cJSON *bdt_ref_id = cJSON_GetObjectItemCaseSensitive(bdt_policy_data_patchJSON, "bdtRefId");
     if (!bdt_ref_id) {
         ogs_error("OpenAPI_bdt_policy_data_patch_parseFromJSON() failed [bdt_ref_id]");
         goto end;
     }
+
     if (!cJSON_IsString(bdt_ref_id)) {
         ogs_error("OpenAPI_bdt_policy_data_patch_parseFromJSON() failed [bdt_ref_id]");
         goto end;

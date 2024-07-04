@@ -1,7 +1,7 @@
 /*
  * n1_n2_message_transfer_req_data.h
  *
- * Data within a N1/N2 message transfer request
+ * 
  */
 
 #ifndef _OpenAPI_n1_n2_message_transfer_req_data_H_
@@ -52,7 +52,6 @@ typedef struct OpenAPI_n1_n2_message_transfer_req_data_s {
     bool is_ext_buf_support;
     int ext_buf_support;
     OpenAPI_access_type_e target_access;
-    char *nf_id;
 } OpenAPI_n1_n2_message_transfer_req_data_t;
 
 OpenAPI_n1_n2_message_transfer_req_data_t *OpenAPI_n1_n2_message_transfer_req_data_create(
@@ -81,8 +80,7 @@ OpenAPI_n1_n2_message_transfer_req_data_t *OpenAPI_n1_n2_message_transfer_req_da
     int ma_accepted_ind,
     bool is_ext_buf_support,
     int ext_buf_support,
-    OpenAPI_access_type_e target_access,
-    char *nf_id
+    OpenAPI_access_type_e target_access
 );
 void OpenAPI_n1_n2_message_transfer_req_data_free(OpenAPI_n1_n2_message_transfer_req_data_t *n1_n2_message_transfer_req_data);
 OpenAPI_n1_n2_message_transfer_req_data_t *OpenAPI_n1_n2_message_transfer_req_data_parseFromJSON(cJSON *n1_n2_message_transfer_req_dataJSON);

@@ -25,12 +25,14 @@ static void scp_main(void *data);
 
 static int initialized = 0;
 
-int scp_initialize(void)
+int scp_initialize()
 {
     int rv;
 
-    ogs_sbi_context_init(OpenAPI_nf_type_SCP);
+    ogs_sbi_context_init();
+
     scp_context_init();
+    scp_event_init();
 
     rv = ogs_sbi_context_parse_config("scp", "nrf", "next_scp");
     if (rv != OGS_OK) return rv;
@@ -61,7 +63,7 @@ static void event_termination(void)
 
     /* Sending NF Instance De-registeration to NRF */
     ogs_list_for_each(&ogs_sbi_self()->nf_instance_list, nf_instance)
-        ogs_sbi_nf_fsm_fini(nf_instance);
+        scp_nf_fsm_fini(nf_instance);
 
     /* Starting holding timer */
     t_termination_holding = ogs_timer_add(ogs_app()->timer_mgr, NULL, NULL);
@@ -86,7 +88,10 @@ void scp_terminate(void)
     scp_sbi_close();
 
     scp_context_final();
+
     ogs_sbi_context_final();
+
+    scp_event_final(); /* Destroy event */
 }
 
 static void scp_main(void *data)
@@ -94,7 +99,8 @@ static void scp_main(void *data)
     ogs_fsm_t scp_sm;
     int rv;
 
-    ogs_fsm_init(&scp_sm, scp_state_initial, scp_state_final, 0);
+    ogs_fsm_create(&scp_sm, scp_state_initial, scp_state_final);
+    ogs_fsm_init(&scp_sm, 0);
 
     for ( ;; ) {
         ogs_pollset_poll(ogs_app()->pollset,
@@ -127,10 +133,11 @@ static void scp_main(void *data)
 
             ogs_assert(e);
             ogs_fsm_dispatch(&scp_sm, e);
-            ogs_event_free(e);
+            scp_event_free(e);
         }
     }
 done:
 
     ogs_fsm_fini(&scp_sm, 0);
+    ogs_fsm_delete(&scp_sm);
 }

@@ -17,7 +17,6 @@
 #include "pdu_session_type.h"
 #include "snssai_upf_info_item.h"
 #include "tai.h"
-#include "tai_range.h"
 #include "tngf_info.h"
 #include "twif_info.h"
 #include "w_agf_info.h"
@@ -38,7 +37,6 @@ typedef struct OpenAPI_upf_info_s {
     bool is_ue_ip_addr_ind;
     int ue_ip_addr_ind;
     OpenAPI_list_t *tai_list;
-    OpenAPI_list_t *tai_range_list;
     struct OpenAPI_w_agf_info_s *w_agf_info;
     struct OpenAPI_tngf_info_s *tngf_info;
     struct OpenAPI_twif_info_s *twif_info;
@@ -50,7 +48,6 @@ typedef struct OpenAPI_upf_info_s {
     int ipups;
     bool is_data_forwarding;
     int data_forwarding;
-    char *supported_pfcp_features;
 } OpenAPI_upf_info_t;
 
 OpenAPI_upf_info_t *OpenAPI_upf_info_create(
@@ -64,7 +61,6 @@ OpenAPI_upf_info_t *OpenAPI_upf_info_create(
     bool is_ue_ip_addr_ind,
     int ue_ip_addr_ind,
     OpenAPI_list_t *tai_list,
-    OpenAPI_list_t *tai_range_list,
     OpenAPI_w_agf_info_t *w_agf_info,
     OpenAPI_tngf_info_t *tngf_info,
     OpenAPI_twif_info_t *twif_info,
@@ -75,8 +71,7 @@ OpenAPI_upf_info_t *OpenAPI_upf_info_create(
     bool is_ipups,
     int ipups,
     bool is_data_forwarding,
-    int data_forwarding,
-    char *supported_pfcp_features
+    int data_forwarding
 );
 void OpenAPI_upf_info_free(OpenAPI_upf_info_t *upf_info);
 OpenAPI_upf_info_t *OpenAPI_upf_info_parseFromJSON(cJSON *upf_infoJSON);

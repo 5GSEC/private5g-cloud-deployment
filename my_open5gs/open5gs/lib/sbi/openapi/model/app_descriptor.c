@@ -20,26 +20,18 @@ OpenAPI_app_descriptor_t *OpenAPI_app_descriptor_create(
 
 void OpenAPI_app_descriptor_free(OpenAPI_app_descriptor_t *app_descriptor)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == app_descriptor) {
         return;
     }
-    if (app_descriptor->os_id) {
-        ogs_free(app_descriptor->os_id);
-        app_descriptor->os_id = NULL;
-    }
-    if (app_descriptor->app_id) {
-        ogs_free(app_descriptor->app_id);
-        app_descriptor->app_id = NULL;
-    }
+    OpenAPI_lnode_t *node;
+    ogs_free(app_descriptor->os_id);
+    ogs_free(app_descriptor->app_id);
     ogs_free(app_descriptor);
 }
 
 cJSON *OpenAPI_app_descriptor_convertToJSON(OpenAPI_app_descriptor_t *app_descriptor)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (app_descriptor == NULL) {
         ogs_error("OpenAPI_app_descriptor_convertToJSON() failed [AppDescriptor]");
@@ -68,28 +60,27 @@ end:
 OpenAPI_app_descriptor_t *OpenAPI_app_descriptor_parseFromJSON(cJSON *app_descriptorJSON)
 {
     OpenAPI_app_descriptor_t *app_descriptor_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *os_id = NULL;
-    cJSON *app_id = NULL;
-    os_id = cJSON_GetObjectItemCaseSensitive(app_descriptorJSON, "osId");
+    cJSON *os_id = cJSON_GetObjectItemCaseSensitive(app_descriptorJSON, "osId");
+
     if (os_id) {
-    if (!cJSON_IsString(os_id) && !cJSON_IsNull(os_id)) {
+    if (!cJSON_IsString(os_id)) {
         ogs_error("OpenAPI_app_descriptor_parseFromJSON() failed [os_id]");
         goto end;
     }
     }
 
-    app_id = cJSON_GetObjectItemCaseSensitive(app_descriptorJSON, "appId");
+    cJSON *app_id = cJSON_GetObjectItemCaseSensitive(app_descriptorJSON, "appId");
+
     if (app_id) {
-    if (!cJSON_IsString(app_id) && !cJSON_IsNull(app_id)) {
+    if (!cJSON_IsString(app_id)) {
         ogs_error("OpenAPI_app_descriptor_parseFromJSON() failed [app_id]");
         goto end;
     }
     }
 
     app_descriptor_local_var = OpenAPI_app_descriptor_create (
-        os_id && !cJSON_IsNull(os_id) ? ogs_strdup(os_id->valuestring) : NULL,
-        app_id && !cJSON_IsNull(app_id) ? ogs_strdup(app_id->valuestring) : NULL
+        os_id ? ogs_strdup(os_id->valuestring) : NULL,
+        app_id ? ogs_strdup(app_id->valuestring) : NULL
     );
 
     return app_descriptor_local_var;

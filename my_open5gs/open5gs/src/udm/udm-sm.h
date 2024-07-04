@@ -30,15 +30,20 @@ void udm_state_initial(ogs_fsm_t *s, udm_event_t *e);
 void udm_state_final(ogs_fsm_t *s, udm_event_t *e);
 void udm_state_operational(ogs_fsm_t *s, udm_event_t *e);
 
+void udm_nf_fsm_init(ogs_sbi_nf_instance_t *nf_instance);
+void udm_nf_fsm_fini(ogs_sbi_nf_instance_t *nf_instance);
+
+void udm_nf_state_initial(ogs_fsm_t *s, udm_event_t *e);
+void udm_nf_state_final(ogs_fsm_t *s, udm_event_t *e);
+void udm_nf_state_will_register(ogs_fsm_t *s, udm_event_t *e);
+void udm_nf_state_registered(ogs_fsm_t *s, udm_event_t *e);
+void udm_nf_state_de_registered(ogs_fsm_t *s, udm_event_t *e);
+void udm_nf_state_exception(ogs_fsm_t *s, udm_event_t *e);
+
 void udm_ue_state_initial(ogs_fsm_t *s, udm_event_t *e);
 void udm_ue_state_final(ogs_fsm_t *s, udm_event_t *e);
 void udm_ue_state_operational(ogs_fsm_t *s, udm_event_t *e);
 void udm_ue_state_exception(ogs_fsm_t *s, udm_event_t *e);
-
-void udm_sess_state_initial(ogs_fsm_t *s, udm_event_t *e);
-void udm_sess_state_final(ogs_fsm_t *s, udm_event_t *e);
-void udm_sess_state_operational(ogs_fsm_t *s, udm_event_t *e);
-void udm_sess_state_exception(ogs_fsm_t *s, udm_event_t *e);
 
 #define udm_sm_debug(__pe) \
     ogs_debug("%s(): %s", __func__, udm_event_get_name(__pe))

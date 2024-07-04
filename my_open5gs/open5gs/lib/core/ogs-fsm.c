@@ -34,116 +34,69 @@ const char *OGS_FSM_NAME_INIT_SIG = "INIT";
 const char *OGS_FSM_NAME_ENTRY_SIG = "ENTRY";
 const char *OGS_FSM_NAME_EXIT_SIG = "EXIT";
 
-static void fsm_entry(ogs_fsm_t *sm, ogs_fsm_handler_t state, fsm_event_t *e)
+void ogs_fsm_init(void *sm, void *event)
 {
-    ogs_assert(sm);
-    ogs_assert(state);
-
-    if (e) {
-        e->id = OGS_FSM_ENTRY_SIG;
-        (*state)(sm, e);
-    } else {
-        (*state)(sm, &entry_event);
-    }
-}
-
-static void fsm_exit(ogs_fsm_t *sm, ogs_fsm_handler_t state, fsm_event_t *e)
-{
-    ogs_assert(sm);
-    ogs_assert(state);
-
-    if (e) {
-        e->id = OGS_FSM_EXIT_SIG;
-        (*state)(sm, e);
-    } else {
-        (*state)(sm, &exit_event);
-    }
-}
-
-static void fsm_change(
-        ogs_fsm_t *sm,
-        ogs_fsm_handler_t oldstate,
-        ogs_fsm_handler_t newstate,
-        fsm_event_t *e)
-{
-    ogs_assert(sm);
-    ogs_assert(oldstate);
-    ogs_assert(newstate);
-
-    fsm_exit(sm, oldstate, e);
-    fsm_entry(sm, newstate, e);
-}
-
-void ogs_fsm_init(void *fsm, void *init, void *fini, void *event)
-{
-    ogs_fsm_t *sm = fsm;
+    ogs_fsm_t *s = sm;
     fsm_event_t *e = event;
+    ogs_assert(s);
 
-    ogs_assert(sm);
-
-    sm->init = sm->state = init;
-    sm->fini = fini;
-
-    if (sm->init) {
-        (*sm->init)(sm, e);
-
-        if (sm->init != sm->state) {
-            ogs_assert(sm->state);
-            fsm_entry(sm, sm->state, e);
+    if (s->init != NULL) {
+        (*s->init)(s, e);
+        if (s->init != s->state) {
+            if (e) {
+                e->id = OGS_FSM_ENTRY_SIG;
+                (*s->state)(s, e);
+            } else {
+                (*s->state)(s, &entry_event);
+            }
         }
     }
 }
 
-void ogs_fsm_tran(void *fsm, void *state, void *event)
+void ogs_fsm_dispatch(void *sm, void *event)
 {
-    ogs_fsm_t *sm = fsm;
+    ogs_fsm_t *s = sm;
     fsm_event_t *e = event;
-    ogs_fsm_handler_t tmp = NULL;
-
-    ogs_assert(sm);
-
-    tmp = sm->state;
-    ogs_assert(tmp);
-
-    sm->state = state;
-    ogs_assert(sm->state);
-
-    if (sm->state != tmp)
-        fsm_change(fsm, tmp, sm->state, e);
-}
-
-void ogs_fsm_dispatch(void *fsm, void *event)
-{
-    ogs_fsm_t *sm = fsm;
-    fsm_event_t *e = event;
-    ogs_fsm_handler_t tmp = NULL;
-
-    ogs_assert(sm);
-
-    tmp = sm->state;
-    ogs_assert(tmp);
+    ogs_assert(s);
+    ogs_fsm_handler_t tmp = s->state;
 
     if (e)
-        (*tmp)(sm, e);
+        (*tmp)(s, e);
 
-    if (sm->state != tmp)
-        fsm_change(fsm, tmp, sm->state, e);
+    if (s->state != tmp) {
+        if (e) {
+            e->id = OGS_FSM_EXIT_SIG;
+            (*tmp)(s, e);
+        } else {
+            (*tmp)(s, &exit_event);
+        }
+        if (e) {
+            e->id = OGS_FSM_ENTRY_SIG;
+            (*s->state)(s, e);
+        } else {
+            (*s->state)(s, &entry_event);
+        }
+    }
 }
 
-void ogs_fsm_fini(void *fsm, void *event)
+void ogs_fsm_fini(void *sm, void *event)
 {
-    ogs_fsm_t *sm = fsm;
+    ogs_fsm_t *s = sm;
     fsm_event_t *e = event;
+    ogs_assert(s);
 
-    ogs_assert(sm);
-
-    if (sm->fini != sm->state) {
-        ogs_assert(sm->state);
-        fsm_exit(sm, sm->state, e);
-
-        if (sm->fini)
-            (*sm->fini)(sm, e);
+    if (s->fini != s->state) {
+        if (e) {
+            e->id = OGS_FSM_EXIT_SIG;
+            (*s->state)(s, e);
+        } else {
+            (*s->state)(s, &exit_event);
+        }
     }
 
-    sm->init = sm->state = sm->fini = NULL;
+    if (s->fini != NULL) {
+        (*s->fini)(s, e);
+    }
+
+    s->state = s->init;
 }

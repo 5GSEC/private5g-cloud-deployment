@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -26,6 +26,9 @@ int __bsf_log_domain;
 static OGS_POOL(bsf_sess_pool, bsf_sess_t);
 
 static int context_initialized = 0;
+
+static void clear_ipv4addr(bsf_sess_t *sess);
+static void clear_ipv6prefix(bsf_sess_t *sess);
 
 void bsf_context_init(void)
 {
@@ -101,10 +104,6 @@ int bsf_context_parse_config(void)
                 ogs_assert(bsf_key);
                 if (!strcmp(bsf_key, "sbi")) {
                     /* handle config in sbi library */
-                } else if (!strcmp(bsf_key, "service_name")) {
-                    /* handle config in sbi library */
-                } else if (!strcmp(bsf_key, "discovery")) {
-                    /* handle config in sbi library */
                 } else
                     ogs_warn("unknown key `%s`", bsf_key);
             }
@@ -117,12 +116,13 @@ int bsf_context_parse_config(void)
     return OGS_OK;
 }
 
-bsf_sess_t *bsf_sess_add_by_ip_address(
-            char *ipv4addr_string, char *ipv6prefix_string)
+bsf_sess_t *bsf_sess_add_by_snssai_and_dnn(ogs_s_nssai_t *s_nssai, char *dnn)
 {
     bsf_sess_t *sess = NULL;
 
-    ogs_assert(ipv4addr_string || ipv6prefix_string);
+    ogs_assert(s_nssai);
+    ogs_assert(s_nssai->sst);
+    ogs_assert(dnn);
 
     ogs_pool_alloc(&bsf_sess_pool, &sess);
     if (!sess) {
@@ -132,22 +132,15 @@ bsf_sess_t *bsf_sess_add_by_ip_address(
     }
     memset(sess, 0, sizeof *sess);
 
-    if (ipv4addr_string &&
-        bsf_sess_set_ipv4addr(sess, ipv4addr_string) == false) {
-        ogs_error("bsf_sess_set_ipv4addr[%s] failed", ipv4addr_string);
-        ogs_pool_free(&bsf_sess_pool, sess);
-        return NULL;
-    }
-    if (ipv6prefix_string &&
-        bsf_sess_set_ipv6prefix(sess, ipv6prefix_string) == false) {
-        ogs_error("bsf_sess_set_ipv6prefix[%s] failed", ipv4addr_string);
-        ogs_pool_free(&bsf_sess_pool, sess);
-        return NULL;
-    }
-
     /* SBI Features */
     OGS_SBI_FEATURES_SET(sess->management_features,
             OGS_SBI_NBSF_MANAGEMENT_BINDING_UPDATE);
+
+    sess->s_nssai.sst = s_nssai->sst;
+    sess->s_nssai.sd.v = s_nssai->sd.v;
+
+    sess->dnn = ogs_strdup(dnn);
+    ogs_assert(sess->dnn);
 
     sess->binding_id = ogs_msprintf("%d",
             (int)ogs_pool_index(&bsf_sess_pool, sess));
@@ -177,19 +170,8 @@ void bsf_sess_remove(bsf_sess_t *sess)
     if (sess->gpsi)
         ogs_free(sess->gpsi);
 
-    if (sess->ipv4addr_string) {
-        ogs_hash_set(self.ipv4addr_hash,
-                &sess->ipv4addr, sizeof(sess->ipv4addr), NULL);
-        ogs_free(sess->ipv4addr_string);
-    }
-    if (sess->ipv6prefix_string) {
-        ogs_hash_set(self.ipv6prefix_hash,
-                &sess->ipv6prefix, (sess->ipv6prefix.len >> 3) + 1, NULL);
-        ogs_free(sess->ipv6prefix_string);
-    }
-
-    OpenAPI_clear_and_free_string_list(sess->ipv4_frame_route_list);
-    OpenAPI_clear_and_free_string_list(sess->ipv6_frame_route_list);
+    clear_ipv4addr(sess);
+    clear_ipv6prefix(sess);
 
     ogs_assert(sess->dnn);
     ogs_free(sess->dnn);
@@ -216,6 +198,28 @@ void bsf_sess_remove_all(void)
         bsf_sess_remove(sess);
 }
 
+static void clear_ipv4addr(bsf_sess_t *sess)
+{
+    ogs_assert(sess);
+
+    if (sess->ipv4addr_string) {
+        ogs_hash_set(self.ipv4addr_hash,
+                &sess->ipv4addr, sizeof(sess->ipv4addr), NULL);
+        ogs_free(sess->ipv4addr_string);
+    }
+}
+
+static void clear_ipv6prefix(bsf_sess_t *sess)
+{
+    ogs_assert(sess);
+
+    if (sess->ipv6prefix_string) {
+        ogs_hash_set(self.ipv6prefix_hash,
+                &sess->ipv6prefix, (sess->ipv6prefix.len >> 3) + 1, NULL);
+        ogs_free(sess->ipv6prefix_string);
+    }
+}
+
 bool bsf_sess_set_ipv4addr(bsf_sess_t *sess, char *ipv4addr_string)
 {
     int rv;
@@ -223,22 +227,13 @@ bool bsf_sess_set_ipv4addr(bsf_sess_t *sess, char *ipv4addr_string)
     ogs_assert(sess);
     ogs_assert(ipv4addr_string);
 
-    if (sess->ipv4addr_string) {
-        ogs_hash_set(self.ipv4addr_hash,
-                &sess->ipv4addr, sizeof(sess->ipv4addr), NULL);
-        ogs_free(sess->ipv4addr_string);
-    }
+    clear_ipv4addr(sess);
+
     rv = ogs_ipv4_from_string(&sess->ipv4addr, ipv4addr_string);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_ipv4_from_string() failed");
-        return false;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, false);
 
     sess->ipv4addr_string = ogs_strdup(ipv4addr_string);
-    if (!sess->ipv4addr_string) {
-        ogs_error("ogs_strdup() failed");
-        return false;
-    }
+    ogs_expect_or_return_val(sess->ipv4addr_string, false);
 
     ogs_hash_set(self.ipv4addr_hash,
             &sess->ipv4addr, sizeof(sess->ipv4addr), sess);
@@ -253,25 +248,16 @@ bool bsf_sess_set_ipv6prefix(bsf_sess_t *sess, char *ipv6prefix_string)
     ogs_assert(sess);
     ogs_assert(ipv6prefix_string);
 
-    if (sess->ipv6prefix_string) {
-        ogs_hash_set(self.ipv6prefix_hash,
-                &sess->ipv6prefix, (sess->ipv6prefix.len >> 3) + 1, NULL);
-        ogs_free(sess->ipv6prefix_string);
-    }
+    clear_ipv6prefix(sess);
+
     rv = ogs_ipv6prefix_from_string(
             sess->ipv6prefix.addr6, &sess->ipv6prefix.len, ipv6prefix_string);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_ipv6prefix_from_string() failed");
-        return false;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, false);
 
     ogs_assert(sess->ipv6prefix.len == OGS_IPV6_128_PREFIX_LEN);
 
     sess->ipv6prefix_string = ogs_strdup(ipv6prefix_string);
-    if (!sess->ipv6prefix_string) {
-        ogs_error("ogs_strdup() failed");
-        return false;
-    }
+    ogs_expect_or_return_val(sess->ipv6prefix_string, false);
 
     ogs_hash_set(self.ipv6prefix_hash,
             &sess->ipv6prefix, (sess->ipv6prefix.len >> 3) + 1, sess);
@@ -293,7 +279,7 @@ bsf_sess_t *bsf_sess_find_by_snssai_and_dnn(ogs_s_nssai_t *s_nssai, char *dnn)
 
     ogs_list_for_each(&self.sess_list, sess)
         if (sess->s_nssai.sst == s_nssai->sst &&
-            sess->dnn && ogs_strcasecmp(sess->dnn, dnn) == 0)
+            sess->dnn && strcmp(sess->dnn, dnn) == 0)
             return sess;
 
     return NULL;
@@ -313,10 +299,7 @@ bsf_sess_t *bsf_sess_find_by_ipv4addr(char *ipv4addr_string)
     ogs_assert(ipv4addr_string);
 
     rv = ogs_ipv4_from_string(&ipv4addr, ipv4addr_string);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_ipv4_from_string() failed");
-        return NULL;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, NULL);
 
     return ogs_hash_get(self.ipv4addr_hash, &ipv4addr, sizeof(ipv4addr));
 }
@@ -339,11 +322,4 @@ bsf_sess_t *bsf_sess_find_by_ipv6prefix(char *ipv6prefix_string)
 
     return ogs_hash_get(self.ipv6prefix_hash,
             &ipv6prefix, (ipv6prefix.len >> 3) + 1);
-}
-
-int get_sess_load(void)
-{
-    return (((ogs_pool_size(&bsf_sess_pool) -
-            ogs_pool_avail(&bsf_sess_pool)) * 100) /
-            ogs_pool_size(&bsf_sess_pool));
 }

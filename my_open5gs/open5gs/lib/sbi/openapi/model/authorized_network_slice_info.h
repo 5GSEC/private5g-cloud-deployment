@@ -1,7 +1,7 @@
 /*
  * authorized_network_slice_info.h
  *
- * Contains the authorized network slice information
+ * 
  */
 
 #ifndef _OpenAPI_authorized_network_slice_info_H_
@@ -14,7 +14,6 @@
 #include "../include/binary.h"
 #include "allowed_nssai.h"
 #include "configured_snssai.h"
-#include "nsag_info.h"
 #include "nsi_information.h"
 #include "snssai.h"
 
@@ -35,10 +34,7 @@ typedef struct OpenAPI_authorized_network_slice_info_s {
     char *nrf_amf_set;
     char *nrf_amf_set_nf_mgt_uri;
     char *nrf_amf_set_access_token_uri;
-    OpenAPI_list_t* nrf_oauth2_required;
     char *target_amf_service_set;
-    OpenAPI_list_t *target_nssai;
-    OpenAPI_list_t *nsag_infos;
 } OpenAPI_authorized_network_slice_info_t;
 
 OpenAPI_authorized_network_slice_info_t *OpenAPI_authorized_network_slice_info_create(
@@ -53,10 +49,7 @@ OpenAPI_authorized_network_slice_info_t *OpenAPI_authorized_network_slice_info_c
     char *nrf_amf_set,
     char *nrf_amf_set_nf_mgt_uri,
     char *nrf_amf_set_access_token_uri,
-    OpenAPI_list_t* nrf_oauth2_required,
-    char *target_amf_service_set,
-    OpenAPI_list_t *target_nssai,
-    OpenAPI_list_t *nsag_infos
+    char *target_amf_service_set
 );
 void OpenAPI_authorized_network_slice_info_free(OpenAPI_authorized_network_slice_info_t *authorized_network_slice_info);
 OpenAPI_authorized_network_slice_info_t *OpenAPI_authorized_network_slice_info_parseFromJSON(cJSON *authorized_network_slice_infoJSON);

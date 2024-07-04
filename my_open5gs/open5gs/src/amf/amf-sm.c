@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019,2020 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -45,7 +45,7 @@ void amf_state_final(ogs_fsm_t *s, amf_event_t *e)
 
 void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
 {
-    int r, rv;
+    int rv;
     char buf[OGS_ADDRSTRLEN];
     const char *api_version = NULL;
 
@@ -68,10 +68,10 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
     int state = AMF_CREATE_SM_CONTEXT_NO_STATE;
     ogs_sbi_stream_t *stream = NULL;
     ogs_sbi_request_t *sbi_request = NULL;
-    ogs_sbi_service_type_e service_type = OGS_SBI_SERVICE_TYPE_NULL;
+    OpenAPI_nf_type_e target_nf_type = OpenAPI_nf_type_NULL;
 
     ogs_sbi_nf_instance_t *nf_instance = NULL;
-    ogs_sbi_subscription_data_t *subscription_data = NULL;
+    ogs_sbi_subscription_t *subscription = NULL;
     ogs_sbi_response_t *sbi_response = NULL;
     ogs_sbi_message_t sbi_message;
 
@@ -79,17 +79,17 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
 
     ogs_assert(s);
 
-    switch (e->h.id) {
+    switch (e->id) {
     case OGS_FSM_ENTRY_SIG:
         break;
 
     case OGS_FSM_EXIT_SIG:
         break;
 
-    case OGS_EVENT_SBI_SERVER:
-        sbi_request = e->h.sbi.request;
+    case AMF_EVT_SBI_SERVER:
+        sbi_request = e->sbi.request;
         ogs_assert(sbi_request);
-        stream = e->h.sbi.data;
+        stream = e->sbi.data;
         ogs_assert(stream);
 
         rv = ogs_sbi_parse_request(&sbi_message, sbi_request);
@@ -129,7 +129,7 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
             CASE(OGS_SBI_RESOURCE_NAME_NF_STATUS_NOTIFY)
                 SWITCH(sbi_message.h.method)
                 CASE(OGS_SBI_HTTP_METHOD_POST)
-                    ogs_nnrf_nfm_handle_nf_status_notify(stream, &sbi_message);
+                    amf_nnrf_handle_nf_status_notify(stream, &sbi_message);
                     break;
 
                 DEFAULT
@@ -213,11 +213,6 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
                 amf_namf_callback_handle_dereg_notify(stream, &sbi_message);
                 break;
 
-            CASE(OGS_SBI_RESOURCE_NAME_SDMSUBSCRIPTION_NOTIFY)
-                amf_namf_callback_handle_sdm_data_change_notify(
-                        stream, &sbi_message);
-                break;
-
             CASE(OGS_SBI_RESOURCE_NAME_AM_POLICY_NOTIFY)
                 ogs_assert(true == ogs_sbi_send_http_status_no_content(stream));
                 break;
@@ -245,10 +240,10 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
         ogs_sbi_message_free(&sbi_message);
         break;
 
-    case OGS_EVENT_SBI_CLIENT:
+    case AMF_EVT_SBI_CLIENT:
         ogs_assert(e);
 
-        sbi_response = e->h.sbi.response;
+        sbi_response = e->sbi.response;
         ogs_assert(sbi_response);
         rv = ogs_sbi_parse_response(&sbi_message, sbi_response);
         if (rv != OGS_OK) {
@@ -280,53 +275,37 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
 
             SWITCH(sbi_message.h.resource.component[0])
             CASE(OGS_SBI_RESOURCE_NAME_NF_INSTANCES)
-                nf_instance = e->h.sbi.data;
+                nf_instance = e->sbi.data;
                 ogs_assert(nf_instance);
                 ogs_assert(OGS_FSM_STATE(&nf_instance->sm));
 
-                e->h.sbi.message = &sbi_message;
+                e->sbi.message = &sbi_message;
                 ogs_fsm_dispatch(&nf_instance->sm, e);
                 break;
 
             CASE(OGS_SBI_RESOURCE_NAME_SUBSCRIPTIONS)
-                subscription_data = e->h.sbi.data;
-                ogs_assert(subscription_data);
+                subscription = e->sbi.data;
+                ogs_assert(subscription);
 
                 SWITCH(sbi_message.h.method)
                 CASE(OGS_SBI_HTTP_METHOD_POST)
                     if (sbi_message.res_status == OGS_SBI_HTTP_STATUS_CREATED ||
                         sbi_message.res_status == OGS_SBI_HTTP_STATUS_OK) {
-                        ogs_nnrf_nfm_handle_nf_status_subscribe(
-                                subscription_data, &sbi_message);
-                    } else {
-                        ogs_error("HTTP response error : %d",
-                                sbi_message.res_status);
-                    }
-                    break;
-
-                CASE(OGS_SBI_HTTP_METHOD_PATCH)
-                    if (sbi_message.res_status == OGS_SBI_HTTP_STATUS_OK ||
-                        sbi_message.res_status ==
-                            OGS_SBI_HTTP_STATUS_NO_CONTENT) {
-                        ogs_nnrf_nfm_handle_nf_status_update(
-                                subscription_data, &sbi_message);
+                        amf_nnrf_handle_nf_status_subscribe(
+                                subscription, &sbi_message);
                     } else {
                         ogs_error("[%s] HTTP response error [%d]",
-                                subscription_data->id ?
-                                    subscription_data->id : "Unknown",
-                                sbi_message.res_status);
+                                subscription->id, sbi_message.res_status);
                     }
                     break;
 
                 CASE(OGS_SBI_HTTP_METHOD_DELETE)
                     if (sbi_message.res_status ==
                             OGS_SBI_HTTP_STATUS_NO_CONTENT) {
-                        ogs_sbi_subscription_data_remove(subscription_data);
+                        ogs_sbi_subscription_remove(subscription);
                     } else {
                         ogs_error("[%s] HTTP response error [%d]",
-                                subscription_data->id ?
-                                    subscription_data->id : "Unknown",
-                                sbi_message.res_status);
+                                subscription->id, sbi_message.res_status);
                     }
                     break;
 
@@ -346,7 +325,7 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
         CASE(OGS_SBI_SERVICE_NAME_NNRF_DISC)
             SWITCH(sbi_message.h.resource.component[0])
             CASE(OGS_SBI_RESOURCE_NAME_NF_INSTANCES)
-                sbi_xact = e->h.sbi.data;
+                sbi_xact = e->sbi.data;
                 ogs_assert(sbi_xact);
 
                 SWITCH(sbi_message.h.method)
@@ -375,7 +354,7 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
         CASE(OGS_SBI_SERVICE_NAME_NUDM_UECM)
         CASE(OGS_SBI_SERVICE_NAME_NUDM_SDM)
         CASE(OGS_SBI_SERVICE_NAME_NPCF_AM_POLICY_CONTROL)
-            sbi_xact = e->h.sbi.data;
+            sbi_xact = e->sbi.data;
             ogs_assert(sbi_xact);
 
             sbi_xact = ogs_sbi_xact_cycle(sbi_xact);
@@ -385,8 +364,6 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
                 ogs_error("SBI transaction has already been removed");
                 break;
             }
-
-            state = sbi_xact->state;
 
             amf_ue = (amf_ue_t *)sbi_xact->sbi_object;
             ogs_assert(amf_ue);
@@ -394,22 +371,21 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
             ogs_sbi_xact_remove(sbi_xact);
 
             amf_ue = amf_ue_cycle(amf_ue);
-            if (!amf_ue) {
+
+            if (amf_ue) {
+                ogs_assert(OGS_FSM_STATE(&amf_ue->sm));
+
+                e->amf_ue = amf_ue;
+                e->sbi.message = &sbi_message;;
+
+                ogs_fsm_dispatch(&amf_ue->sm, e);
+            } else {
                 ogs_error("UE(amf_ue) Context has already been removed");
-                break;
             }
-
-            ogs_assert(OGS_FSM_STATE(&amf_ue->sm));
-
-            e->amf_ue = amf_ue;
-            e->h.sbi.message = &sbi_message;;
-            e->h.sbi.state = state;
-
-            ogs_fsm_dispatch(&amf_ue->sm, e);
             break;
 
         CASE(OGS_SBI_SERVICE_NAME_NSMF_PDUSESSION)
-            sbi_xact = e->h.sbi.data;
+            sbi_xact = e->sbi.data;
             ogs_assert(sbi_xact);
 
             sbi_xact = ogs_sbi_xact_cycle(sbi_xact);
@@ -422,11 +398,10 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
 
             state = sbi_xact->state;
 
-            sess = (amf_sess_t *)sbi_xact->sbi_object;
-            ogs_assert(sess);
-
             ogs_sbi_xact_remove(sbi_xact);
 
+            sess = (amf_sess_t *)sbi_xact->sbi_object;
+            ogs_assert(sess);
             sess = amf_sess_cycle(sess);
             if (!sess) {
             /*
@@ -474,7 +449,7 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
 
             e->amf_ue = amf_ue;
             e->sess = sess;
-            e->h.sbi.message = &sbi_message;;
+            e->sbi.message = &sbi_message;;
 
             SWITCH(sbi_message.h.resource.component[2])
             CASE(OGS_SBI_RESOURCE_NAME_MODIFY)
@@ -527,7 +502,7 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
             break;
 
         CASE(OGS_SBI_SERVICE_NAME_NNSSF_NSSELECTION)
-            sbi_xact = e->h.sbi.data;
+            sbi_xact = e->sbi.data;
             ogs_assert(sbi_xact);
 
             sbi_xact = ogs_sbi_xact_cycle(sbi_xact);
@@ -560,8 +535,7 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
 
             e->amf_ue = amf_ue;
             e->sess = sess;
-            e->h.sbi.message = &sbi_message;;
-            e->h.sbi.state = state;
+            e->sbi.message = &sbi_message;;
 
             amf_nnssf_nsselection_handle_get(sess, &sbi_message);
             break;
@@ -575,92 +549,48 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
         ogs_sbi_response_free(sbi_response);
         break;
 
-    case OGS_EVENT_SBI_TIMER:
+    case AMF_EVT_SBI_TIMER:
         ogs_assert(e);
 
-        switch(e->h.timer_id) {
-        case OGS_TIMER_NF_INSTANCE_REGISTRATION_INTERVAL:
-        case OGS_TIMER_NF_INSTANCE_HEARTBEAT_INTERVAL:
-        case OGS_TIMER_NF_INSTANCE_NO_HEARTBEAT:
-        case OGS_TIMER_NF_INSTANCE_VALIDITY:
-            nf_instance = e->h.sbi.data;
+        switch(e->timer_id) {
+        case AMF_TIMER_NF_INSTANCE_REGISTRATION_INTERVAL:
+        case AMF_TIMER_NF_INSTANCE_HEARTBEAT_INTERVAL:
+        case AMF_TIMER_NF_INSTANCE_NO_HEARTBEAT:
+        case AMF_TIMER_NF_INSTANCE_VALIDITY:
+            nf_instance = e->sbi.data;
             ogs_assert(nf_instance);
             ogs_assert(OGS_FSM_STATE(&nf_instance->sm));
 
-            ogs_sbi_self()->nf_instance->load = amf_instance_get_load();
-
             ogs_fsm_dispatch(&nf_instance->sm, e);
-            if (OGS_FSM_CHECK(&nf_instance->sm, ogs_sbi_nf_state_exception))
+            if (OGS_FSM_CHECK(&nf_instance->sm, amf_nf_state_exception))
                 ogs_error("[%s:%s] State machine exception [%d]",
                         OpenAPI_nf_type_ToString(nf_instance->nf_type),
-                        nf_instance->id, e->h.timer_id);
+                        nf_instance->id, e->timer_id);
             break;
 
-        case OGS_TIMER_SUBSCRIPTION_VALIDITY:
-            subscription_data = e->h.sbi.data;
-            ogs_assert(subscription_data);
+        case AMF_TIMER_SUBSCRIPTION_VALIDITY:
+            subscription = e->sbi.data;
+            ogs_assert(subscription);
 
+            ogs_assert(ogs_sbi_self()->nf_instance);
             ogs_assert(true ==
-                ogs_nnrf_nfm_send_nf_status_subscribe(
+                ogs_nnrf_nfm_send_nf_status_subscribe(subscription->client,
                     ogs_sbi_self()->nf_instance->nf_type,
-                    subscription_data->req_nf_instance_id,
-                    subscription_data->subscr_cond.nf_type,
-                    subscription_data->subscr_cond.service_name));
+                    subscription->req_nf_instance_id,
+                    subscription->subscr_cond.nf_type));
 
-            ogs_error("[%s] Subscription validity expired",
-                subscription_data->id);
-            ogs_sbi_subscription_data_remove(subscription_data);
+            ogs_info("[%s] Subscription validity expired", subscription->id);
+            ogs_sbi_subscription_remove(subscription);
             break;
 
-        case OGS_TIMER_SUBSCRIPTION_PATCH:
-            subscription_data = e->h.sbi.data;
-            ogs_assert(subscription_data);
-
-            ogs_assert(true ==
-                ogs_nnrf_nfm_send_nf_status_update(subscription_data));
-
-            ogs_info("[%s] Need to update Subscription",
-                    subscription_data->id);
-            break;
-
-        case OGS_TIMER_SBI_CLIENT_WAIT:
-            /*
-             * ogs_pollset_poll() receives the time of the expiration
-             * of next timer as an argument. If this timeout is
-             * in very near future (1 millisecond), and if there are
-             * multiple events that need to be processed by ogs_pollset_poll(),
-             * these could take more than 1 millisecond for processing,
-             * resulting in the timer already passed the expiration.
-             *
-             * In case that another NF is under heavy load and responds
-             * to an SBI request with some delay of a few seconds,
-             * it can happen that ogs_pollset_poll() adds SBI responses
-             * to the event list for further processing,
-             * then ogs_timer_mgr_expire() is called which will add
-             * an additional event for timer expiration. When all events are
-             * processed one-by-one, the SBI xact would get deleted twice
-             * in a row, resulting in a crash.
-             *
-             * 1. ogs_pollset_poll()
-             *    message was received and put into an event list,
-             * 2. ogs_timer_mgr_expire()
-             *    add an additional event for timer expiration
-             * 3. message event is processed. (free SBI xact)
-             * 4. timer expiration event is processed. (double-free SBI xact)
-             *
-             * To avoid double-free SBI xact,
-             * we need to check ogs_sbi_xact_cycle()
-             */
-            sbi_xact = ogs_sbi_xact_cycle(e->h.sbi.data);
-            if (!sbi_xact) {
-                ogs_error("SBI transaction has already been removed");
-                break;
-            }
+        case AMF_TIMER_SBI_CLIENT_WAIT:
+            sbi_xact = e->sbi.data;
+            ogs_assert(sbi_xact);
 
             sbi_object = sbi_xact->sbi_object;
             ogs_assert(sbi_object);
 
-            service_type = sbi_xact->service_type;
+            target_nf_type = sbi_xact->target_nf_type;
 
             ogs_sbi_xact_remove(sbi_xact);
 
@@ -678,10 +608,9 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
                 }
 
                 ogs_error("[%s] Cannot receive SBI message", amf_ue->suci);
-                r = nas_5gs_send_gmm_reject_from_sbi(amf_ue,
-                        OGS_SBI_HTTP_STATUS_GATEWAY_TIMEOUT);
-                ogs_expect(r == OGS_OK);
-                ogs_assert(r != OGS_ERROR);
+                ogs_expect(OGS_OK ==
+                    nas_5gs_send_gmm_reject_from_sbi(amf_ue,
+                        OGS_SBI_HTTP_STATUS_GATEWAY_TIMEOUT));
                 break;
 
             case OGS_SBI_OBJ_SESS_TYPE:
@@ -693,46 +622,36 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
                     break;
                 }
 
-                amf_ue = sess->amf_ue;
-                ogs_assert(amf_ue);
-                amf_ue = amf_ue_cycle(amf_ue);
-                if (!amf_ue) {
-                    ogs_error("UE(amf_ue) Context has already been removed");
-                    break;
-                }
-
                 ogs_error("[%d:%d] Cannot receive SBI message",
                         sess->psi, sess->pti);
                 if (sess->payload_container_type) {
-                    r = nas_5gs_send_back_gsm_message(sess,
+                    ogs_expect(OGS_OK ==
+                        nas_5gs_send_back_gsm_message(sess,
                             OGS_5GMM_CAUSE_PAYLOAD_WAS_NOT_FORWARDED,
-                            AMF_NAS_BACKOFF_TIME);
-                    ogs_expect(r == OGS_OK);
-                    ogs_assert(r != OGS_ERROR);
+                            AMF_NAS_BACKOFF_TIME));
                 } else {
-                    r = ngap_send_error_indication2(amf_ue,
+                    ogs_expect(OGS_OK ==
+                        ngap_send_error_indication2(amf_ue,
                             NGAP_Cause_PR_transport,
-                            NGAP_CauseTransport_transport_resource_unavailable);
-                    ogs_expect(r == OGS_OK);
-                    ogs_assert(r != OGS_ERROR);
+                            NGAP_CauseTransport_transport_resource_unavailable)
+                    );
                 }
                 break;
 
             default:
                 ogs_fatal("Not implemented [%s:%d]",
-                    ogs_sbi_service_type_to_name(service_type),
-                    sbi_object->type);
+                    OpenAPI_nf_type_ToString(target_nf_type), sbi_object->type);
                 ogs_assert_if_reached();
             }
             break;
 
         default:
             ogs_error("Unknown timer[%s:%d]",
-                    ogs_timer_get_name(e->h.timer_id), e->h.timer_id);
+                    amf_timer_get_name(e->timer_id), e->timer_id);
         }
         break;
 
-    case AMF_EVENT_NGAP_LO_ACCEPT:
+    case AMF_EVT_NGAP_LO_ACCEPT:
         sock = e->ngap.sock;
         ogs_assert(sock);
         addr = e->ngap.addr;
@@ -755,7 +674,7 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
 
         break;
 
-    case AMF_EVENT_NGAP_LO_SCTP_COMM_UP:
+    case AMF_EVT_NGAP_LO_SCTP_COMM_UP:
         sock = e->ngap.sock;
         ogs_assert(sock);
         addr = e->ngap.addr;
@@ -782,7 +701,7 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
 
         break;
 
-    case AMF_EVENT_NGAP_LO_CONNREFUSED:
+    case AMF_EVT_NGAP_LO_CONNREFUSED:
         sock = e->ngap.sock;
         ogs_assert(sock);
         addr = e->ngap.addr;
@@ -801,7 +720,7 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
         ogs_free(addr);
 
         break;
-    case AMF_EVENT_NGAP_MESSAGE:
+    case AMF_EVT_NGAP_MESSAGE:
         sock = e->ngap.sock;
         ogs_assert(sock);
         addr = e->ngap.addr;
@@ -822,31 +741,28 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
             ogs_fsm_dispatch(&gnb->sm, e);
         } else {
             ogs_error("Cannot decode NGAP message");
-            r = ngap_send_error_indication(
+            ogs_assert(OGS_OK ==
+                ngap_send_error_indication(
                     gnb, NULL, NULL, NGAP_Cause_PR_protocol, 
-                    NGAP_CauseProtocol_abstract_syntax_error_falsely_constructed_message);
-            ogs_expect(r == OGS_OK);
-            ogs_assert(r != OGS_ERROR);
+                    NGAP_CauseProtocol_abstract_syntax_error_falsely_constructed_message));
         }
 
         ogs_ngap_free(&ngap_message);
         ogs_pkbuf_free(pkbuf);
         break;
 
-    case AMF_EVENT_NGAP_TIMER:
+    case AMF_EVT_NGAP_TIMER:
         ran_ue = e->ran_ue;
         ogs_assert(ran_ue);
 
-        switch (e->h.timer_id) {
+        switch (e->timer_id) {
         case AMF_TIMER_NG_DELAYED_SEND:
             gnb = e->gnb;
             ogs_assert(gnb);
             pkbuf = e->pkbuf;
             ogs_assert(pkbuf);
 
-            r = ngap_send_to_ran_ue(ran_ue, pkbuf);
-            ogs_expect(r == OGS_OK);
-            ogs_assert(r != OGS_ERROR);
+            ogs_expect(OGS_OK == ngap_send_to_ran_ue(ran_ue, pkbuf));
             ogs_timer_delete(e->timer);
             break;
         case AMF_TIMER_NG_HOLDING:
@@ -858,12 +774,12 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
             break;
         default:
             ogs_error("Unknown timer[%s:%d]",
-                    amf_timer_get_name(e->h.timer_id), e->h.timer_id);
+                    amf_timer_get_name(e->timer_id), e->timer_id);
             break;
         }
         break;
 
-    case AMF_EVENT_5GMM_MESSAGE:
+    case AMF_EVT_5GMM_MESSAGE:
         ran_ue = e->ran_ue;
         ogs_assert(ran_ue);
         pkbuf = e->pkbuf;
@@ -872,7 +788,7 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
         if (ogs_nas_5gmm_decode(&nas_message, pkbuf) != OGS_OK) {
             ogs_error("ogs_nas_5gmm_decode() failed");
             ogs_pkbuf_free(pkbuf);
-            break;
+            return;
         }
 
         amf_ue = ran_ue->amf_ue;
@@ -880,17 +796,7 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
             amf_ue = amf_ue_find_by_message(&nas_message);
             if (!amf_ue) {
                 amf_ue = amf_ue_add(ran_ue);
-                if (amf_ue == NULL) {
-                    r = ngap_send_ran_ue_context_release_command(
-                            ran_ue,
-                            NGAP_Cause_PR_misc,
-                            NGAP_CauseMisc_control_processing_overload,
-                            NGAP_UE_CTX_REL_NG_CONTEXT_REMOVE, 0);
-                    ogs_expect(r == OGS_OK);
-                    ogs_assert(r != OGS_ERROR);
-                    ogs_pkbuf_free(pkbuf);
-                    break;
-                }
+                ogs_assert(amf_ue);
             } else {
                 /* Here, if the AMF_UE Context is found,
                  * the integrity check is not performed
@@ -909,7 +815,7 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
                         ogs_error("[%s] nas_security_decode() failed",
                                 amf_ue->suci);
                         ogs_pkbuf_free(pkbuf);
-                        break;
+                        return;
                     }
                 }
             }
@@ -943,25 +849,12 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
                 /* De-associate NG with NAS/EMM */
                 ran_ue_deassociate(amf_ue->ran_ue);
 
-                r = ngap_send_ran_ue_context_release_command(amf_ue->ran_ue,
+                ogs_expect(OGS_OK ==
+                    ngap_send_ran_ue_context_release_command(amf_ue->ran_ue,
                         NGAP_Cause_PR_nas, NGAP_CauseNas_normal_release,
-                        NGAP_UE_CTX_REL_NG_CONTEXT_REMOVE, 0);
-                ogs_expect(r == OGS_OK);
-                ogs_assert(r != OGS_ERROR);
+                        NGAP_UE_CTX_REL_NG_CONTEXT_REMOVE, 0));
             }
             amf_ue_associate_ran_ue(amf_ue, ran_ue);
-
-            /*
-             * TS 24.501
-             * 5.3.7 Handling of the periodic registration update timer
-             *
-             * The mobile reachable timer shall be stopped
-             * when a NAS signalling connection is established for the UE.
-             * The implicit de-registration timer shall be stopped
-             * when a NAS signalling connection is established for the UE.
-             */
-            CLEAR_AMF_UE_TIMER(amf_ue->mobile_reachable);
-            CLEAR_AMF_UE_TIMER(amf_ue->implicit_deregistration);
         }
 
         ogs_assert(amf_ue);
@@ -974,14 +867,9 @@ void amf_state_operational(ogs_fsm_t *s, amf_event_t *e)
 
         ogs_pkbuf_free(pkbuf);
         break;
-
-    case AMF_EVENT_5GMM_TIMER:
-        amf_ue = amf_ue_cycle(e->amf_ue);
-        if (!amf_ue) {
-            ogs_error("UE(amf_ue) Context has already been removed");
-            break;
-        }
-
+    case AMF_EVT_5GMM_TIMER:
+        amf_ue = e->amf_ue;
+        ogs_assert(amf_ue);
         ogs_assert(OGS_FSM_STATE(&amf_ue->sm));
 
         ogs_fsm_dispatch(&amf_ue->sm, e);

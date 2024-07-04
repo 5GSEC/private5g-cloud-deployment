@@ -35,7 +35,7 @@ void ogs_gtp_context_init(int num_of_gtpu_resource)
 
     ogs_log_install_domain(&__ogs_gtp_domain, "gtp", ogs_core()->log.level);
 
-    ogs_pool_init(&pool, ogs_app()->pool.gtp_node);
+    ogs_pool_init(&pool, ogs_app()->pool.nf);
     ogs_pool_init(&ogs_gtpu_resource_pool, num_of_gtpu_resource);
 
     context_initialized = 1;
@@ -530,10 +530,7 @@ ogs_gtp_node_t *ogs_gtp_node_new(ogs_sockaddr_t *sa_list)
     ogs_assert(sa_list);
 
     ogs_pool_alloc(&pool, &node);
-    if (!node) {
-        ogs_error("ogs_pool_alloc() failed");
-        return NULL;
-    }
+    ogs_expect_or_return_val(node, NULL);
     memset(node, 0, sizeof(ogs_gtp_node_t));
 
     node->sa_list = sa_list;
@@ -566,10 +563,7 @@ ogs_gtp_node_t *ogs_gtp_node_add_by_f_teid(
     ogs_assert(port);
 
     rv = ogs_gtp2_f_teid_to_sockaddr(f_teid, port, &addr);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_gtp2_f_teid_to_sockaddr() failed");
-        return NULL;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, NULL);
 
     rv = ogs_filter_ip_version(
             &addr,
@@ -694,10 +688,7 @@ ogs_gtp_node_t *ogs_gtp_node_add_by_ip(
     ogs_assert(port);
 
     rv = ogs_ip_to_sockaddr(ip, port, &addr);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_ip_to_sockaddr() failed");
-        return NULL;
-    }
+    ogs_expect_or_return_val(rv == OGS_OK, NULL);
 
     rv = ogs_filter_ip_version(
             &addr,

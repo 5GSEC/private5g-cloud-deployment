@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -36,13 +36,14 @@ ogs_sbi_request_t *pcf_nbsf_management_build_register(
     ogs_sbi_nf_service_t *nf_service = NULL;
 
     int i;
+#if SBI_FQDN_WITH_ONE_OCTET_LENGTH
+    int fqdn_len;
+    char fqdn[OGS_MAX_FQDN_LEN];
+#endif
 
     ogs_assert(sess);
     pcf_ue = sess->pcf_ue;
     ogs_assert(pcf_ue);
-
-    nf_instance = data;
-    ogs_assert(nf_instance);
 
     memset(&message, 0, sizeof(message));
     message.h.method = (char *)OGS_SBI_HTTP_METHOD_POST;
@@ -52,7 +53,6 @@ ogs_sbi_request_t *pcf_nbsf_management_build_register(
         (char *)OGS_SBI_RESOURCE_NAME_PCF_BINDINGS;
 
     memset(&PcfBinding, 0, sizeof(PcfBinding));
-    memset(&sNssai, 0, sizeof(sNssai));
 
     PcfBinding.supi = pcf_ue->supi;
     PcfBinding.gpsi = pcf_ue->gpsi;
@@ -60,30 +60,29 @@ ogs_sbi_request_t *pcf_nbsf_management_build_register(
     PcfBinding.ipv4_addr = sess->ipv4addr_string;
     PcfBinding.ipv6_prefix = sess->ipv6prefix_string;
 
-    PcfBinding.ipv4_frame_route_list = sess->ipv4_frame_route_list;
-    PcfBinding.ipv6_frame_route_list = sess->ipv6_frame_route_list;
-
-    if (!sess->dnn) {
-        ogs_error("No DNN");
-        goto end;
-    }
+    ogs_expect_or_return_val(sess->dnn, NULL);
     PcfBinding.dnn = sess->dnn;
 
-    nf_service = ogs_sbi_nf_service_find_by_name(
-            nf_instance, (char *)OGS_SBI_SERVICE_NAME_NPCF_POLICYAUTHORIZATION);
-    if (!nf_service) {
-        ogs_error("No NF-Service");
-        goto end;
-    }
+    nf_instance = ogs_sbi_self()->nf_instance;
+    ogs_expect_or_return_val(nf_instance, NULL);
+    nf_service = ogs_list_first(&nf_instance->nf_service_list);
+    ogs_expect_or_return_val(nf_service, NULL);
 
-    if (nf_service->fqdn)
+    if (nf_service->fqdn) {
+#if SBI_FQDN_WITH_ONE_OCTET_LENGTH
+        memset(fqdn, 0, sizeof(fqdn));
+        fqdn_len = ogs_fqdn_build(fqdn,
+                nf_service->fqdn, strlen(nf_service->fqdn));
+        PcfBinding.pcf_fqdn = ogs_memdup(fqdn, fqdn_len+1);
+        ogs_expect_or_return_val(PcfBinding.pcf_fqdn, NULL);
+        PcfBinding.pcf_fqdn[fqdn_len] = 0;
+#else
         PcfBinding.pcf_fqdn = ogs_strdup(nf_service->fqdn);
+#endif
+    }
 
     PcfIpEndPointList = OpenAPI_list_create();
-    if (!PcfIpEndPointList) {
-        ogs_error("No PcfIpEndPointList");
-        goto end;
-    }
+    ogs_assert(PcfIpEndPointList);
 
     for (i = 0; i < nf_service->num_of_addr; i++) {
         ogs_sockaddr_t *ipv4 = NULL;
@@ -96,64 +95,42 @@ ogs_sbi_request_t *pcf_nbsf_management_build_register(
 
         if (ipv4 || ipv6) {
             IpEndPoint = ogs_calloc(1, sizeof(*IpEndPoint));
-            if (!IpEndPoint) {
-                ogs_error("No IpEndPoint");
-                goto end;
-            }
+            ogs_expect_or_return_val(IpEndPoint, NULL);
             if (ipv4) {
                 IpEndPoint->ipv4_address = ogs_ipstrdup(ipv4);
-                if (!IpEndPoint->ipv4_address) {
-                    ogs_error("No IpEndPoint->ipv4_address");
-                    if (IpEndPoint)
-                        ogs_free(IpEndPoint);
-                    goto end;
-                }
+                ogs_expect_or_return_val(IpEndPoint->ipv4_address, NULL);
             }
             if (ipv6) {
                 IpEndPoint->ipv6_address = ogs_ipstrdup(ipv6);
-                if (!IpEndPoint->ipv6_address) {
-                    ogs_error("No IpEndPoint->ipv6_address");
-                    if (IpEndPoint) {
-                        if (IpEndPoint->ipv6_address)
-                            ogs_free(IpEndPoint->ipv6_address);
-                        ogs_free(IpEndPoint);
-                    }
-                    goto end;
-                }
+                ogs_expect_or_return_val(IpEndPoint->ipv6_address, NULL);
+
             }
-            IpEndPoint->is_port = nf_service->addr[i].is_port;
+            IpEndPoint->is_port = true;
             IpEndPoint->port = nf_service->addr[i].port;
             OpenAPI_list_add(PcfIpEndPointList, IpEndPoint);
         }
     }
 
-    if (!sess->s_nssai.sst) {
-        ogs_error("No SST");
-        goto end;
-    }
     if (PcfIpEndPointList->count)
         PcfBinding.pcf_ip_end_points = PcfIpEndPointList;
     else
         OpenAPI_list_free(PcfIpEndPointList);
 
+    ogs_expect_or_return_val(sess->s_nssai.sst, NULL);
+    memset(&sNssai, 0, sizeof(sNssai));
     sNssai.sst = sess->s_nssai.sst;
     sNssai.sd = ogs_s_nssai_sd_to_string(sess->s_nssai.sd);
     PcfBinding.snssai = &sNssai;
 
     if (sess->management_features) {
         PcfBinding.supp_feat = ogs_uint64_to_string(sess->management_features);
-        if (!PcfBinding.supp_feat) {
-            ogs_error("No supp_feat");
-            goto end;
-        }
+        ogs_expect_or_return_val(PcfBinding.supp_feat, NULL);
     }
 
     message.PcfBinding = &PcfBinding;
 
     request = ogs_sbi_build_request(&message);
     ogs_expect(request);
-
-end:
     
     if (sNssai.sd)
         ogs_free(sNssai.sd);

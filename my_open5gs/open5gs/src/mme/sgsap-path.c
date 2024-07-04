@@ -22,9 +22,11 @@
 #include "mme-event.h"
 #include "mme-sm.h"
 
+#include "sgsap-types.h"
+#include "sgsap-build.h"
 #include "sgsap-path.h"
 
-int sgsap_open(void)
+int sgsap_open()
 {
     mme_vlr_t *vlr = NULL;
 
@@ -34,13 +36,14 @@ int sgsap_open(void)
         memset(&e, 0, sizeof(e));
         e.vlr = vlr;
 
-        ogs_fsm_init(&vlr->sm, sgsap_state_initial, sgsap_state_final, &e);
+        ogs_fsm_create(&vlr->sm, sgsap_state_initial, sgsap_state_final);
+        ogs_fsm_init(&vlr->sm, &e);
     }
 
     return OGS_OK;
 }
 
-void sgsap_close(void)
+void sgsap_close()
 {
     mme_vlr_t *vlr = NULL;
 
@@ -50,6 +53,7 @@ void sgsap_close(void)
         e.vlr = vlr;
 
         ogs_fsm_fini(&vlr->sm, &e);
+        ogs_fsm_delete(&vlr->sm);
     }
 }
 
@@ -120,10 +124,7 @@ int sgsap_send_location_update_request(mme_ue_t *mme_ue)
     ogs_debug("    IMSI[%s]", mme_ue->imsi_bcd);
 
     pkbuf = sgsap_build_location_update_request(mme_ue);
-    if (!pkbuf) {
-        ogs_error("sgsap_build_location_update_request() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(pkbuf, OGS_ERROR);
     rv = sgsap_send_to_vlr(mme_ue, pkbuf);
     ogs_expect(rv == OGS_OK);
 
@@ -140,10 +141,7 @@ int sgsap_send_tmsi_reallocation_complete(mme_ue_t *mme_ue)
     ogs_debug("    IMSI[%s]", mme_ue->imsi_bcd);
 
     pkbuf = sgsap_build_tmsi_reallocation_complete(mme_ue);
-    if (!pkbuf) {
-        ogs_error("sgsap_build_tmsi_reallocation_complete() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(pkbuf, OGS_ERROR);
     rv = sgsap_send_to_vlr(mme_ue, pkbuf);
     ogs_expect(rv == OGS_OK);
 
@@ -157,10 +155,7 @@ int sgsap_send_detach_indication(mme_ue_t *mme_ue)
     ogs_assert(mme_ue);
 
     pkbuf = sgsap_build_detach_indication(mme_ue);
-    if (!pkbuf) {
-        ogs_error("sgsap_build_detach_indication() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(pkbuf, OGS_ERROR);
     rv = sgsap_send_to_vlr(mme_ue, pkbuf);
     ogs_expect(rv == OGS_OK);
 
@@ -177,32 +172,7 @@ int sgsap_send_mo_csfb_indication(mme_ue_t *mme_ue)
     ogs_debug("    IMSI[%s]", mme_ue->imsi_bcd);
 
     pkbuf = sgsap_build_mo_csfb_indication(mme_ue);
-    if (!pkbuf) {
-        ogs_error("sgsap_build_mo_csfb_indication() failed");
-        return OGS_ERROR;
-    }
-    rv = sgsap_send_to_vlr(mme_ue, pkbuf);
-    ogs_expect(rv == OGS_OK);
-
-    return rv;
-}
-
-int sgsap_send_paging_reject(mme_ue_t *mme_ue, uint8_t sgs_cause)
-{
-    int rv;
-    ogs_pkbuf_t *pkbuf = NULL;
-    ogs_assert(mme_ue);
-
-    ogs_debug("[SGSAP] PAGING-REJECT");
-    ogs_debug("    IMSI[%s]", mme_ue->imsi_bcd);
-
-    pkbuf = sgsap_build_paging_reject(
-                &mme_ue->nas_mobile_identity_imsi,
-                SGSAP_IE_IMSI_LEN, sgs_cause);
-    if (!pkbuf) {
-        ogs_error("sgsap_build_paging_reject() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(pkbuf, OGS_ERROR);
     rv = sgsap_send_to_vlr(mme_ue, pkbuf);
     ogs_expect(rv == OGS_OK);
 
@@ -221,10 +191,7 @@ int sgsap_send_service_request(mme_ue_t *mme_ue, uint8_t emm_mode)
     ogs_debug("    EMM_MODE[%d]", emm_mode);
 
     pkbuf = sgsap_build_service_request(mme_ue, emm_mode);
-    if (!pkbuf) {
-        ogs_error("sgsap_build_service_request() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(pkbuf, OGS_ERROR);
     rv = sgsap_send_to_vlr(mme_ue, pkbuf);
     ogs_expect(rv == OGS_OK);
 
@@ -240,10 +207,7 @@ int sgsap_send_reset_ack(mme_vlr_t *vlr)
     ogs_debug("[SGSAP] RESET-ACK");
 
     pkbuf = sgsap_build_reset_ack(vlr);
-    if (!pkbuf) {
-        ogs_error("sgsap_build_reset_ack() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(pkbuf, OGS_ERROR);
     rv =  sgsap_send_to_vlr_with_sid(vlr, pkbuf, 0);
     ogs_expect(rv == OGS_OK);
 
@@ -264,10 +228,7 @@ int sgsap_send_uplink_unitdata(mme_ue_t *mme_ue,
             nas_message_container->buffer, nas_message_container->length);
 
     pkbuf = sgsap_build_uplink_unidata(mme_ue, nas_message_container);
-    if (!pkbuf) {
-        ogs_error("sgsap_build_uplink_unidata() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(pkbuf, OGS_ERROR);
     rv = sgsap_send_to_vlr(mme_ue, pkbuf);
     ogs_expect(rv == OGS_OK);
 
@@ -285,10 +246,7 @@ int sgsap_send_ue_unreachable(mme_ue_t *mme_ue, uint8_t sgs_cause)
     ogs_debug("    CAUSE[%d]", sgs_cause);
 
     pkbuf = sgsap_build_ue_unreachable(mme_ue, sgs_cause);
-    if (!pkbuf) {
-        ogs_error("sgsap_build_ue_unreachable() failed");
-        return OGS_ERROR;
-    }
+    ogs_expect_or_return_val(pkbuf, OGS_ERROR);
     rv = sgsap_send_to_vlr(mme_ue, pkbuf);
     ogs_expect(rv == OGS_OK);
 

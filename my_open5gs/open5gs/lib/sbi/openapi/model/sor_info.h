@@ -25,12 +25,6 @@ typedef struct OpenAPI_sor_info_s {
     char *sor_mac_iausf;
     char *countersor;
     char *provisioning_time;
-    char *sor_transparent_container;
-    char *sor_cmci;
-    bool is_store_sor_cmci_in_me;
-    int store_sor_cmci_in_me;
-    bool is_usim_support_of_sor_cmci;
-    int usim_support_of_sor_cmci;
 } OpenAPI_sor_info_t;
 
 OpenAPI_sor_info_t *OpenAPI_sor_info_create(
@@ -38,13 +32,7 @@ OpenAPI_sor_info_t *OpenAPI_sor_info_create(
     int ack_ind,
     char *sor_mac_iausf,
     char *countersor,
-    char *provisioning_time,
-    char *sor_transparent_container,
-    char *sor_cmci,
-    bool is_store_sor_cmci_in_me,
-    int store_sor_cmci_in_me,
-    bool is_usim_support_of_sor_cmci,
-    int usim_support_of_sor_cmci
+    char *provisioning_time
 );
 void OpenAPI_sor_info_free(OpenAPI_sor_info_t *sor_info);
 OpenAPI_sor_info_t *OpenAPI_sor_info_parseFromJSON(cJSON *sor_infoJSON);

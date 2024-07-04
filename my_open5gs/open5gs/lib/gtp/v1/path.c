@@ -1,7 +1,6 @@
 /*
  * Copyright (C) 2019 by Sukchan Lee <acetcom@gmail.com>
  * Copyright (C) 2022 by sysmocom - s.f.m.c. GmbH <info@sysmocom.de>
- * Copyright (C) 2023 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -44,10 +43,7 @@ ogs_pkbuf_t *ogs_gtp1_handle_echo_req(ogs_pkbuf_t *pkb)
 
     pkb_resp = ogs_pkbuf_alloc(NULL,
             100 /* enough for ECHO_RSP; use smaller buffer */);
-    if (!pkb_resp) {
-        ogs_error("ogs_pkbuf_alloc() failed");
-        return NULL;
-    }
+    ogs_expect_or_return_val(pkb_resp, NULL);
     ogs_pkbuf_put(pkb_resp, 100);
     gtph_resp = (ogs_gtp1_header_t *)pkb_resp->data;
 
@@ -129,22 +125,17 @@ void ogs_gtp1_send_error_message(
     tlv->u8 = cause_value;
 
     pkbuf = ogs_gtp1_build_msg(&errmsg);
-    if (!pkbuf) {
-        ogs_error("ogs_gtp1_build_msg() failed");
-        return;
-    }
+    ogs_expect_or_return(pkbuf);
 
     rv = ogs_gtp1_xact_update_tx(xact, &errmsg.h, pkbuf);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_gtp1_xact_update_tx() failed");
-        return;
-    }
+    ogs_expect_or_return(rv == OGS_OK);
 
     rv = ogs_gtp_xact_commit(xact);
     ogs_expect(rv == OGS_OK);
 }
 
-void ogs_gtp1_send_echo_request(ogs_gtp_node_t *gnode)
+void ogs_gtp1_send_echo_request(
+        ogs_gtp_node_t *gnode)
 {
     int rv;
     ogs_pkbuf_t *pkbuf = NULL;
@@ -160,10 +151,7 @@ void ogs_gtp1_send_echo_request(ogs_gtp_node_t *gnode)
     h.teid = 0;
 
     pkbuf = ogs_gtp1_build_echo_request(h.type);
-    if (!pkbuf) {
-        ogs_error("ogs_gtp1_build_echo_request() failed");
-        return;
-    }
+    ogs_expect_or_return(pkbuf);
 
     xact = ogs_gtp1_xact_local_create(gnode, &h, pkbuf, NULL, NULL);
 
@@ -186,16 +174,10 @@ void ogs_gtp1_send_echo_response(ogs_gtp_xact_t *xact, uint8_t recovery)
     h.teid = 0;
 
     pkbuf = ogs_gtp1_build_echo_response(h.type, recovery);
-    if (!pkbuf) {
-        ogs_error("ogs_gtp1_build_echo_response() failed");
-        return;
-    }
+    ogs_expect_or_return(pkbuf);
 
     rv = ogs_gtp1_xact_update_tx(xact, &h, pkbuf);
-    if (rv != OGS_OK) {
-        ogs_error("ogs_gtp1_xact_update_tx() failed");
-        return;
-    }
+    ogs_expect_or_return(rv == OGS_OK);
 
     rv = ogs_gtp_xact_commit(xact);
     ogs_expect(rv == OGS_OK);

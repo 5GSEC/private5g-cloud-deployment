@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -111,10 +111,6 @@ int af_context_parse_config(void)
                 ogs_assert(af_key);
                 if (!strcmp(af_key, "sbi")) {
                     /* handle config in sbi library */
-                } else if (!strcmp(af_key, "service_name")) {
-                    /* handle config in sbi library */
-                } else if (!strcmp(af_key, "discovery")) {
-                    /* handle config in sbi library */
                 } else
                     ogs_warn("unknown key `%s`", af_key);
             }
@@ -135,7 +131,7 @@ af_sess_t *af_sess_add_by_ue_address(ogs_ip_t *ue_address)
     ogs_assert(ue_address->ipv4 || ue_address->ipv6);
 
     ogs_pool_alloc(&af_sess_pool, &sess);
-    ogs_assert(sess);
+    ogs_expect_or_return_val(sess, NULL);
     memset(sess, 0, sizeof *sess);
 
     sess->af_app_session_id = ogs_msprintf("%d",
@@ -144,15 +140,15 @@ af_sess_t *af_sess_add_by_ue_address(ogs_ip_t *ue_address)
 
     if (ue_address->ipv4) {
         sess->ipv4addr = ogs_ipv4_to_string(ue_address->addr);
-        ogs_assert(sess->ipv4addr);
+        ogs_expect_or_return_val(sess->ipv4addr, NULL);
     }
 
     if (ue_address->ipv6) {
         sess->ipv6addr = ogs_ipv6addr_to_string(ue_address->addr6);
-        ogs_assert(sess->ipv6addr);
+        ogs_expect_or_return_val(sess->ipv6addr, NULL);
         sess->ipv6prefix = ogs_ipv6prefix_to_string(
                 ue_address->addr6, OGS_IPV6_128_PREFIX_LEN);
-        ogs_assert(sess->ipv6prefix);
+        ogs_expect_or_return_val(sess->ipv6prefix, NULL);
     }
 
     OGS_SBI_FEATURES_SET(sess->policyauthorization_features,
@@ -240,7 +236,7 @@ bool af_sess_set_pcf_app_session_id(af_sess_t *sess, char *pcf_app_session_id)
     clear_pcf_app_session_id(sess);
 
     sess->pcf_app_session_id = ogs_strdup(pcf_app_session_id);
-    ogs_assert(sess->pcf_app_session_id);
+    ogs_expect_or_return_val(sess->pcf_app_session_id, false);
 
     ogs_hash_set(self.pcf_app_session_id_hash,
             &sess->pcf_app_session_id, strlen(sess->pcf_app_session_id), sess);
@@ -266,30 +262,22 @@ af_sess_t *af_sess_find_by_pcf_app_session_id(char *pcf_app_session_id)
                         pcf_app_session_id, strlen(pcf_app_session_id));
 }
 
-static ogs_sbi_client_t *find_client_by_fqdn(
-        OpenAPI_uri_scheme_e scheme, char *fqdn)
+static ogs_sbi_client_t *find_client_by_fqdn(char *fqdn, int port)
 {
     int rv;
     ogs_sockaddr_t *addr = NULL;
     ogs_sbi_client_t *client = NULL;
 
-    ogs_assert(scheme == OpenAPI_uri_scheme_https ||
-                scheme == OpenAPI_uri_scheme_http);
-    ogs_assert(fqdn);
-
-    rv = ogs_getaddrinfo(
-            &addr, AF_UNSPEC, fqdn,
-            scheme == OpenAPI_uri_scheme_https ?
-                OGS_SBI_HTTPS_PORT : OGS_SBI_HTTP_PORT,
-            0);
+    rv = ogs_getaddrinfo(&addr, AF_UNSPEC, fqdn,
+            port ? port : ogs_sbi_self()->sbi_port, 0);
     if (rv != OGS_OK) {
         ogs_error("Invalid NFProfile.fqdn");
         return NULL;
     }
 
-    client = ogs_sbi_client_find(scheme, addr);
+    client = ogs_sbi_client_find(addr);
     if (!client) {
-        client = ogs_sbi_client_add(scheme, addr);
+        client = ogs_sbi_client_add(addr);
         ogs_assert(client);
     }
 
@@ -302,15 +290,11 @@ void af_sess_associate_pcf_client(af_sess_t *sess)
 {
     ogs_sbi_client_t *client = NULL;
     ogs_sockaddr_t *addr = NULL;
-    OpenAPI_uri_scheme_e scheme = OpenAPI_uri_scheme_NULL;
 
     ogs_assert(sess);
 
-    scheme = ogs_app()->sbi.client.no_tls == false ?
-                OpenAPI_uri_scheme_https : OpenAPI_uri_scheme_http;
-
     if (sess->pcf.fqdn && strlen(sess->pcf.fqdn))
-        client = find_client_by_fqdn(scheme, sess->pcf.fqdn);
+        client = find_client_by_fqdn(sess->pcf.fqdn, 0);
 
     if (!client) {
         /* At this point, CLIENT selection method is very simple. */
@@ -321,9 +305,9 @@ void af_sess_associate_pcf_client(af_sess_t *sess)
         }
 
         if (addr) {
-            client = ogs_sbi_client_find(scheme, addr);
+            client = ogs_sbi_client_find(addr);
             if (!client) {
-                client = ogs_sbi_client_add(scheme, addr);
+                client = ogs_sbi_client_add(addr);
                 ogs_assert(client);
             }
         }

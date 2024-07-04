@@ -1,7 +1,7 @@
 /*
  * pws_information.h
  *
- * Represents a PWS related information data part
+ * 
  */
 
 #ifndef _OpenAPI_pws_information_H_
@@ -28,7 +28,6 @@ typedef struct OpenAPI_pws_information_s {
     bool is_send_ran_response;
     int send_ran_response;
     char *omc_id;
-    char *nf_id;
 } OpenAPI_pws_information_t;
 
 OpenAPI_pws_information_t *OpenAPI_pws_information_create(
@@ -38,8 +37,7 @@ OpenAPI_pws_information_t *OpenAPI_pws_information_create(
     OpenAPI_list_t *bc_empty_area_list,
     bool is_send_ran_response,
     int send_ran_response,
-    char *omc_id,
-    char *nf_id
+    char *omc_id
 );
 void OpenAPI_pws_information_free(OpenAPI_pws_information_t *pws_information);
 OpenAPI_pws_information_t *OpenAPI_pws_information_parseFromJSON(cJSON *pws_informationJSON);

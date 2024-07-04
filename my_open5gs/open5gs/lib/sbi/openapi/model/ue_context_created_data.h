@@ -1,7 +1,7 @@
 /*
  * ue_context_created_data.h
  *
- * Data within a successful response for creating an individual ueContext resource
+ * 
  */
 
 #ifndef _OpenAPI_ue_context_created_data_H_
@@ -29,7 +29,6 @@ typedef struct OpenAPI_ue_context_created_data_s {
     char *supported_features;
     bool is_pcf_reselected_ind;
     int pcf_reselected_ind;
-    OpenAPI_list_t *analytics_not_used_list;
 } OpenAPI_ue_context_created_data_t;
 
 OpenAPI_ue_context_created_data_t *OpenAPI_ue_context_created_data_create(
@@ -39,8 +38,7 @@ OpenAPI_ue_context_created_data_t *OpenAPI_ue_context_created_data_create(
     OpenAPI_list_t *failed_session_list,
     char *supported_features,
     bool is_pcf_reselected_ind,
-    int pcf_reselected_ind,
-    OpenAPI_list_t *analytics_not_used_list
+    int pcf_reselected_ind
 );
 void OpenAPI_ue_context_created_data_free(OpenAPI_ue_context_created_data_t *ue_context_created_data);
 OpenAPI_ue_context_created_data_t *OpenAPI_ue_context_created_data_parseFromJSON(cJSON *ue_context_created_dataJSON);

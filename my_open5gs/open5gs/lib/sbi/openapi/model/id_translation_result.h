@@ -22,16 +22,12 @@ typedef struct OpenAPI_id_translation_result_s {
     char *supported_features;
     char *supi;
     char *gpsi;
-    OpenAPI_list_t *additional_supis;
-    OpenAPI_list_t *additional_gpsis;
 } OpenAPI_id_translation_result_t;
 
 OpenAPI_id_translation_result_t *OpenAPI_id_translation_result_create(
     char *supported_features,
     char *supi,
-    char *gpsi,
-    OpenAPI_list_t *additional_supis,
-    OpenAPI_list_t *additional_gpsis
+    char *gpsi
 );
 void OpenAPI_id_translation_result_free(OpenAPI_id_translation_result_t *id_translation_result);
 OpenAPI_id_translation_result_t *OpenAPI_id_translation_result_parseFromJSON(cJSON *id_translation_resultJSON);

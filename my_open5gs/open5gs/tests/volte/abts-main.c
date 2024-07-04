@@ -23,7 +23,6 @@
 
 abts_suite *test_bearer(abts_suite *suite);
 abts_suite *test_session(abts_suite *suite);
-abts_suite *test_simple(abts_suite *suite);
 abts_suite *test_rx(abts_suite *suite);
 abts_suite *test_video(abts_suite *suite);
 abts_suite *test_cx(abts_suite *suite);
@@ -33,7 +32,6 @@ const struct testlist {
 } alltests[] = {
     {test_bearer},
     {test_session},
-    {test_simple},
     {test_rx},
     {test_video},
     {test_cx},

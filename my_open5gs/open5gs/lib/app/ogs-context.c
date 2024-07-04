@@ -57,7 +57,7 @@ void ogs_app_context_final(void)
     initialized = 0;
 }
 
-ogs_app_context_t *ogs_app(void)
+ogs_app_context_t *ogs_app()
 {
     return &self;
 }
@@ -71,25 +71,22 @@ static void recalculate_pool_size(void)
     self.pool.bearer = self.pool.sess * OGS_MAX_NUM_OF_BEARER;
     self.pool.tunnel = self.pool.bearer * MAX_NUM_OF_TUNNEL;
 
+#define OGS_MAX_NUM_OF_NF_SUBSCRIPTION  4 /* Num of Subscription per NF */
+    self.pool.nf_service = self.max.gnb * OGS_MAX_NUM_OF_NF_SERVICE;
+
 #define POOL_NUM_PER_UE 16
+#define POOL_NUM_PER_GNB 8
     self.pool.timer = self.max.ue * POOL_NUM_PER_UE;
     self.pool.message = self.max.ue * POOL_NUM_PER_UE;
     self.pool.event = self.max.ue * POOL_NUM_PER_UE;
     self.pool.socket = self.max.ue * POOL_NUM_PER_UE;
+    self.pool.subscription = self.max.ue * POOL_NUM_PER_UE;
     self.pool.xact = self.max.ue * POOL_NUM_PER_UE;
-    self.pool.stream = self.max.ue * POOL_NUM_PER_UE;
 
-    self.pool.nf = self.max.peer;
-#define NF_SERVICE_PER_NF_INSTANCE 16
-    self.pool.nf_service = self.pool.nf * NF_SERVICE_PER_NF_INSTANCE;
-    self.pool.subscription = self.pool.nf * NF_SERVICE_PER_NF_INSTANCE;
+    self.pool.nf = self.max.gnb;
 
-    self.pool.gtp_node = self.pool.nf;
-    if (self.max.gtp_peer)
-        self.pool.gtp_node = self.max.gtp_peer;
-
-    /* Num of TAI-LAI Mapping Table */
-    self.pool.csmap = self.pool.nf;
+#define MAX_CSMAP_POOL          128
+    self.pool.csmap = MAX_CSMAP_POOL;   /* Num of TAI-LAI Mapping Table */
 
 #define MAX_NUM_OF_IMPU         8
     self.pool.impi = self.max.ue;
@@ -170,13 +167,23 @@ static void app_context_prepare(void)
 #define USRSCTP_LOCAL_UDP_PORT      9899
     self.usrsctp.udp_port = USRSCTP_LOCAL_UDP_PORT;
 
+    self.sctp.heartbit_interval = 5000;     /* 5 seconds */
+    self.sctp.sack_delay = 200;             /* 200 ms */
+    self.sctp.rto_initial = 3000;           /* 3 seconds */
+    self.sctp.rto_min = 1000;               /* 1 seconds */
+    self.sctp.rto_max = 5000;               /* 5 seconds */
+    self.sctp.max_num_of_ostreams = OGS_DEFAULT_SCTP_MAX_NUM_OF_OSTREAMS;
+    self.sctp.max_num_of_istreams = 65535;
+    self.sctp.max_attempts = 4;
+    self.sctp.max_initial_timeout = 8000;   /* 8 seconds */
+
     self.sockopt.no_delay = true;
 
-#define MAX_NUM_OF_UE               1024    /* Num of UEs */
-#define MAX_NUM_OF_PEER             64      /* Num of Peer */
+#define MAX_NUM_OF_UE               1024    /* Num of UE per AMF/MME */
+#define MAX_NUM_OF_GNB              64      /* Num of gNB per AMF/MME */
 
+    self.max.gnb = MAX_NUM_OF_GNB;
     self.max.ue = MAX_NUM_OF_UE;
-    self.max.peer = MAX_NUM_OF_PEER;
 
     ogs_pkbuf_default_init(&self.pool.defconfig);
 
@@ -350,10 +357,6 @@ int ogs_app_context_parse_config(void)
                 } else if (!strcmp(parameter_key, "no_pfcp_rr_select")) {
                     self.parameter.no_pfcp_rr_select =
                         ogs_yaml_iter_bool(&parameter_iter);
-                } else if (!strcmp(parameter_key,
-                            "use_mongodb_change_stream")) {
-                    self.use_mongodb_change_stream = 
-                        ogs_yaml_iter_bool(&parameter_iter);
                 } else
                     ogs_warn("unknown key `%s`", parameter_key);
             }
@@ -373,6 +376,48 @@ int ogs_app_context_parse_config(void)
                 } else
                     ogs_warn("unknown key `%s`", sockopt_key);
             }
+        } else if (!strcmp(root_key, "sctp")) {
+            ogs_yaml_iter_t sctp_iter;
+            ogs_yaml_iter_recurse(&root_iter, &sctp_iter);
+            while (ogs_yaml_iter_next(&sctp_iter)) {
+                const char *sctp_key = ogs_yaml_iter_key(&sctp_iter);
+                ogs_assert(sctp_key);
+                if (!strcmp(sctp_key, "heartbit_interval")) {
+                    const char *v = ogs_yaml_iter_value(&sctp_iter);
+                    if (v) self.sctp.heartbit_interval = atoi(v);
+                } else if (!strcmp(sctp_key, "sack_delay")) {
+                    const char *v = ogs_yaml_iter_value(&sctp_iter);
+                    if (v) self.sctp.sack_delay = atoi(v);
+                } else if (!strcmp(sctp_key, "rto_initial")) {
+                    const char *v = ogs_yaml_iter_value(&sctp_iter);
+                    if (v) self.sctp.rto_initial = atoi(v);
+                } else if (!strcmp(sctp_key, "rto_min")) {
+                    const char *v = ogs_yaml_iter_value(&sctp_iter);
+                    if (v) self.sctp.rto_min = atoi(v);
+                } else if (!strcmp(sctp_key, "rto_max")) {
+                    const char *v = ogs_yaml_iter_value(&sctp_iter);
+                    if (v) self.sctp.rto_max = atoi(v);
+                } else if (!strcmp(sctp_key, "max_num_of_ostreams")) {
+                    const char *v = ogs_yaml_iter_value(&sctp_iter);
+                    if (v)
+                        self.sctp.max_num_of_ostreams = atoi(v);
+                } else if (!strcmp(sctp_key, "max_num_of_istreams")) {
+                    const char *v = ogs_yaml_iter_value(&sctp_iter);
+                    if (v)
+                        self.sctp.max_num_of_istreams = atoi(v);
+                } else if (!strcmp(sctp_key, "max_attempts")) {
+                    const char *v = ogs_yaml_iter_value(&sctp_iter);
+                    if (v) self.sctp.max_attempts = atoi(v);
+                } else if (!strcmp(sctp_key, "max_initial_timeout")) {
+                    const char *v = ogs_yaml_iter_value(&sctp_iter);
+                    if (v)
+                        self.sctp.max_initial_timeout = atoi(v);
+                } else if (!strcmp(sctp_key, "usrsctp_udp_port")) {
+                    const char *v = ogs_yaml_iter_value(&sctp_iter);
+                    if (v) self.usrsctp.udp_port = atoi(v);
+                } else
+                    ogs_warn("unknown key `%s`", sctp_key);
+            }
         } else if (!strcmp(root_key, "max")) {
             ogs_yaml_iter_t max_iter;
             ogs_yaml_iter_recurse(&root_iter, &max_iter);
@@ -382,14 +427,10 @@ int ogs_app_context_parse_config(void)
                 if (!strcmp(max_key, "ue")) {
                     const char *v = ogs_yaml_iter_value(&max_iter);
                     if (v) self.max.ue = atoi(v);
-                } else if (!strcmp(max_key, "peer") ||
+                } else if (!strcmp(max_key, "gnb") ||
                             !strcmp(max_key, "enb")) {
                     const char *v = ogs_yaml_iter_value(&max_iter);
-                    if (v) self.max.peer = atoi(v);
-                } else if (!strcmp(max_key, "gtp_peer") ||
-                            !strcmp(max_key, "enb")) {
-                    const char *v = ogs_yaml_iter_value(&max_iter);
-                    if (v) self.max.gtp_peer = atoi(v);
+                    if (v) self.max.gnb = atoi(v);
                 } else
                     ogs_warn("unknown key `%s`", max_key);
             }
@@ -425,10 +466,6 @@ int ogs_app_context_parse_config(void)
                     const char *v = ogs_yaml_iter_value(&pool_iter);
                     if (v)
                         self.pool.defconfig.cluster_8192_pool = atoi(v);
-                } else if (!strcmp(pool_key, "32768")) {
-                    const char *v = ogs_yaml_iter_value(&pool_iter);
-                    if (v)
-                        self.pool.defconfig.cluster_32768_pool = atoi(v);
                 } else if (!strcmp(pool_key, "big")) {
                     const char *v = ogs_yaml_iter_value(&pool_iter);
                     if (v)
@@ -515,79 +552,8 @@ int ogs_app_context_parse_config(void)
                         } else
                             ogs_warn("unknown key `%s`", msg_key);
                     }
-                } else if (!strcmp(time_key, "t3502")) {
-                    /* handle config in amf */
-                } else if (!strcmp(time_key, "t3512")) {
-                    /* handle config in amf */
-                } else if (!strcmp(time_key, "t3402")) {
-                    /* handle config in mme */
-                } else if (!strcmp(time_key, "t3412")) {
-                    /* handle config in mme */
-                } else if (!strcmp(time_key, "t3423")) {
-                    /* handle config in mme */
                 } else
                     ogs_warn("unknown key `%s`", time_key);
-            }
-        } else if (!strcmp(root_key, "sbi")) {
-            ogs_yaml_iter_t tls_iter;
-            ogs_yaml_iter_recurse(&root_iter, &tls_iter);
-            while (ogs_yaml_iter_next(&tls_iter)) {
-                const char *tls_key = ogs_yaml_iter_key(&tls_iter);
-                ogs_assert(tls_key);
-                if (!strcmp(tls_key, "server")) {
-                    ogs_yaml_iter_t server_iter;
-                    ogs_yaml_iter_recurse(&tls_iter, &server_iter);
-
-                    while (ogs_yaml_iter_next(&server_iter)) {
-                        const char *server_key =
-                            ogs_yaml_iter_key(&server_iter);
-                        ogs_assert(server_key);
-                        if (!strcmp(server_key, "no_tls")) {
-                            self.sbi.server.no_tls =
-                                ogs_yaml_iter_bool(&server_iter);
-                        } else if (!strcmp(server_key, "no_verify")) {
-                            self.sbi.server.no_verify =
-                                ogs_yaml_iter_bool(&server_iter);
-                        } else if (!strcmp(server_key, "cacert")) {
-                            self.sbi.server.cacert =
-                                ogs_yaml_iter_value(&server_iter);
-                        } else if (!strcmp(server_key, "cert")) {
-                            self.sbi.server.cert =
-                                ogs_yaml_iter_value(&server_iter);
-                        } else if (!strcmp(server_key, "key")) {
-                            self.sbi.server.key =
-                                ogs_yaml_iter_value(&server_iter);
-                        } else
-                            ogs_warn("unknown key `%s`", server_key);
-                    }
-                } else if (!strcmp(tls_key, "client")) {
-                    ogs_yaml_iter_t client_iter;
-                    ogs_yaml_iter_recurse(&tls_iter, &client_iter);
-
-                    while (ogs_yaml_iter_next(&client_iter)) {
-                        const char *client_key =
-                            ogs_yaml_iter_key(&client_iter);
-                        ogs_assert(client_key);
-                        if (!strcmp(client_key, "no_tls")) {
-                            self.sbi.client.no_tls =
-                                ogs_yaml_iter_bool(&client_iter);
-                        } else if (!strcmp(client_key, "no_verify")) {
-                            self.sbi.client.no_verify =
-                                ogs_yaml_iter_bool(&client_iter);
-                        } else if (!strcmp(client_key, "cacert")) {
-                            self.sbi.client.cacert =
-                                ogs_yaml_iter_value(&client_iter);
-                        } else if (!strcmp(client_key, "cert")) {
-                            self.sbi.client.cert =
-                                ogs_yaml_iter_value(&client_iter);
-                        } else if (!strcmp(client_key, "key")) {
-                            self.sbi.client.key =
-                                ogs_yaml_iter_value(&client_iter);
-                        } else
-                            ogs_warn("unknown key `%s`", client_key);
-                    }
-                } else
-                    ogs_warn("unknown key `%s`", tls_key);
             }
         }
     }

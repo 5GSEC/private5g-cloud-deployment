@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019,2020 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -20,23 +20,53 @@
 #ifndef AUSF_EVENT_H
 #define AUSF_EVENT_H
 
-#include "ogs-proto.h"
+#include "ogs-core.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+typedef struct ogs_sbi_request_s ogs_sbi_request_t;
+typedef struct ogs_sbi_response_s ogs_sbi_response_t;
+typedef struct ogs_sbi_message_s ogs_sbi_message_t;
+typedef struct ogs_sbi_nf_instance_s ogs_sbi_nf_instance_t;
+typedef struct ogs_sbi_subscription_s ogs_sbi_subscription_t;
+
 typedef struct ausf_ue_s ausf_ue_t;
 
+typedef enum {
+    AUSF_EVT_BASE = OGS_FSM_USER_SIG,
+
+    AUSF_EVT_SBI_SERVER,
+    AUSF_EVT_SBI_CLIENT,
+    AUSF_EVT_SBI_TIMER,
+
+    AUSF_EVT_TOP,
+
+} ausf_event_e;
+
 typedef struct ausf_event_s {
-    ogs_event_t h;
+    int id;
+    int timer_id;
+
+    struct {
+        ogs_sbi_request_t *request;
+        ogs_sbi_response_t *response;
+        void *data;
+
+        ogs_sbi_message_t *message;
+    } sbi;
 
     ausf_ue_t *ausf_ue;
+
+    ogs_timer_t *timer;
 } ausf_event_t;
 
-OGS_STATIC_ASSERT(OGS_EVENT_SIZE >= sizeof(ausf_event_t));
+void ausf_event_init(void);
+void ausf_event_final(void);
 
-ausf_event_t *ausf_event_new(int id);
+ausf_event_t *ausf_event_new(ausf_event_e id);
+void ausf_event_free(ausf_event_t *e);
 
 const char *ausf_event_get_name(ausf_event_t *e);
 

@@ -20,22 +20,17 @@ OpenAPI_point_altitude_all_of_t *OpenAPI_point_altitude_all_of_create(
 
 void OpenAPI_point_altitude_all_of_free(OpenAPI_point_altitude_all_of_t *point_altitude_all_of)
 {
-    OpenAPI_lnode_t *node = NULL;
-
     if (NULL == point_altitude_all_of) {
         return;
     }
-    if (point_altitude_all_of->point) {
-        OpenAPI_geographical_coordinates_free(point_altitude_all_of->point);
-        point_altitude_all_of->point = NULL;
-    }
+    OpenAPI_lnode_t *node;
+    OpenAPI_geographical_coordinates_free(point_altitude_all_of->point);
     ogs_free(point_altitude_all_of);
 }
 
 cJSON *OpenAPI_point_altitude_all_of_convertToJSON(OpenAPI_point_altitude_all_of_t *point_altitude_all_of)
 {
     cJSON *item = NULL;
-    OpenAPI_lnode_t *node = NULL;
 
     if (point_altitude_all_of == NULL) {
         ogs_error("OpenAPI_point_altitude_all_of_convertToJSON() failed [PointAltitude_allOf]");
@@ -43,10 +38,6 @@ cJSON *OpenAPI_point_altitude_all_of_convertToJSON(OpenAPI_point_altitude_all_of
     }
 
     item = cJSON_CreateObject();
-    if (!point_altitude_all_of->point) {
-        ogs_error("OpenAPI_point_altitude_all_of_convertToJSON() failed [point]");
-        return NULL;
-    }
     cJSON *point_local_JSON = OpenAPI_geographical_coordinates_convertToJSON(point_altitude_all_of->point);
     if (point_local_JSON == NULL) {
         ogs_error("OpenAPI_point_altitude_all_of_convertToJSON() failed [point]");
@@ -70,26 +61,21 @@ end:
 OpenAPI_point_altitude_all_of_t *OpenAPI_point_altitude_all_of_parseFromJSON(cJSON *point_altitude_all_ofJSON)
 {
     OpenAPI_point_altitude_all_of_t *point_altitude_all_of_local_var = NULL;
-    OpenAPI_lnode_t *node = NULL;
-    cJSON *point = NULL;
-    OpenAPI_geographical_coordinates_t *point_local_nonprim = NULL;
-    cJSON *altitude = NULL;
-    point = cJSON_GetObjectItemCaseSensitive(point_altitude_all_ofJSON, "point");
+    cJSON *point = cJSON_GetObjectItemCaseSensitive(point_altitude_all_ofJSON, "point");
     if (!point) {
         ogs_error("OpenAPI_point_altitude_all_of_parseFromJSON() failed [point]");
         goto end;
     }
-    point_local_nonprim = OpenAPI_geographical_coordinates_parseFromJSON(point);
-    if (!point_local_nonprim) {
-        ogs_error("OpenAPI_geographical_coordinates_parseFromJSON failed [point]");
-        goto end;
-    }
 
-    altitude = cJSON_GetObjectItemCaseSensitive(point_altitude_all_ofJSON, "altitude");
+    OpenAPI_geographical_coordinates_t *point_local_nonprim = NULL;
+    point_local_nonprim = OpenAPI_geographical_coordinates_parseFromJSON(point);
+
+    cJSON *altitude = cJSON_GetObjectItemCaseSensitive(point_altitude_all_ofJSON, "altitude");
     if (!altitude) {
         ogs_error("OpenAPI_point_altitude_all_of_parseFromJSON() failed [altitude]");
         goto end;
     }
+
     if (!cJSON_IsNumber(altitude)) {
         ogs_error("OpenAPI_point_altitude_all_of_parseFromJSON() failed [altitude]");
         goto end;
@@ -103,10 +89,6 @@ OpenAPI_point_altitude_all_of_t *OpenAPI_point_altitude_all_of_parseFromJSON(cJS
 
     return point_altitude_all_of_local_var;
 end:
-    if (point_local_nonprim) {
-        OpenAPI_geographical_coordinates_free(point_local_nonprim);
-        point_local_nonprim = NULL;
-    }
     return NULL;
 }
 

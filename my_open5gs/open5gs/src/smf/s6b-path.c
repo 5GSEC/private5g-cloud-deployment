@@ -43,21 +43,11 @@ static __inline__ struct sess_state *new_state(os0_t sid)
 
     ogs_thread_mutex_lock(&sess_state_mutex);
     ogs_pool_alloc(&sess_state_pool, &new);
-    if (!new) {
-        ogs_error("ogs_pool_alloc() failed");
-        ogs_thread_mutex_unlock(&sess_state_mutex);
-        return NULL;
-    }
+    ogs_expect_or_return_val(new, NULL);
+    ogs_thread_mutex_unlock(&sess_state_mutex);
 
     new->s6b_sid = (os0_t)ogs_strdup((char *)sid);
-    if (!new->s6b_sid) {
-        ogs_error("ogs_strdup() failed");
-        ogs_pool_free(&sess_state_pool, new);
-        ogs_thread_mutex_unlock(&sess_state_mutex);
-        return NULL;
-    }
-
-    ogs_thread_mutex_unlock(&sess_state_mutex);
+    ogs_expect_or_return_val(new->s6b_sid, NULL);
 
     return new;
 }
@@ -75,10 +65,10 @@ static void state_cleanup(struct sess_state *sess_data, os0_t sid, void *opaque)
 static int smf_s6b_fb_cb(struct msg **msg, struct avp *avp,
         struct session *sess, void *opaque, enum disp_action *act)
 {
-    /* This CB should never be called */
-    ogs_warn("Unexpected message received!");
+	/* This CB should never be called */
+	ogs_warn("Unexpected message received!");
 
-    return ENOTSUP;
+	return ENOTSUP;
 }
 
 void smf_s6b_send_aar(smf_sess_t *sess, ogs_gtp_xact_t *xact)
@@ -121,7 +111,7 @@ void smf_s6b_send_aar(smf_sess_t *sess, ogs_gtp_xact_t *xact)
     if (sess->s6b_sid) {
         /* Retrieve session by Session-Id */
         size_t sidlen = strlen(sess->s6b_sid);
-        ret = fd_sess_fromsid_msg((os0_t)sess->s6b_sid, sidlen, &session, &new);
+		ret = fd_sess_fromsid_msg((os0_t)sess->s6b_sid, sidlen, &session, &new);
         ogs_assert(ret == 0);
         ogs_assert(new == 0);
 
@@ -724,7 +714,7 @@ static void smf_s6b_sta_cb(void *data, struct msg **msg)
         if (rv != OGS_OK) {
             ogs_error("ogs_queue_push() failed:%d", (int)rv);
             ogs_free(s6b_message);
-            ogs_event_free(e);
+            smf_event_free(e);
         } else {
             ogs_pollset_notify(ogs_app()->pollset);
         }
@@ -782,42 +772,42 @@ static void smf_s6b_sta_cb(void *data, struct msg **msg)
 int smf_s6b_init(void)
 {
     int ret;
-    struct disp_when data;
+	struct disp_when data;
 
     ogs_thread_mutex_init(&sess_state_mutex);
     ogs_pool_init(&sess_state_pool, ogs_app()->pool.sess);
 
-    /* Install objects definitions for this application */
-    ret = ogs_diam_s6b_init();
+	/* Install objects definitions for this application */
+	ret = ogs_diam_s6b_init();
     ogs_assert(ret == 0);
 
     /* Create handler for sessions */
-    ret = fd_sess_handler_create(&smf_s6b_reg, state_cleanup, NULL, NULL);
+	ret = fd_sess_handler_create(&smf_s6b_reg, state_cleanup, NULL, NULL);
     ogs_assert(ret == 0);
 
-    memset(&data, 0, sizeof(data));
-    data.app = ogs_diam_s6b_application;
+	memset(&data, 0, sizeof(data));
+	data.app = ogs_diam_s6b_application;
 
-    ret = fd_disp_register(smf_s6b_fb_cb, DISP_HOW_APPID, &data, NULL,
+	ret = fd_disp_register(smf_s6b_fb_cb, DISP_HOW_APPID, &data, NULL,
                 &hdl_s6b_fb);
     ogs_assert(ret == 0);
 
-    /* Advertise the support for the application in the peer */
-    ret = fd_disp_app_support(ogs_diam_s6b_application, ogs_diam_vendor, 1, 0);
+	/* Advertise the support for the application in the peer */
+	ret = fd_disp_app_support(ogs_diam_s6b_application, ogs_diam_vendor, 1, 0);
     ogs_assert(ret == 0);
 
-    return OGS_OK;
+	return OGS_OK;
 }
 
 void smf_s6b_final(void)
 {
     int ret;
 
-    ret = fd_sess_handler_destroy(&smf_s6b_reg, NULL);
+	ret = fd_sess_handler_destroy(&smf_s6b_reg, NULL);
     ogs_assert(ret == 0);
 
-    if (hdl_s6b_fb)
-        (void) fd_disp_unregister(&hdl_s6b_fb, NULL);
+	if (hdl_s6b_fb)
+		(void) fd_disp_unregister(&hdl_s6b_fb, NULL);
 
     ogs_pool_final(&sess_state_pool);
     ogs_thread_mutex_destroy(&sess_state_mutex);
