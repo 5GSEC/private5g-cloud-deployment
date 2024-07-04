@@ -40,5 +40,5 @@ data:
 
     upf:
       pfcp:
-        - addr: upf.open5gs.service
+        - addr: {{ .Release.Name }}-upf-svc.open5gs.svc.cluster.local
           dnn: {{ .Values.dnn }}
