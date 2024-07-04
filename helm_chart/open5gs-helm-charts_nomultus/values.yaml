@@ -16,7 +16,7 @@ webui:
   image:
     repository: 975050082972.dkr.ecr.us-east-1.amazonaws.com/open5gs-x86-web
     pullPolicy: Always
-    tag: "41fd851"
+    tag: "2.4.9"
 
 ueImport:
   image:

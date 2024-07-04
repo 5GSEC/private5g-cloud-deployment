@@ -4,7 +4,7 @@ phases:
   install: # Install AWS cli, kubectl (needed for Helm) and Helm
     commands:
        - apt update
-       
+
   pre_build: # Add kubeconfig to access to EKS cluster
     commands:
       - echo Logging in to Amazon ECR...
@@ -16,7 +16,7 @@ phases:
       - echo Build started on `date`
       - echo Building the Docker image...
       - docker build -t my_open5gs_image:$IMAGE_TAG .
-      - docker tag my_open5gs_image:$IMAGE_TAG $IMAGE_REPO_URI:$IMAGE_TAG            
+      - docker tag my_open5gs_image:$IMAGE_TAG $IMAGE_REPO_URI:$IMAGE_TAG
       - echo Pushing the Docker image...
       - docker push $IMAGE_REPO_URI:$IMAGE_TAG
       - echo Writing image definitions file..
