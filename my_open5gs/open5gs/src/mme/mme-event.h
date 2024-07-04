@@ -51,7 +51,6 @@ typedef enum {
     MME_EVENT_SGSAP_LO_CONNREFUSED,
 
     MME_EVENT_GN_MESSAGE,
-    MME_EVENT_GN_TIMER,
 
     MAX_NUM_OF_MME_EVENT,
 
@@ -94,11 +93,12 @@ typedef struct mme_event_s {
     ogs_diam_s6a_message_t *s6a_message;
 
     mme_vlr_t *vlr;
-    ogs_pool_id_t enb_id;
-    ogs_pool_id_t enb_ue_id;
-    ogs_pool_id_t sgw_ue_id;
-    ogs_pool_id_t mme_ue_id;
-    ogs_pool_id_t bearer_id;
+    mme_enb_t *enb;
+    enb_ue_t *enb_ue;
+    sgw_ue_t *sgw_ue;
+    mme_ue_t *mme_ue;
+    mme_sess_t *sess;
+    mme_bearer_t *bearer;
 
     ogs_timer_t *timer;
 } mme_event_t;

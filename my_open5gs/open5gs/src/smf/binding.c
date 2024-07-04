@@ -26,36 +26,29 @@
 
 static void gtp_bearer_timeout(ogs_gtp_xact_t *xact, void *data)
 {
-    smf_bearer_t *bearer = NULL;
-    ogs_pool_id_t bearer_id = OGS_INVALID_POOL_ID;
+    smf_bearer_t *bearer = data;
     smf_sess_t *sess = NULL;
     smf_ue_t *smf_ue = NULL;
     uint8_t type = 0;
 
-    ogs_assert(xact);
-    type = xact->seq[0].type;
-
-    ogs_assert(data);
-    bearer_id = OGS_POINTER_TO_UINT(data);
-    ogs_assert(bearer_id >= OGS_MIN_POOL_ID && bearer_id <= OGS_MAX_POOL_ID);
-
-    bearer = smf_bearer_find_by_id(bearer_id);
-    if (!bearer) {
-        ogs_error("Bearer has already been removed [%d]", type);
-        return;
-    }
-
-    sess = smf_sess_find_by_id(bearer->sess_id);
+    ogs_assert(bearer);
+    sess = bearer->sess;
     ogs_assert(sess);
-    smf_ue = smf_ue_find_by_id(sess->smf_ue_id);
+    smf_ue = sess->smf_ue;
     ogs_assert(smf_ue);
+
+    type = xact->seq[0].type;
 
     switch (type) {
     case OGS_GTP2_CREATE_BEARER_REQUEST_TYPE:
         ogs_error("[%s] No Create Bearer Response", smf_ue->imsi_bcd);
+        if (!smf_bearer_cycle(bearer)) {
+            ogs_warn("[%s] Bearer has already been removed", smf_ue->imsi_bcd);
+            break;
+        }
         ogs_assert(OGS_OK ==
             smf_epc_pfcp_send_one_bearer_modification_request(
-                bearer, OGS_INVALID_POOL_ID, OGS_PFCP_MODIFY_REMOVE,
+                bearer, NULL, OGS_PFCP_MODIFY_REMOVE,
                 OGS_NAS_PROCEDURE_TRANSACTION_IDENTITY_UNASSIGNED,
                 OGS_GTP2_CAUSE_UNDEFINED_VALUE));
         break;
@@ -72,7 +65,7 @@ static void gtp_bearer_timeout(ogs_gtp_xact_t *xact, void *data)
 /*
  * Issue #338
  *
- * <DOWNLINK/BI-DIRECTIONAL>
+ * <DOWNLINK>
  * RULE : Source <P-CSCF_RTP_IP> <P-CSCF_RTP_PORT> Destination <UE_IP> <UE_PORT>
  * TFT : Local <UE_IP> <UE_PORT> REMOTE <P-CSCF_RTP_IP> <P-CSCF_RTP_PORT>
  *
@@ -197,7 +190,7 @@ void smf_bearer_binding(smf_sess_t *sess)
                     ogs_gtpu_resource_t *resource = NULL;
                     resource = ogs_pfcp_find_gtpu_resource(
                             &sess->pfcp_node->gtpu_resource_list,
-                            sess->session.name, ul_pdr->src_if);
+                            sess->session.name, OGS_PFCP_INTERFACE_ACCESS);
                     if (resource) {
                         ogs_user_plane_ip_resource_info_to_sockaddr(
                                 &resource->info,
@@ -310,7 +303,7 @@ void smf_bearer_binding(smf_sess_t *sess)
  * Refer to lib/ipfw/ogs-ipfw.h
  * Issue #338
  *
- * <DOWNLINK/BI-DIRECTIONAL>
+ * <DOWNLINK>
  * GX : permit out from <P-CSCF_RTP_IP> <P-CSCF_RTP_PORT> to <UE_IP> <UE_PORT>
  * -->
  * RULE : Source <P-CSCF_RTP_IP> <P-CSCF_RTP_PORT> Destination <UE_IP> <UE_PORT>
@@ -355,7 +348,7 @@ void smf_bearer_binding(smf_sess_t *sess)
 
                 ogs_assert(OGS_OK ==
                     smf_epc_pfcp_send_one_bearer_modification_request(
-                        bearer, OGS_INVALID_POOL_ID, OGS_PFCP_MODIFY_CREATE,
+                        bearer, NULL, OGS_PFCP_MODIFY_CREATE,
                         OGS_NAS_PROCEDURE_TRANSACTION_IDENTITY_UNASSIGNED,
                         OGS_GTP2_CAUSE_UNDEFINED_VALUE));
             } else {
@@ -383,8 +376,7 @@ void smf_bearer_binding(smf_sess_t *sess)
                 }
 
                 xact = ogs_gtp_xact_local_create(
-                        sess->gnode, &h, pkbuf, gtp_bearer_timeout,
-                        OGS_UINT_TO_POINTER(bearer->id));
+                        sess->gnode, &h, pkbuf, gtp_bearer_timeout, bearer);
                 if (!xact) {
                     ogs_error("ogs_gtp_xact_local_create() failed");
                     return;
@@ -421,7 +413,7 @@ void smf_bearer_binding(smf_sess_t *sess)
              */
             ogs_assert(OGS_OK ==
                 smf_epc_pfcp_send_one_bearer_modification_request(
-                    bearer, OGS_INVALID_POOL_ID,
+                    bearer, NULL,
                     OGS_PFCP_MODIFY_DL_ONLY|OGS_PFCP_MODIFY_DEACTIVATE,
                     OGS_NAS_PROCEDURE_TRANSACTION_IDENTITY_UNASSIGNED,
                     OGS_GTP2_CAUSE_UNDEFINED_VALUE));
@@ -443,7 +435,7 @@ int smf_gtp2_send_create_bearer_request(smf_bearer_t *bearer)
     ogs_gtp2_tft_t tft;
 
     ogs_assert(bearer);
-    sess = smf_sess_find_by_id(bearer->sess_id);
+    sess = bearer->sess;
     ogs_assert(sess);
 
     h.type = OGS_GTP2_CREATE_BEARER_REQUEST_TYPE;
@@ -460,8 +452,7 @@ int smf_gtp2_send_create_bearer_request(smf_bearer_t *bearer)
     }
 
     xact = ogs_gtp_xact_local_create(
-            sess->gnode, &h, pkbuf, gtp_bearer_timeout,
-            OGS_UINT_TO_POINTER(bearer->id));
+            sess->gnode, &h, pkbuf, gtp_bearer_timeout, bearer);
     if (!xact) {
         ogs_error("ogs_gtp_xact_local_create() failed");
         return OGS_ERROR;
@@ -641,7 +632,7 @@ void smf_qos_flow_binding(smf_sess_t *sess)
  * Refer to lib/ipfw/ogs-ipfw.h
  * Issue #338
  *
- * <DOWNLINK/BI-DIRECTIONAL>
+ * <DOWNLINK>
  * GX : permit out from <P-CSCF_RTP_IP> <P-CSCF_RTP_PORT> to <UE_IP> <UE_PORT>
  * -->
  * RULE : Source <P-CSCF_RTP_IP> <P-CSCF_RTP_PORT> Destination <UE_IP> <UE_PORT>

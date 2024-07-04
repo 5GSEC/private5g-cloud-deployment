@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2024 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019,2020 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -38,7 +38,6 @@ void udm_ue_state_operational(ogs_fsm_t *s, udm_event_t *e)
     udm_ue_t *udm_ue = NULL;
 
     ogs_sbi_stream_t *stream = NULL;
-    ogs_pool_id_t stream_id = OGS_INVALID_POOL_ID;
     ogs_sbi_message_t *message = NULL;
     int r;
 
@@ -47,7 +46,7 @@ void udm_ue_state_operational(ogs_fsm_t *s, udm_event_t *e)
 
     udm_sm_debug(e);
 
-    udm_ue = udm_ue_find_by_id(e->udm_ue_id);
+    udm_ue = e->udm_ue;
     ogs_assert(udm_ue);
 
     switch (e->h.id) {
@@ -60,16 +59,8 @@ void udm_ue_state_operational(ogs_fsm_t *s, udm_event_t *e)
     case OGS_EVENT_SBI_SERVER:
         message = e->h.sbi.message;
         ogs_assert(message);
-
-        stream_id = OGS_POINTER_TO_UINT(e->h.sbi.data);
-        ogs_assert(stream_id >= OGS_MIN_POOL_ID &&
-                stream_id <= OGS_MAX_POOL_ID);
-
-        stream = ogs_sbi_stream_find_by_id(stream_id);
-        if (!stream) {
-            ogs_error("STREAM has already been removed [%d]", stream_id);
-            break;
-        }
+        stream = e->h.sbi.data;
+        ogs_assert(stream);
 
         SWITCH(message->h.service.name)
         CASE(OGS_SBI_SERVICE_NAME_NUDM_UEAU)
@@ -89,7 +80,7 @@ void udm_ue_state_operational(ogs_fsm_t *s, udm_event_t *e)
                     ogs_assert(true ==
                         ogs_sbi_server_send_error(stream,
                             OGS_SBI_HTTP_STATUS_BAD_REQUEST, message,
-                            "Invalid resource name", message->h.method, NULL));
+                            "Invalid resource name", message->h.method));
                 END
                 break;
 
@@ -105,7 +96,7 @@ void udm_ue_state_operational(ogs_fsm_t *s, udm_event_t *e)
                     ogs_assert(true ==
                         ogs_sbi_server_send_error(stream,
                             OGS_SBI_HTTP_STATUS_BAD_REQUEST, message,
-                            "Invalid resource name", message->h.method, NULL));
+                            "Invalid resource name", message->h.method));
                 END
                 break;
 
@@ -115,7 +106,7 @@ void udm_ue_state_operational(ogs_fsm_t *s, udm_event_t *e)
                 ogs_assert(true ==
                     ogs_sbi_server_send_error(stream,
                         OGS_SBI_HTTP_STATUS_FORBIDDEN, message,
-                        "Invalid HTTP method", message->h.method, NULL));
+                        "Invalid HTTP method", message->h.method));
             END
             break;
 
@@ -134,7 +125,7 @@ void udm_ue_state_operational(ogs_fsm_t *s, udm_event_t *e)
                     ogs_assert(true ==
                         ogs_sbi_server_send_error(stream,
                             OGS_SBI_HTTP_STATUS_BAD_REQUEST, message,
-                            "Invalid HTTP method", message->h.method, NULL));
+                            "Invalid HTTP method", message->h.method));
                 END
                 break;
             CASE(OGS_SBI_HTTP_METHOD_PATCH)
@@ -150,30 +141,7 @@ void udm_ue_state_operational(ogs_fsm_t *s, udm_event_t *e)
                     ogs_assert(true ==
                         ogs_sbi_server_send_error(stream,
                             OGS_SBI_HTTP_STATUS_BAD_REQUEST, message,
-                            "Invalid HTTP method", message->h.method, NULL));
-                END
-                break;
-            CASE(OGS_SBI_HTTP_METHOD_GET)
-                SWITCH(message->h.resource.component[1])
-                CASE(OGS_SBI_RESOURCE_NAME_REGISTRATIONS)
-                    r = udm_nudm_uecm_handle_amf_registration_get(
-                            udm_ue, stream, message);
-                    if (!r)
-                    {
-                        ogs_assert(true ==
-                            ogs_sbi_server_send_error(stream,
-                                OGS_SBI_HTTP_STATUS_FORBIDDEN, message,
-                                "Invalid UE Identifier", message->h.method, NULL));
-                    }
-                    break;
-
-                DEFAULT
-                    ogs_error("[%s] Invalid resource name [%s]",
-                            udm_ue->suci, message->h.resource.component[1]);
-                    ogs_assert(true ==
-                        ogs_sbi_server_send_error(stream,
-                            OGS_SBI_HTTP_STATUS_BAD_REQUEST, message,
-                            "Invalid resource name", message->h.method, NULL));
+                            "Invalid HTTP method", message->h.method));
                 END
                 break;
             DEFAULT
@@ -182,7 +150,7 @@ void udm_ue_state_operational(ogs_fsm_t *s, udm_event_t *e)
                 ogs_assert(true ==
                     ogs_sbi_server_send_error(stream,
                         OGS_SBI_HTTP_STATUS_FORBIDDEN, message,
-                        "Invalid HTTP method", message->h.method, NULL));
+                        "Invalid HTTP method", message->h.method));
             END
             break;
 
@@ -212,7 +180,7 @@ void udm_ue_state_operational(ogs_fsm_t *s, udm_event_t *e)
                     ogs_assert(true ==
                         ogs_sbi_server_send_error(stream,
                             OGS_SBI_HTTP_STATUS_BAD_REQUEST, message,
-                            "Invalid resource name", message->h.method, NULL));
+                            "Invalid resource name", message->h.method));
                 END
                 break;
 
@@ -229,7 +197,7 @@ void udm_ue_state_operational(ogs_fsm_t *s, udm_event_t *e)
                     ogs_assert(true ==
                         ogs_sbi_server_send_error(stream,
                             OGS_SBI_HTTP_STATUS_BAD_REQUEST, message,
-                            "Invalid resource name", message->h.method, NULL));
+                            "Invalid resource name", message->h.method));
                 END
                 break;
 
@@ -246,7 +214,7 @@ void udm_ue_state_operational(ogs_fsm_t *s, udm_event_t *e)
                     ogs_assert(true ==
                         ogs_sbi_server_send_error(stream,
                             OGS_SBI_HTTP_STATUS_BAD_REQUEST, message,
-                            "Invalid resource name", message->h.method, NULL));
+                            "Invalid resource name", message->h.method));
                 END
                 break;
             DEFAULT
@@ -255,8 +223,7 @@ void udm_ue_state_operational(ogs_fsm_t *s, udm_event_t *e)
                 ogs_assert(true ==
                     ogs_sbi_server_send_error(stream,
                         OGS_SBI_HTTP_STATUS_NOT_FOUND, message,
-                        "Invalid HTTP method", message->h.method,
-                        NULL));
+                        "Invalid HTTP method", message->h.method));
             END
             break;
 
@@ -265,7 +232,7 @@ void udm_ue_state_operational(ogs_fsm_t *s, udm_event_t *e)
             ogs_assert(true ==
                 ogs_sbi_server_send_error(stream,
                     OGS_SBI_HTTP_STATUS_BAD_REQUEST, message,
-                    "Invalid API name", message->h.service.name, NULL));
+                    "Invalid API name", message->h.service.name));
         END
         break;
 
@@ -273,18 +240,10 @@ void udm_ue_state_operational(ogs_fsm_t *s, udm_event_t *e)
         message = e->h.sbi.message;
         ogs_assert(message);
 
-        udm_ue = udm_ue_find_by_id(e->udm_ue_id);
+        udm_ue = e->udm_ue;
         ogs_assert(udm_ue);
-
-        stream_id = OGS_POINTER_TO_UINT(e->h.sbi.data);
-        ogs_assert(stream_id >= OGS_MIN_POOL_ID &&
-                stream_id <= OGS_MAX_POOL_ID);
-
-        stream = ogs_sbi_stream_find_by_id(stream_id);
-        if (!stream) {
-            ogs_error("STREAM has already been removed [%d]", stream_id);
-            break;
-        }
+        stream = e->h.sbi.data;
+        ogs_assert(stream);
 
         SWITCH(message->h.service.name)
         CASE(OGS_SBI_SERVICE_NAME_NUDR_DR)
@@ -327,8 +286,7 @@ void udm_ue_state_operational(ogs_fsm_t *s, udm_event_t *e)
             ogs_assert(true ==
                 ogs_sbi_server_send_error(stream,
                     OGS_SBI_HTTP_STATUS_BAD_REQUEST, message,
-                    "Invalid API name", message->h.resource.component[0],
-                    NULL));
+                    "Invalid API name", message->h.resource.component[0]));
         END
         break;
 
@@ -346,7 +304,7 @@ void udm_ue_state_exception(ogs_fsm_t *s, udm_event_t *e)
 
     udm_sm_debug(e);
 
-    udm_ue = udm_ue_find_by_id(e->udm_ue_id);
+    udm_ue = e->udm_ue;
     ogs_assert(udm_ue);
 
     switch (e->h.id) {

@@ -129,8 +129,6 @@ int sgwc_gtp_open(void)
     }
 
     OGS_SETUP_GTPC_SERVER;
-    ogs_assert(ogs_gtp_self()->gtpc_sock || ogs_gtp_self()->gtpc_sock6);
-    ogs_assert(ogs_gtp_self()->gtpc_addr || ogs_gtp_self()->gtpc_addr6);
 
     return OGS_OK;
 }
@@ -144,28 +142,18 @@ void sgwc_gtp_close(void)
 static void bearer_timeout(ogs_gtp_xact_t *xact, void *data)
 {
     sgwc_bearer_t *bearer = data;
-    ogs_pool_id_t bearer_id = OGS_INVALID_POOL_ID;
     sgwc_sess_t *sess = NULL;
     sgwc_ue_t *sgwc_ue = NULL;
     uint8_t type = 0;
 
     ogs_assert(xact);
-    type = xact->seq[0].type;
-
-    ogs_assert(data);
-    bearer_id = OGS_POINTER_TO_UINT(data);
-    ogs_assert(bearer_id >= OGS_MIN_POOL_ID && bearer_id <= OGS_MAX_POOL_ID);
-
-    bearer = sgwc_bearer_find_by_id(bearer_id);
-    if (!bearer) {
-        ogs_error("Bearer has already been removed [%d]", type);
-        return;
-    }
-
-    sess = sgwc_sess_find_by_id(bearer->sess_id);
+    ogs_assert(bearer);
+    sess = bearer->sess;
     ogs_assert(sess);
-    sgwc_ue = sgwc_ue_find_by_id(sess->sgwc_ue_id);
+    sgwc_ue = sess->sgwc_ue;
     ogs_assert(sgwc_ue);
+
+    type = xact->seq[0].type;
 
     switch (type) {
     case OGS_GTP2_DOWNLINK_DATA_NOTIFICATION_TYPE:
@@ -188,7 +176,7 @@ int sgwc_gtp_send_create_session_response(
     ogs_pkbuf_t *pkbuf = NULL;
 
     ogs_assert(sess);
-    sgwc_ue = sgwc_ue_find_by_id(sess->sgwc_ue_id);
+    sgwc_ue = sess->sgwc_ue;
     ogs_assert(sgwc_ue);
     ogs_assert(xact);
 
@@ -229,9 +217,9 @@ int sgwc_gtp_send_downlink_data_notification(
 
     ogs_assert(bearer);
 
-    sess = sgwc_sess_find_by_id(bearer->sess_id);
+    sess = bearer->sess;
     ogs_assert(sess);
-    sgwc_ue = sgwc_ue_find_by_id(bearer->sgwc_ue_id);
+    sgwc_ue = bearer->sgwc_ue;
     ogs_assert(sgwc_ue);
     ogs_assert(sgwc_ue->gnode);
 
@@ -250,8 +238,7 @@ int sgwc_gtp_send_downlink_data_notification(
     }
 
     gtp_xact = ogs_gtp_xact_local_create(
-            sgwc_ue->gnode, &h, pkbuf, bearer_timeout,
-            OGS_UINT_TO_POINTER(bearer->id));
+            sgwc_ue->gnode, &h, pkbuf, bearer_timeout, bearer);
     if (!gtp_xact) {
         ogs_error("ogs_gtp_xact_local_create() failed");
         return OGS_ERROR;

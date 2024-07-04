@@ -59,7 +59,7 @@ void s1ap_state_operational(ogs_fsm_t *s, mme_event_t *e)
 
     mme_sm_debug(e);
 
-    enb = mme_enb_find_by_id(e->enb_id);
+    enb = e->enb;
     ogs_assert(enb);
 
     switch (e->id) {

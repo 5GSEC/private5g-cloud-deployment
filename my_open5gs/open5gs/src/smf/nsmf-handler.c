@@ -49,7 +49,7 @@ bool smf_nsmf_handle_create_sm_context(
     ogs_assert(message);
 
     ogs_assert(sess);
-    smf_ue = smf_ue_find_by_id(sess->smf_ue_id);
+    smf_ue = sess->smf_ue;
     ogs_assert(smf_ue);
 
     SmContextCreateData = message->SmContextCreateData;
@@ -398,7 +398,7 @@ bool smf_nsmf_handle_update_sm_context(
     ogs_assert(message);
 
     ogs_assert(sess);
-    smf_ue = smf_ue_find_by_id(sess->smf_ue_id);
+    smf_ue = sess->smf_ue;
     ogs_assert(smf_ue);
 
     SmContextUpdateData = message->SmContextUpdateData;
@@ -756,7 +756,7 @@ bool smf_nsmf_handle_update_sm_context(
             ogs_assert(true ==
                     ogs_sbi_server_send_response(stream, response));
 
-        } else if (PCF_SM_POLICY_ASSOCIATED(sess)) {
+        } else if (sess->policy_association_id) {
             smf_npcf_smpolicycontrol_param_t param;
 
             memset(&param, 0, sizeof(param));
@@ -818,7 +818,7 @@ bool smf_nsmf_handle_release_sm_context(
     ogs_assert(stream);
     ogs_assert(message);
     ogs_assert(sess);
-    smf_ue = smf_ue_find_by_id(sess->smf_ue_id);
+    smf_ue = sess->smf_ue;
     ogs_assert(smf_ue);
 
     memset(&param, 0, sizeof(param));
@@ -862,7 +862,7 @@ bool smf_nsmf_handle_release_sm_context(
             SmContextReleaseData->_5g_mm_cause_value;
     }
 
-    if (PCF_SM_POLICY_ASSOCIATED(sess)) {
+    if (sess->policy_association_id) {
         r = smf_sbi_discover_and_send(
                 OGS_SBI_SERVICE_TYPE_NPCF_SMPOLICYCONTROL, NULL,
                 smf_npcf_smpolicycontrol_build_delete,

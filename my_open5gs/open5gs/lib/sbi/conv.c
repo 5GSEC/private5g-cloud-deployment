@@ -717,7 +717,6 @@ uint64_t ogs_sbi_bitrate_from_string(char *str)
     char *unit = NULL;
     uint64_t bitrate = 0;
     ogs_assert(str);
-    uint64_t mul = 1;
 
     unit = strrchr(str, ' ');
     bitrate = atoll(str);
@@ -729,25 +728,15 @@ uint64_t ogs_sbi_bitrate_from_string(char *str)
 
     SWITCH(unit+1)
     CASE("Kbps")
-        mul = 1000ul;
-        break;
+        return bitrate * 1000;
     CASE("Mbps")
-        mul = 1000ul * 1000ul;
-        break;
+        return bitrate * 1000 * 1000;
     CASE("Gbps")
-        mul = 1000ul * 1000ul * 1000ul;
-        break;
+        return bitrate * 1000 * 1000 * 1000;
     CASE("Tbps")
-        mul = 1000ul * 1000ul * 1000ul * 1000ul;
-        break;
+        return bitrate * 1000 * 1000 * 1000 * 1000;
     DEFAULT
     END
-
-    if (bitrate >= (INT64_MAX / mul))
-        bitrate = INT64_MAX;
-    else
-        bitrate *= mul;
-
     return bitrate;
 }
 
@@ -1466,9 +1455,6 @@ OpenAPI_pcc_rule_t *ogs_sbi_build_pcc_rule(
             else if (flow->direction == OGS_FLOW_DOWNLINK_ONLY)
                 FlowInformation->flow_direction =
                     OpenAPI_flow_direction_DOWNLINK;
-            else if (flow->direction == OGS_FLOW_BIDIRECTIONAL)
-                FlowInformation->flow_direction =
-                    OpenAPI_flow_direction_BIDIRECTIONAL;
             else {
                 ogs_fatal("Unsupported direction [%d]", flow->direction);
                 ogs_assert_if_reached();

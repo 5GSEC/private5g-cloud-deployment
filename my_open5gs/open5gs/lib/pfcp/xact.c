@@ -75,8 +75,9 @@ ogs_pfcp_xact_t *ogs_pfcp_xact_local_create(ogs_pfcp_node_t *node,
 
     ogs_assert(node);
 
-    ogs_pool_id_calloc(&pool, &xact);
+    ogs_pool_alloc(&pool, &xact);
     ogs_assert(xact);
+    memset(xact, 0, sizeof *xact);
     xact->index = ogs_pool_index(&pool, xact);
 
     xact->org = OGS_PFCP_LOCAL_ORIGINATOR;
@@ -123,8 +124,9 @@ static ogs_pfcp_xact_t *ogs_pfcp_xact_remote_create(
 
     ogs_assert(node);
 
-    ogs_pool_id_calloc(&pool, &xact);
+    ogs_pool_alloc(&pool, &xact);
     ogs_assert(xact);
+    memset(xact, 0, sizeof *xact);
     xact->index = ogs_pool_index(&pool, xact);
 
     xact->org = OGS_PFCP_REMOTE_ORIGINATOR;
@@ -159,6 +161,11 @@ static ogs_pfcp_xact_t *ogs_pfcp_xact_remote_create(
     return xact;
 }
 
+ogs_pfcp_xact_t *ogs_pfcp_xact_cycle(ogs_pfcp_xact_t *xact)
+{
+    return ogs_pool_cycle(&pool, xact);
+}
+
 void ogs_pfcp_xact_delete_all(ogs_pfcp_node_t *node)
 {
     ogs_pfcp_xact_t *xact = NULL, *next_xact = NULL;
@@ -167,11 +174,6 @@ void ogs_pfcp_xact_delete_all(ogs_pfcp_node_t *node)
         ogs_pfcp_xact_delete(xact);
     ogs_list_for_each_safe(&node->remote_list, next_xact, xact)
         ogs_pfcp_xact_delete(xact);
-}
-
-ogs_pfcp_xact_t *ogs_pfcp_xact_find_by_id(ogs_pool_id_t id)
-{
-    return ogs_pool_find_by_id(&pool, id);
 }
 
 int ogs_pfcp_xact_update_tx(ogs_pfcp_xact_t *xact,
@@ -715,11 +717,11 @@ int ogs_pfcp_xact_receive(
         }
     }
 
-    if (!new) {
-        ogs_debug("[%d] Cannot find new type %u from PFCP peer [%s]:%d",
-                  xid, type, OGS_ADDR(&node->addr, buf), OGS_PORT(&node->addr));
+    ogs_debug("[%d] Cannot find new type %u from PFCP peer [%s]:%d",
+            xid, type, OGS_ADDR(&node->addr, buf), OGS_PORT(&node->addr));
+
+    if (!new)
         new = ogs_pfcp_xact_remote_create(node, sqn);
-    }
     ogs_assert(new);
 
     ogs_debug("[%d] %s Receive peer [%s]:%d",
@@ -805,7 +807,7 @@ int ogs_pfcp_xact_delete(ogs_pfcp_xact_t *xact)
 
     ogs_list_remove(xact->org == OGS_PFCP_LOCAL_ORIGINATOR ?
             &xact->node->local_list : &xact->node->remote_list, xact);
-    ogs_pool_id_free(&pool, xact);
+    ogs_pool_free(&pool, xact);
 
     return OGS_OK;
 }

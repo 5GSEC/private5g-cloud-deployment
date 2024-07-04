@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019,2024 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -85,7 +85,6 @@ void nrf_nf_state_will_register(ogs_fsm_t *s, nrf_event_t *e)
     ogs_sbi_nf_instance_t *nf_instance = NULL;
 
     ogs_sbi_stream_t *stream = NULL;
-    ogs_pool_id_t stream_id = OGS_INVALID_POOL_ID;
     ogs_sbi_message_t *message = NULL;
 
     ogs_assert(s);
@@ -106,16 +105,8 @@ void nrf_nf_state_will_register(ogs_fsm_t *s, nrf_event_t *e)
     case OGS_EVENT_SBI_SERVER:
         message = e->h.sbi.message;
         ogs_assert(message);
-
-        stream_id = OGS_POINTER_TO_UINT(e->h.sbi.data);
-        ogs_assert(stream_id >= OGS_MIN_POOL_ID &&
-                stream_id <= OGS_MAX_POOL_ID);
-
-        stream = ogs_sbi_stream_find_by_id(stream_id);
-        if (!stream) {
-            ogs_error("STREAM has already been removed [%d]", stream_id);
-            break;
-        }
+        stream = e->h.sbi.data;
+        ogs_assert(stream);
 
         SWITCH(message->h.service.name)
         CASE(OGS_SBI_SERVICE_NAME_NNRF_NFM)
@@ -137,8 +128,8 @@ void nrf_nf_state_will_register(ogs_fsm_t *s, nrf_event_t *e)
                             nf_instance->id, message->h.method);
                     ogs_assert(true ==
                         ogs_sbi_server_send_error(stream,
-                            OGS_SBI_HTTP_STATUS_METHOD_NOT_ALLOWED, message,
-                            "Invalid HTTP method", message->h.method, NULL));
+                            OGS_SBI_HTTP_STATUS_MEHTOD_NOT_ALLOWED, message,
+                            "Invalid HTTP method", message->h.method));
                 END
                 break;
 
@@ -147,9 +138,9 @@ void nrf_nf_state_will_register(ogs_fsm_t *s, nrf_event_t *e)
                         nf_instance->id, message->h.resource.component[0]);
                 ogs_assert(true ==
                     ogs_sbi_server_send_error(stream,
-                        OGS_SBI_HTTP_STATUS_METHOD_NOT_ALLOWED, message,
+                        OGS_SBI_HTTP_STATUS_MEHTOD_NOT_ALLOWED, message,
                         "Invalid resource name",
-                        message->h.resource.component[0], NULL));
+                        message->h.resource.component[0]));
             END
             break;
 
@@ -158,9 +149,8 @@ void nrf_nf_state_will_register(ogs_fsm_t *s, nrf_event_t *e)
                     nf_instance->id, message->h.service.name);
             ogs_assert(true ==
                 ogs_sbi_server_send_error(stream,
-                    OGS_SBI_HTTP_STATUS_METHOD_NOT_ALLOWED, message,
-                    "Invalid resource name", message->h.service.name,
-                    NULL));
+                    OGS_SBI_HTTP_STATUS_MEHTOD_NOT_ALLOWED, message,
+                    "Invalid resource name", message->h.service.name));
         END
 
         OGS_FSM_TRAN(s, nrf_nf_state_registered);
@@ -172,8 +162,7 @@ void nrf_nf_state_will_register(ogs_fsm_t *s, nrf_event_t *e)
         ogs_assert(true ==
             ogs_sbi_server_send_error(stream,
                 OGS_SBI_HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                message, "Unknown event", nrf_event_get_name(e),
-                NULL));
+                message, "Unknown event", nrf_event_get_name(e)));
         OGS_FSM_TRAN(s, nrf_nf_state_exception);
         break;
     }
@@ -185,7 +174,6 @@ void nrf_nf_state_registered(ogs_fsm_t *s, nrf_event_t *e)
     ogs_sbi_nf_instance_t *nf_instance = NULL;
 
     ogs_sbi_stream_t *stream = NULL;
-    ogs_pool_id_t stream_id = OGS_INVALID_POOL_ID;
     ogs_sbi_message_t *message = NULL;
     ogs_sbi_response_t *response = NULL;
 
@@ -228,16 +216,8 @@ void nrf_nf_state_registered(ogs_fsm_t *s, nrf_event_t *e)
     case OGS_EVENT_SBI_SERVER:
         message = e->h.sbi.message;
         ogs_assert(message);
-
-        stream_id = OGS_POINTER_TO_UINT(e->h.sbi.data);
-        ogs_assert(stream_id >= OGS_MIN_POOL_ID &&
-                stream_id <= OGS_MAX_POOL_ID);
-
-        stream = ogs_sbi_stream_find_by_id(stream_id);
-        if (!stream) {
-            ogs_error("STREAM has already been removed [%d]", stream_id);
-            break;
-        }
+        stream = e->h.sbi.data;
+        ogs_assert(stream);
 
         SWITCH(message->h.service.name)
         CASE(OGS_SBI_SERVICE_NAME_NNRF_NFM)
@@ -276,8 +256,8 @@ void nrf_nf_state_registered(ogs_fsm_t *s, nrf_event_t *e)
                             nf_instance->id, message->h.method);
                     ogs_assert(true ==
                         ogs_sbi_server_send_error(stream,
-                            OGS_SBI_HTTP_STATUS_METHOD_NOT_ALLOWED, message,
-                            "Invalid HTTP method", message->h.method, NULL));
+                            OGS_SBI_HTTP_STATUS_MEHTOD_NOT_ALLOWED, message,
+                            "Invalid HTTP method", message->h.method));
                 END
                 break;
 
@@ -286,9 +266,9 @@ void nrf_nf_state_registered(ogs_fsm_t *s, nrf_event_t *e)
                         nf_instance->id, message->h.resource.component[0]);
                 ogs_assert(true ==
                     ogs_sbi_server_send_error(stream,
-                        OGS_SBI_HTTP_STATUS_METHOD_NOT_ALLOWED, message,
+                        OGS_SBI_HTTP_STATUS_MEHTOD_NOT_ALLOWED, message,
                         "Invalid resource name",
-                        message->h.resource.component[0], NULL));
+                        message->h.resource.component[0]));
             END
             break;
 
@@ -297,9 +277,8 @@ void nrf_nf_state_registered(ogs_fsm_t *s, nrf_event_t *e)
                     nf_instance->id, message->h.service.name);
             ogs_assert(true ==
                 ogs_sbi_server_send_error(stream,
-                    OGS_SBI_HTTP_STATUS_METHOD_NOT_ALLOWED, message,
-                    "Invalid resource name", message->h.service.name,
-                    NULL));
+                    OGS_SBI_HTTP_STATUS_MEHTOD_NOT_ALLOWED, message,
+                    "Invalid resource name", message->h.service.name));
         END
         break;
 
@@ -309,8 +288,7 @@ void nrf_nf_state_registered(ogs_fsm_t *s, nrf_event_t *e)
         ogs_assert(true ==
             ogs_sbi_server_send_error(stream,
                 OGS_SBI_HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                message, "Unknown event", nrf_event_get_name(e),
-                NULL));
+                message, "Unknown event", nrf_event_get_name(e)));
         OGS_FSM_TRAN(s, nrf_nf_state_exception);
         break;
     }

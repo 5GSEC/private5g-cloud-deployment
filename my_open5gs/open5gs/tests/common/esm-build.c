@@ -20,7 +20,7 @@
 #include "test-common.h"
 
 ogs_pkbuf_t *testesm_build_pdn_connectivity_request(
-        test_sess_t *sess, bool integrity_protected, uint8_t pdn_type)
+        test_sess_t *sess, bool integrity_protected)
 {
     ogs_nas_eps_message_t message;
     ogs_nas_eps_pdn_connectivity_request_t *pdn_connectivity_request =
@@ -63,16 +63,10 @@ ogs_pkbuf_t *testesm_build_pdn_connectivity_request(
     }
 
     message.esm.h.protocol_discriminator = OGS_NAS_PROTOCOL_DISCRIMINATOR_ESM;
-
-    if (!sess->pti) {
-        ogs_error("PTI should be not NULL in PDU Connectivity Request");
-        return NULL;
-    }
     message.esm.h.procedure_transaction_identity = sess->pti;
-
     message.esm.h.message_type = OGS_NAS_EPS_PDN_CONNECTIVITY_REQUEST;
 
-    request_type->type = pdn_type;
+    request_type->type = OGS_NAS_EPS_PDN_TYPE_IPV4V6;
     request_type->value = sess->pdn_connectivity_param.request_type;
     ogs_assert(request_type->value);
 
@@ -142,13 +136,7 @@ ogs_pkbuf_t *testesm_build_pdn_disconnect_request(test_sess_t *sess)
     message.h.protocol_discriminator = OGS_NAS_PROTOCOL_DISCRIMINATOR_EMM;
 
     message.esm.h.protocol_discriminator = OGS_NAS_PROTOCOL_DISCRIMINATOR_ESM;
-
-    if (!sess->pti) {
-        ogs_error("PTI should be not NULL in PDU Disonnectivity Request");
-        return NULL;
-    }
     message.esm.h.procedure_transaction_identity = sess->pti;
-
     message.esm.h.message_type = OGS_NAS_EPS_PDN_DISCONNECT_REQUEST;
 
     linked_eps_bearer_identity->eps_bearer_identity = bearer->ebi;
@@ -206,13 +194,7 @@ ogs_pkbuf_t *testesm_build_esm_information_response(test_sess_t *sess)
     message.h.protocol_discriminator = OGS_NAS_PROTOCOL_DISCRIMINATOR_EMM;
 
     message.esm.h.protocol_discriminator = OGS_NAS_PROTOCOL_DISCRIMINATOR_ESM;
-
-    if (!sess->pti) {
-        ogs_error("PTI should be not 0 in ESM Information Response");
-        return NULL;
-    }
     message.esm.h.procedure_transaction_identity = sess->pti;
-
     message.esm.h.message_type = OGS_NAS_EPS_ESM_INFORMATION_RESPONSE;
 
     esm_information_response->presencemask |= OGS_NAS_EPS_ESM_INFORMATION_RESPONSE_ACCESS_POINT_NAME_PRESENT;
@@ -272,7 +254,6 @@ ogs_pkbuf_t *testesm_build_activate_default_eps_bearer_context_accept(
 
     message.esm.h.eps_bearer_identity = bearer->ebi;
     message.esm.h.protocol_discriminator = OGS_NAS_PROTOCOL_DISCRIMINATOR_ESM;
-    message.esm.h.procedure_transaction_identity = sess->pti = 0;
     message.esm.h.message_type =
         OGS_NAS_EPS_ACTIVATE_DEFAULT_EPS_BEARER_CONTEXT_ACCEPT;
 
@@ -308,7 +289,6 @@ ogs_pkbuf_t *testesm_build_activate_dedicated_eps_bearer_context_accept(
 
     message.esm.h.eps_bearer_identity = bearer->ebi;
     message.esm.h.protocol_discriminator = OGS_NAS_PROTOCOL_DISCRIMINATOR_ESM;
-    message.esm.h.procedure_transaction_identity = sess->pti = 0;
     message.esm.h.message_type =
         OGS_NAS_EPS_ACTIVATE_DEDICATED_EPS_BEARER_CONTEXT_ACCEPT;
 
@@ -341,7 +321,6 @@ ogs_pkbuf_t *testesm_build_activate_dedicated_eps_bearer_context_reject(
 
     message.esm.h.eps_bearer_identity = bearer->ebi;
     message.esm.h.protocol_discriminator = OGS_NAS_PROTOCOL_DISCRIMINATOR_ESM;
-    message.esm.h.procedure_transaction_identity = sess->pti = 0;
     message.esm.h.message_type =
         OGS_NAS_EPS_ACTIVATE_DEDICATED_EPS_BEARER_CONTEXT_REJECT;
 
@@ -373,7 +352,7 @@ ogs_pkbuf_t *testesm_build_modify_eps_bearer_context_accept(
 
     message.esm.h.eps_bearer_identity = bearer->ebi;
     message.esm.h.protocol_discriminator = OGS_NAS_PROTOCOL_DISCRIMINATOR_ESM;
-    message.esm.h.procedure_transaction_identity = sess->pti = 0;
+    message.esm.h.procedure_transaction_identity = sess->pti;
     message.esm.h.message_type = OGS_NAS_EPS_MODIFY_EPS_BEARER_CONTEXT_ACCEPT;
 
     return test_nas_eps_security_encode(test_ue, &message);
@@ -402,7 +381,6 @@ ogs_pkbuf_t *testesm_build_deactivate_eps_bearer_context_accept(
 
     message.esm.h.eps_bearer_identity = bearer->ebi;
     message.esm.h.protocol_discriminator = OGS_NAS_PROTOCOL_DISCRIMINATOR_ESM;
-    message.esm.h.procedure_transaction_identity = sess->pti = 0;
     message.esm.h.message_type =
         OGS_NAS_EPS_DEACTIVATE_EPS_BEARER_CONTEXT_ACCEPT;
 
@@ -444,13 +422,7 @@ ogs_pkbuf_t *testesm_build_bearer_resource_allocation_request(
     message.h.protocol_discriminator = OGS_NAS_PROTOCOL_DISCRIMINATOR_EMM;
 
     message.esm.h.protocol_discriminator = OGS_NAS_PROTOCOL_DISCRIMINATOR_ESM;
-
-    if (!sess->pti) {
-        ogs_error("PTI should be not 0 in Bearer Resource Allocation Request");
-        return NULL;
-    }
     message.esm.h.procedure_transaction_identity = sess->pti;
-
     message.esm.h.message_type = OGS_NAS_EPS_BEARER_RESOURCE_ALLOCATION_REQUEST;
 
     linked_eps_bearer_identity->eps_bearer_identity = bearer->ebi;
@@ -501,14 +473,7 @@ ogs_pkbuf_t *testesm_build_bearer_resource_modification_request(
     message.h.protocol_discriminator = OGS_NAS_PROTOCOL_DISCRIMINATOR_EMM;
 
     message.esm.h.protocol_discriminator = OGS_NAS_PROTOCOL_DISCRIMINATOR_ESM;
-
-    if (!sess->pti) {
-        ogs_error("PTI should be not 0 "
-                "in Bearer Resource Modification Request");
-        return NULL;
-    }
     message.esm.h.procedure_transaction_identity = sess->pti;
-
     message.esm.h.message_type =
         OGS_NAS_EPS_BEARER_RESOURCE_MODIFICATION_REQUEST;
 

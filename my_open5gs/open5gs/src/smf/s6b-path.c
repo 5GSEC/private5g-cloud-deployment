@@ -1,4 +1,4 @@
-/* 3GPP TS 29.273 section 9
+/*
  * Copyright (C) 2019 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
@@ -26,7 +26,7 @@ struct sess_state {
     smf_sess_t *sess;
     os0_t       s6b_sid;             /* S6B Session-Id */
 
-    ogs_pool_id_t xact_id;
+    ogs_gtp_xact_t *xact;
 
     struct timespec ts; /* Time of sending the message */
 };
@@ -102,7 +102,7 @@ void smf_s6b_send_aar(smf_sess_t *sess, ogs_gtp_xact_t *xact)
 
     ogs_assert(xact);
     ogs_assert(sess);
-    smf_ue = smf_ue_find_by_id(sess->smf_ue_id);
+    smf_ue = sess->smf_ue;
     ogs_assert(smf_ue);
 
     ogs_debug("[AA-Request]");
@@ -165,7 +165,7 @@ void smf_s6b_send_aar(smf_sess_t *sess, ogs_gtp_xact_t *xact)
 
     /* Update session state */
     sess_data->sess = sess;
-    sess_data->xact_id = xact ? xact->id : OGS_INVALID_POOL_ID;
+    sess_data->xact = xact;
 
     /* Set Origin-Host & Origin-Realm */
     ret = fd_msg_add_origin(req, 0);
@@ -344,10 +344,11 @@ static void smf_s6b_aaa_cb(void *data, struct msg **msg)
     unsigned long dur;
     int error = 0;
     int new;
+    int result_code = 0;
+    int exp_result_code = 0;
 
     smf_sess_t *sess = NULL;
-    smf_event_t *e = NULL;
-    ogs_diam_s6b_message_t *s6b_message = NULL;
+    ogs_gtp_xact_t *xact = NULL;
 
     ogs_debug("[AA-Answer]");
 
@@ -370,11 +371,8 @@ static void smf_s6b_aaa_cb(void *data, struct msg **msg)
 
     sess = sess_data->sess;
     ogs_assert(sess);
-
-    s6b_message = ogs_calloc(1, sizeof(ogs_diam_s6b_message_t));
-    ogs_assert(s6b_message);
-    /* Set Session Termination Command */
-    s6b_message->cmd_code = OGS_DIAM_S6B_CMD_AUTHENTICATION_AUTHORIZATION;
+    xact = sess_data->xact;
+    ogs_assert(xact);
 
     /* Value of Result Code */
     ret = fd_msg_search_avp(*msg, ogs_diam_result_code, &avp);
@@ -382,9 +380,9 @@ static void smf_s6b_aaa_cb(void *data, struct msg **msg)
     if (avp) {
         ret = fd_msg_avp_hdr(avp, &hdr);
         ogs_assert(ret == 0);
-        s6b_message->result_code = hdr->avp_value->i32;
-        if (s6b_message->result_code != ER_DIAMETER_SUCCESS) {
-            ogs_error("Result Code: %d", s6b_message->result_code);
+        result_code = hdr->avp_value->i32;
+        if (result_code != ER_DIAMETER_SUCCESS) {
+            ogs_error("Result Code: %d", result_code);
             error++;
         }
     } else {
@@ -399,8 +397,8 @@ static void smf_s6b_aaa_cb(void *data, struct msg **msg)
             if (avpch1) {
                 ret = fd_msg_avp_hdr(avpch1, &hdr);
                 ogs_assert(ret == 0);
-                s6b_message->result_code = hdr->avp_value->i32;
-                ogs_error("Experimental Result Code: %d", s6b_message->result_code);
+                exp_result_code = hdr->avp_value->i32;
+                ogs_error("Experimental Result Code: %d", exp_result_code);
             }
         } else {
             ogs_error("no Result-Code");
@@ -433,22 +431,9 @@ static void smf_s6b_aaa_cb(void *data, struct msg **msg)
         error++;
     }
 
-    e = smf_event_new(SMF_EVT_S6B_MESSAGE);
-    ogs_assert(e);
-
-    if (error && s6b_message->result_code == ER_DIAMETER_SUCCESS)
-            s6b_message->result_code = error;
-
-    e->sess_id = sess->id;
-    e->gtp_xact_id = sess_data->xact_id;
-    e->s6b_message = s6b_message;
-    ret = ogs_queue_push(ogs_app()->queue, e);
-    if (ret != OGS_OK) {
-        ogs_error("ogs_queue_push() failed:%d", (int)ret);
-        ogs_free(s6b_message);
-        ogs_event_free(e);
-    } else {
-        ogs_pollset_notify(ogs_app()->pollset);
+    if (!error) {
+        smf_gx_send_ccr(sess, xact,
+            OGS_DIAM_GX_CC_REQUEST_TYPE_INITIAL_REQUEST);
     }
 
     /* Free the message */
@@ -513,8 +498,9 @@ void smf_s6b_send_str(smf_sess_t *sess, ogs_gtp_xact_t *xact, uint32_t cause)
     smf_ue_t *smf_ue = NULL;
     char *user_name = NULL;
 
+    //ogs_assert(xact);
     ogs_assert(sess);
-    smf_ue = smf_ue_find_by_id(sess->smf_ue_id);
+    smf_ue = sess->smf_ue;
     ogs_assert(smf_ue);
 
     ogs_debug("[Session-Termination-Request]");
@@ -553,7 +539,7 @@ void smf_s6b_send_str(smf_sess_t *sess, ogs_gtp_xact_t *xact, uint32_t cause)
 
     /* Update session state */
     sess_data->sess = sess;
-    sess_data->xact_id = xact ? xact->id : OGS_INVALID_POOL_ID;
+    sess_data->xact = xact;
 
     /* Set Origin-Host & Origin-Realm */
     ret = fd_msg_add_origin(req, 0);
@@ -662,7 +648,6 @@ static void smf_s6b_sta_cb(void *data, struct msg **msg)
     ogs_debug("    Retrieve its data: [%s]", sess_data->s6b_sid);
 
     sess = sess_data->sess;
-    ogs_assert(sess);
 
     s6b_message = ogs_calloc(1, sizeof(ogs_diam_s6b_message_t));
     ogs_assert(s6b_message);
@@ -733,7 +718,7 @@ static void smf_s6b_sta_cb(void *data, struct msg **msg)
         e = smf_event_new(SMF_EVT_S6B_MESSAGE);
         ogs_assert(e);
 
-        e->sess_id = sess->id;
+        e->sess = sess;
         e->s6b_message = s6b_message;
         rv = ogs_queue_push(ogs_app()->queue, e);
         if (rv != OGS_OK) {

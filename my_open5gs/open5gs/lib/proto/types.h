@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2024 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -85,8 +85,6 @@ extern "C" {
 
 #define OGS_MAX_NUM_OF_ALGORITHM        8
 
-#define OGS_MAX_5G_GUTI_LEN             28
-
 #define OGS_MAX_NUM_OF_SERVED_GUMMEI    8   /* maxnoofRATs: 8 */
 #define OGS_MAX_NUM_OF_SERVED_GUAMI     256 /* maxnoofServedGUAMIs: 256 */
 #define OGS_MAX_NUM_OF_SUPPORTED_TA     256 /* maxnoofTACs: 256 */
@@ -120,9 +118,7 @@ extern "C" {
 #define OGS_TIME_TO_BCD(x) \
     (((((x) % 10) << 4) & 0xf0) | (((x) / 10) & 0x0f))
 
-/* 3GPP TS 24.007 Table 11.6: */
 #define OGS_NAS_PROCEDURE_TRANSACTION_IDENTITY_UNASSIGNED 0
-/* 3GPP TS 24.007 Table 11.2.3.1c.1: */
 #define OGS_NAS_PDU_SESSION_IDENTITY_UNASSIGNED 0
 
 #define OGS_ACCESS_TYPE_3GPP 1
@@ -200,25 +196,25 @@ ED2(uint8_t mnc3:4;,
     uint8_t mnc2:4;)
 } __attribute__ ((packed)) ogs_plmn_id_t;
 
-uint32_t ogs_plmn_id_hexdump(const void *plmn_id);
+uint32_t ogs_plmn_id_hexdump(void *plmn_id);
 
-uint16_t ogs_plmn_id_mcc(const ogs_plmn_id_t *plmn_id);
-uint16_t ogs_plmn_id_mnc(const ogs_plmn_id_t *plmn_id);
-uint16_t ogs_plmn_id_mnc_len(const ogs_plmn_id_t *plmn_id);
+uint16_t ogs_plmn_id_mcc(ogs_plmn_id_t *plmn_id);
+uint16_t ogs_plmn_id_mnc(ogs_plmn_id_t *plmn_id);
+uint16_t ogs_plmn_id_mnc_len(ogs_plmn_id_t *plmn_id);
 
 void *ogs_plmn_id_build(ogs_plmn_id_t *plmn_id,
         uint16_t mcc, uint16_t mnc, uint16_t mnc_len);
 
-char *ogs_plmn_id_mcc_string(const ogs_plmn_id_t *plmn_id);
-char *ogs_plmn_id_mnc_string(const ogs_plmn_id_t *plmn_id);
+char *ogs_plmn_id_mcc_string(ogs_plmn_id_t *plmn_id);
+char *ogs_plmn_id_mnc_string(ogs_plmn_id_t *plmn_id);
 
 #define OGS_PLMNIDSTRLEN    (sizeof(ogs_plmn_id_t)*2+1)
-char *ogs_plmn_id_to_string(const ogs_plmn_id_t *plmn_id, char *buf);
+char *ogs_plmn_id_to_string(ogs_plmn_id_t *plmn_id, char *buf);
 
-char *ogs_serving_network_name_from_plmn_id(const ogs_plmn_id_t *plmn_id);
-char *ogs_home_network_domain_from_plmn_id(const ogs_plmn_id_t *plmn_id);
-char *ogs_nrf_fqdn_from_plmn_id(const ogs_plmn_id_t *plmn_id);
-char *ogs_nssf_fqdn_from_plmn_id(const ogs_plmn_id_t *plmn_id);
+char *ogs_serving_network_name_from_plmn_id(ogs_plmn_id_t *plmn_id);
+char *ogs_home_network_domain_from_plmn_id(ogs_plmn_id_t *plmn_id);
+char *ogs_nrf_fqdn_from_plmn_id(ogs_plmn_id_t *plmn_id);
+char *ogs_nssf_fqdn_from_plmn_id(ogs_plmn_id_t *plmn_id);
 char *ogs_home_network_domain_from_fqdn(char *fqdn);
 uint16_t ogs_plmn_id_mnc_from_fqdn(char *fqdn);
 uint16_t ogs_plmn_id_mcc_from_fqdn(char *fqdn);
@@ -235,9 +231,9 @@ ED2(uint8_t mnc2:4;,
 } __attribute__ ((packed)) ogs_nas_plmn_id_t;
 
 void *ogs_nas_from_plmn_id(
-        ogs_nas_plmn_id_t *ogs_nas_plmn_id, const ogs_plmn_id_t *plmn_id);
+        ogs_nas_plmn_id_t *ogs_nas_plmn_id, ogs_plmn_id_t *plmn_id);
 void *ogs_nas_to_plmn_id(
-        ogs_plmn_id_t *plmn_id, const ogs_nas_plmn_id_t *ogs_nas_plmn_id);
+        ogs_plmn_id_t *plmn_id, ogs_nas_plmn_id_t *ogs_nas_plmn_id);
 
 /************************************
  * AMF_ID Structure                 */
@@ -253,14 +249,14 @@ typedef struct ogs_guami_s {
     ogs_amf_id_t amf_id;
 } ogs_guami_t;
 
-uint32_t ogs_amf_id_hexdump(const ogs_amf_id_t *amf_id);
+uint32_t ogs_amf_id_hexdump(ogs_amf_id_t *amf_id);
 
 ogs_amf_id_t *ogs_amf_id_from_string(ogs_amf_id_t *amf_id, const char *hex);
-char *ogs_amf_id_to_string(const ogs_amf_id_t *amf_id);
+char *ogs_amf_id_to_string(ogs_amf_id_t *amf_id);
 
-uint8_t ogs_amf_region_id(const ogs_amf_id_t *amf_id);
-uint16_t ogs_amf_set_id(const ogs_amf_id_t *amf_id);
-uint8_t ogs_amf_pointer(const ogs_amf_id_t *amf_id);
+uint8_t ogs_amf_region_id(ogs_amf_id_t *amf_id);
+uint16_t ogs_amf_set_id(ogs_amf_id_t *amf_id);
+uint8_t ogs_amf_pointer(ogs_amf_id_t *amf_id);
 
 ogs_amf_id_t *ogs_amf_id_build(ogs_amf_id_t *amf_id,
         uint8_t region, uint16_t set, uint8_t pointer);
@@ -273,13 +269,12 @@ ogs_amf_id_t *ogs_amf_id_build(ogs_amf_id_t *amf_id,
 #define OGS_PROTECTION_SCHEME_PROFILE_B 2
 
 /************************************
- * SUPI/GPSI/GUTI                   */
+ * SUPI/GPSI                       */
 #define OGS_ID_SUPI_TYPE_IMSI "imsi"
 #define OGS_ID_GPSI_TYPE_MSISDN "msisdn"
 #define OGS_ID_SUPI_TYPE_IMEISV "imeisv"
-#define OGS_ID_5G_GUTI_TYPE "5g-guti"
-char *ogs_id_get_type(const char *str);
-char *ogs_id_get_value(const char *str);
+char *ogs_id_get_type(char *str);
+char *ogs_id_get_value(char *str);
 
 /************************************
  * TAI Structure                    */
@@ -311,7 +306,7 @@ typedef struct ogs_s_nssai_s {
     ogs_uint24_t sd;
 } __attribute__ ((packed)) ogs_s_nssai_t;
 
-char *ogs_s_nssai_sd_to_string(const ogs_uint24_t sd);
+char *ogs_s_nssai_sd_to_string(ogs_uint24_t sd);
 ogs_uint24_t ogs_s_nssai_sd_from_string(const char *hex);
 
 /**************************************************
@@ -337,12 +332,12 @@ int ogs_sockaddr_to_ip(
         ogs_sockaddr_t *addr, ogs_sockaddr_t *addr6, ogs_ip_t *ip);
 
 char *ogs_ipv4_to_string(uint32_t addr);
-char *ogs_ipv6addr_to_string(const uint8_t *addr6);
-char *ogs_ipv6prefix_to_string(const uint8_t *addr6, uint8_t prefixlen);
-int ogs_ipv4_from_string(uint32_t *addr, const char *string);
-int ogs_ipv6addr_from_string(uint8_t *addr6, const char *string);
+char *ogs_ipv6addr_to_string(uint8_t *addr6);
+char *ogs_ipv6prefix_to_string(uint8_t *addr6, uint8_t prefixlen);
+int ogs_ipv4_from_string(uint32_t *addr, char *string);
+int ogs_ipv6addr_from_string(uint8_t *addr6, char *string);
 int ogs_ipv6prefix_from_string(
-        uint8_t *addr6, uint8_t *prefixlen, const char *string);
+        uint8_t *addr6, uint8_t *prefixlen, char *string);
 
 /**************************************************
  * GTPv1-C: TS 29.060 7.7.27 End User Address (EUA) */
@@ -379,6 +374,11 @@ ED2(uint8_t spare:4;,
 typedef struct ogs_paa_s {
 ED2(uint8_t spare:5;,
 /* 8.34 PDN Type  */
+#define OGS_PDU_SESSION_TYPE_IS_VALID(x) \
+        ((x) == OGS_PDU_SESSION_TYPE_IPV4 || \
+         (x) == OGS_PDU_SESSION_TYPE_IPV6 || \
+         (x) == OGS_PDU_SESSION_TYPE_IPV4V6) \
+
     uint8_t session_type:3;)
     union {
         /* PDU_SESSION_TYPE_IPV4 */
@@ -459,40 +459,9 @@ typedef struct ogs_qos_s {
 int ogs_check_qos_conf(ogs_qos_t *qos);
 
 /**********************************
- * TS29.212
- * Ch 5.3.65 Flow-Direction AVP
- *
- * The Flow-Direction AVP (AVP code 1080) is of type Enumerated.
- * It indicates the direction/directions that a filter is applicable,
- * downlink only, uplink only or both down- and uplink (bidirectional).
- *
- *  UNSPECIFIED (0)
- *    The corresponding filter applies for traffic to the UE (downlink),
- *    but has no specific direction declared. The service data flow detection
- *    shall apply the filter for uplink traffic as if the filter was
- *    bidirectional. The PCRF shall not use the value UNSPECIFIED
- *    in filters created by the network in NW-initiated procedures.
- *    The PCRF shall only include the value UNSPECIFIED in filters
- *    in UE-initiated procedures if the same value is received from
- *    in the CCR request from the PCEF.
- *
- *  DOWNLINK (1)
- *    The corresponding filter applies for traffic to the UE.
- *
- *  UPLINK (2)
- *    The corresponding filter applies for traffic from the UE.
- *
- *  BIDIRECTIONAL (3)
- *    The corresponding filter applies for traffic both to and from the UE.
- *
- *  NOTE: The corresponding filter data is unidirectional. The filter
- *        for the opposite direction has the same parameters, but having
- *        the source and destination address/port parameters swapped.
- */
-#define OGS_FLOW_UNSPECIFIED      0
+ * Flow  Structure               */
 #define OGS_FLOW_DOWNLINK_ONLY    1
 #define OGS_FLOW_UPLINK_ONLY      2
-#define OGS_FLOW_BIDIRECTIONAL    3
 typedef struct ogs_flow_s {
     uint8_t direction;
     char *description;
@@ -508,11 +477,7 @@ typedef struct ogs_flow_s {
     } while(0)
 
 /**********************************
- * TS29.212
- * Ch 5.3.2 Charging-Rule-Install AVP
- *
- * PCC Rule Structure
- */
+ * PCC Rule Structure            */
 typedef struct ogs_pcc_rule_s {
 #define OGS_PCC_RULE_TYPE_INSTALL               1
 #define OGS_PCC_RULE_TYPE_REMOVE                2
@@ -526,7 +491,6 @@ typedef struct ogs_pcc_rule_s {
 
     int flow_status;
     uint32_t precedence;
-    uint32_t rating_group;
 
     ogs_qos_t  qos;
 } ogs_pcc_rule_t;
@@ -603,14 +567,15 @@ typedef struct ogs_session_s {
     ogs_qos_t qos;
     ogs_bitrate_t ambr; /* APN-AMBR */
 
+    ogs_paa_t paa;
     ogs_ip_t ue_ip;
     char **ipv4_framed_routes;
     char **ipv6_framed_routes;
     ogs_ip_t smf_ip;
 } ogs_session_t;
 
-int ogs_fqdn_build(char *dst, const char *src, int len);
-int ogs_fqdn_parse(char *dst, const char *src, int len);
+int ogs_fqdn_build(char *dst, char *src, int len);
+int ogs_fqdn_parse(char *dst, char *src, int len);
 
 /**************************************************
  * Protocol Configuration Options Structure

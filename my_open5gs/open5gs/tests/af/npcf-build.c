@@ -54,7 +54,7 @@ ogs_sbi_request_t *af_npcf_policyauthorization_build_create(
     af_npcf_policyauthorization_param_t *af_param;
 
     ogs_assert(sess);
-    ogs_assert(sess->app_session.af.id);
+    ogs_assert(sess->af_app_session_id);
 
     af_param = data;
     ogs_assert(af_param);
@@ -82,7 +82,7 @@ ogs_sbi_request_t *af_npcf_policyauthorization_build_create(
     header.service.name = (char *)OGS_SBI_SERVICE_NAME_NPCF_POLICYAUTHORIZATION;
     header.api.version = (char *)OGS_SBI_API_V1;
     header.resource.component[0] = (char *)OGS_SBI_RESOURCE_NAME_APP_SESSIONS;
-    header.resource.component[1] = (char *)sess->app_session.af.id;
+    header.resource.component[1] = (char *)sess->af_app_session_id;
     AscReqData.notif_uri = ogs_sbi_server_uri(server, &header);
     ogs_assert(AscReqData.notif_uri);
 
@@ -379,14 +379,19 @@ ogs_sbi_request_t *af_npcf_policyauthorization_build_update(
     af_npcf_policyauthorization_param_t *af_param;
 
     ogs_assert(sess);
-    ogs_assert(sess->app_session.pcf.resource_uri);
+    ogs_assert(sess->pcf_app_session_id);
 
     af_param = data;
     ogs_assert(af_param);
 
     memset(&message, 0, sizeof(message));
     message.h.method = (char *)OGS_SBI_HTTP_METHOD_PATCH;
-    message.h.uri = sess->app_session.pcf.resource_uri;
+    message.h.service.name =
+        (char *)OGS_SBI_SERVICE_NAME_NPCF_POLICYAUTHORIZATION;
+    message.h.api.version = (char *)OGS_SBI_API_V1;
+    message.h.resource.component[0] =
+        (char *)OGS_SBI_RESOURCE_NAME_APP_SESSIONS;
+    message.h.resource.component[1] = sess->pcf_app_session_id;
 
     message.AppSessionContextUpdateDataPatch =
         &AppSessionContextUpdateDataPatch;
@@ -599,17 +604,21 @@ ogs_sbi_request_t *af_npcf_policyauthorization_build_delete(
     ogs_sbi_request_t *request = NULL;
 
     ogs_assert(sess);
-    ogs_assert(sess->app_session.pcf.resource_uri);
+    ogs_assert(sess->pcf_app_session_id);
 
     memset(&message, 0, sizeof(message));
     message.h.method = (char *)OGS_SBI_HTTP_METHOD_POST;
-    message.h.uri = ogs_msprintf("%s/%s",
-            sess->app_session.pcf.resource_uri, OGS_SBI_RESOURCE_NAME_DELETE);
+    message.h.service.name =
+        (char *)OGS_SBI_SERVICE_NAME_NPCF_POLICYAUTHORIZATION;
+    message.h.api.version = (char *)OGS_SBI_API_V1;
+    message.h.resource.component[0] =
+        (char *)OGS_SBI_RESOURCE_NAME_APP_SESSIONS;
+    message.h.resource.component[1] = sess->pcf_app_session_id;
+    message.h.resource.component[2] =
+        (char *)OGS_SBI_RESOURCE_NAME_DELETE;
 
     request = ogs_sbi_build_request(&message);
     ogs_expect(request);
-
-    ogs_free(message.h.uri);
 
     return request;
 }
@@ -649,7 +658,7 @@ ogs_sbi_request_t *af_npcf_policyauthorization_build_create_video(
     af_npcf_policyauthorization_param_t *af_param;
 
     ogs_assert(sess);
-    ogs_assert(sess->app_session.af.id);
+    ogs_assert(sess->af_app_session_id);
 
     af_param = data;
     ogs_assert(af_param);
@@ -676,7 +685,7 @@ ogs_sbi_request_t *af_npcf_policyauthorization_build_create_video(
     header.service.name = (char *)OGS_SBI_SERVICE_NAME_NPCF_POLICYAUTHORIZATION;
     header.api.version = (char *)OGS_SBI_API_V1;
     header.resource.component[0] = (char *)OGS_SBI_RESOURCE_NAME_APP_SESSIONS;
-    header.resource.component[1] = (char *)sess->app_session.af.id;
+    header.resource.component[1] = (char *)sess->af_app_session_id;
     AscReqData.notif_uri = ogs_sbi_server_uri(server, &header);
     ogs_assert(AscReqData.notif_uri);
 

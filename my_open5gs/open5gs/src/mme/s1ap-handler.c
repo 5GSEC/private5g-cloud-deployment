@@ -178,16 +178,6 @@ void s1ap_handle_s1_setup_request(mme_enb_t *enb, ogs_s1ap_message_t *message)
                 SupportedTAs_Item->broadcastPLMNs.list.array[j];
             ogs_assert(pLMNidentity);
 
-            if (enb->num_of_supported_ta_list >=
-                    OGS_ARRAY_SIZE(enb->supported_ta_list)) {
-                ogs_error("OVERFLOW ENB->num_of_supported_ta_list "
-                        "[%d:%d:%d]",
-                        enb->num_of_supported_ta_list,
-                        OGS_MAX_NUM_OF_SUPPORTED_TA,
-                        (int)OGS_ARRAY_SIZE(enb->supported_ta_list));
-                break;
-            }
-
             memcpy(&enb->supported_ta_list[enb->num_of_supported_ta_list].tac,
                     tAC->buf, sizeof(uint16_t));
             enb->supported_ta_list[enb->num_of_supported_ta_list].tac =
@@ -320,16 +310,6 @@ void s1ap_handle_enb_configuration_update(
                     SupportedTAs_Item->broadcastPLMNs.list.array[j];
                 ogs_assert(pLMNidentity);
 
-                if (enb->num_of_supported_ta_list >=
-                        OGS_ARRAY_SIZE(enb->supported_ta_list)) {
-                    ogs_error("OVERFLOW ENB->num_of_supported_ta_list "
-                            "[%d:%d:%d]",
-                            enb->num_of_supported_ta_list,
-                            OGS_MAX_NUM_OF_SUPPORTED_TA,
-                            (int)OGS_ARRAY_SIZE(enb->supported_ta_list));
-                    break;
-                }
-
                 memcpy(&enb->supported_ta_list[
                         enb->num_of_supported_ta_list].tac,
                         tAC->buf, sizeof(uint16_t));
@@ -424,6 +404,7 @@ void s1ap_handle_initial_ue_message(mme_enb_t *enb, ogs_s1ap_message_t *message)
     ogs_assert(InitialUEMessage);
 
     ogs_info("InitialUEMessage");
+    MME_UE_LIST_CHECK;
 
     for (i = 0; i < InitialUEMessage->protocolIEs.list.count; i++) {
         ie = InitialUEMessage->protocolIEs.list.array[i];
@@ -515,24 +496,23 @@ void s1ap_handle_initial_ue_message(mme_enb_t *enb, ogs_s1ap_message_t *message)
                 /* If NAS(mme_ue_t) has already been associated with
                  * older S1(enb_ue_t) context */
                 if (ECM_CONNECTED(mme_ue)) {
-    /*
-     * Issue #2786
-     *
-     * In cases where the UE sends an Integrity Un-Protected Attach
-     * Request or Service Request, there is an issue of sending
-     * a UEContextReleaseCommand for the OLD ENB Context.
-     *
-     * For example, if the UE switchs off and power-on after
-     * the first connection, the EPC sends a UEContextReleaseCommand.
-     *
-     * However, since there is no ENB context for this on the eNB,
-     * the eNB does not send a UEContextReleaseComplete,
-     * so the deletion of the ENB Context does not function properly.
-     *
-     * To solve this problem, the EPC has been modified to implicitly
-     * delete the ENB Context instead of sending a UEContextReleaseCommand.
-     */
-                    HOLDING_S1_CONTEXT(mme_ue);
+                    /* Previous S1(enb_ue_t) context the holding timer(30secs)
+                     * is started.
+                     * Newly associated S1(enb_ue_t) context holding timer
+                     * is stopped. */
+                    ogs_debug("Start S1 Holding Timer");
+                    ogs_debug("    ENB_UE_S1AP_ID[%d] MME_UE_S1AP_ID[%d]",
+                            mme_ue->enb_ue->enb_ue_s1ap_id,
+                            mme_ue->enb_ue->mme_ue_s1ap_id);
+
+                    /* De-associate S1 with NAS/EMM */
+                    enb_ue_deassociate(mme_ue->enb_ue);
+
+                    r = s1ap_send_ue_context_release_command(mme_ue->enb_ue,
+                            S1AP_Cause_PR_nas, S1AP_CauseNas_normal_release,
+                            S1AP_UE_CTX_REL_S1_CONTEXT_REMOVE, 0);
+                    ogs_expect(r == OGS_OK);
+                    ogs_assert(r != OGS_ERROR);
                 }
                 enb_ue_associate_mme_ue(enb_ue, mme_ue);
                 ogs_debug("Mobile Reachable timer stopped for IMSI[%s]",
@@ -541,16 +521,15 @@ void s1ap_handle_initial_ue_message(mme_enb_t *enb, ogs_s1ap_message_t *message)
             }
         }
     } else {
-        mme_ue_t *mme_ue = mme_ue_find_by_id(enb_ue->mme_ue_id);
         ogs_error("Known UE ENB_UE_S1AP_ID[%d] [%p:%p]",
-                (int)*ENB_UE_S1AP_ID, enb_ue, mme_ue);
-        if (mme_ue) {
+                (int)*ENB_UE_S1AP_ID, enb_ue, enb_ue->mme_ue);
+        if (enb_ue->mme_ue)
             ogs_error("    S_TMSI[G:%d,C:%d,M_TMSI:0x%x] IMSI:[%s]",
-                mme_ue->current.guti.mme_gid,
-                mme_ue->current.guti.mme_code,
-                mme_ue->current.guti.m_tmsi,
-                MME_UE_HAVE_IMSI(mme_ue) ? mme_ue->imsi_bcd : "Unknown");
-        }
+                enb_ue->mme_ue->current.guti.mme_gid,
+                enb_ue->mme_ue->current.guti.mme_code,
+                enb_ue->mme_ue->current.guti.m_tmsi,
+                MME_UE_HAVE_IMSI(enb_ue->mme_ue)
+                ? enb_ue->mme_ue->imsi_bcd : "Unknown");
     }
 
     if (!NAS_PDU) {
@@ -604,8 +583,10 @@ void s1ap_handle_initial_ue_message(mme_enb_t *enb, ogs_s1ap_message_t *message)
         enb_ue->enb_ue_s1ap_id, enb_ue->mme_ue_s1ap_id,
         enb_ue->saved.tai.tac, enb_ue->saved.e_cgi.cell_id);
 
-    ogs_expect(OGS_OK == s1ap_send_to_nas(
-                enb_ue, S1AP_ProcedureCode_id_initialUEMessage, NAS_PDU));
+    r = s1ap_send_to_nas(enb_ue,
+            S1AP_ProcedureCode_id_initialUEMessage, NAS_PDU);
+    ogs_expect(r == OGS_OK);
+    ogs_assert(r != OGS_ERROR);
 }
 
 void s1ap_handle_uplink_nas_transport(
@@ -629,7 +610,6 @@ void s1ap_handle_uplink_nas_transport(
     S1AP_CellIdentity_t *cell_ID = NULL;
 
     enb_ue_t *enb_ue = NULL;
-    mme_ue_t *mme_ue = NULL;
 
     ogs_eps_tai_t tai;
     int served_tai_index = 0;
@@ -644,6 +624,7 @@ void s1ap_handle_uplink_nas_transport(
     ogs_assert(UplinkNASTransport);
 
     ogs_debug("UplinkNASTransport");
+    MME_UE_LIST_CHECK;
 
     for (i = 0; i < UplinkNASTransport->protocolIEs.list.count; i++) {
         ie = UplinkNASTransport->protocolIEs.list.array[i];
@@ -783,8 +764,9 @@ void s1ap_handle_uplink_nas_transport(
         enb_ue->saved.tai.tac, enb_ue->saved.e_cgi.cell_id);
 
     /* Copy Stream-No/TAI/ECGI from enb_ue */
-    mme_ue = mme_ue_find_by_id(enb_ue->mme_ue_id);
-    if (mme_ue) {
+    if (enb_ue->mme_ue) {
+        mme_ue_t *mme_ue = enb_ue->mme_ue;
+
         memcpy(&mme_ue->tai, &enb_ue->saved.tai, sizeof(ogs_eps_tai_t));
         memcpy(&mme_ue->e_cgi, &enb_ue->saved.e_cgi, sizeof(ogs_e_cgi_t));
         mme_ue->ue_location_timestamp = ogs_time_now();
@@ -792,8 +774,10 @@ void s1ap_handle_uplink_nas_transport(
         ogs_error("No UE Context in UplinkNASTransport");
     }
 
-    ogs_expect(OGS_OK == s1ap_send_to_nas(
-                enb_ue, S1AP_ProcedureCode_id_uplinkNASTransport, NAS_PDU));
+    r = s1ap_send_to_nas(enb_ue,
+            S1AP_ProcedureCode_id_uplinkNASTransport, NAS_PDU);
+    ogs_expect(r == OGS_OK);
+    ogs_assert(r != OGS_ERROR);
 }
 
 void s1ap_handle_ue_capability_info_indication(
@@ -811,7 +795,6 @@ void s1ap_handle_ue_capability_info_indication(
     S1AP_UERadioCapability_t *UERadioCapability = NULL;
 
     enb_ue_t *enb_ue = NULL;
-    mme_ue_t *mme_ue = NULL;
 
     ogs_assert(enb);
     ogs_assert(enb->sctp.sock);
@@ -824,6 +807,7 @@ void s1ap_handle_ue_capability_info_indication(
     ogs_assert(UECapabilityInfoIndication);
 
     ogs_debug("UECapabilityInfoIndication");
+    MME_UE_LIST_CHECK;
 
     for (i = 0; i < UECapabilityInfoIndication->protocolIEs.list.count; i++) {
         ie = UECapabilityInfoIndication->protocolIEs.list.array[i];
@@ -887,10 +871,10 @@ void s1ap_handle_ue_capability_info_indication(
     ogs_debug("    ENB_UE_S1AP_ID[%d] MME_UE_S1AP_ID[%d]",
             enb_ue->enb_ue_s1ap_id, enb_ue->mme_ue_s1ap_id);
 
-    mme_ue = mme_ue_find_by_id(enb_ue->mme_ue_id);
-    if (mme_ue) {
+    if (enb_ue->mme_ue) {
         ogs_assert(UERadioCapability);
-        OGS_ASN_STORE_DATA(&mme_ue->ueRadioCapability, UERadioCapability);
+        OGS_ASN_STORE_DATA(&enb_ue->mme_ue->ueRadioCapability,
+                UERadioCapability);
     }
 }
 
@@ -922,6 +906,7 @@ void s1ap_handle_initial_context_setup_response(
     ogs_assert(InitialContextSetupResponse);
 
     ogs_debug("InitialContextSetupResponse");
+    MME_UE_LIST_CHECK;
 
     for (i = 0; i < InitialContextSetupResponse->protocolIEs.list.count; i++) {
         ie = InitialContextSetupResponse->protocolIEs.list.array[i];
@@ -986,7 +971,7 @@ void s1ap_handle_initial_context_setup_response(
     ogs_debug("    ENB_UE_S1AP_ID[%d] MME_UE_S1AP_ID[%d]",
             enb_ue->enb_ue_s1ap_id, enb_ue->mme_ue_s1ap_id);
 
-    mme_ue = mme_ue_find_by_id(enb_ue->mme_ue_id);
+    mme_ue = enb_ue->mme_ue;
     if (!mme_ue) {
         ogs_error("No UE(mme-ue) context");
         return;
@@ -1060,14 +1045,8 @@ void s1ap_handle_initial_context_setup_response(
                     ogs_debug("    ### ULI PRESENT ###");
                     uli_presence = 1;
                 }
-                if (ogs_list_exists(
-                            &mme_ue->bearer_to_modify_list,
-                            &bearer->to_modify_node) == false)
-                    ogs_list_add(
-                            &mme_ue->bearer_to_modify_list,
-                            &bearer->to_modify_node);
-                else
-                    ogs_warn("Bearer [%d] Duplicated", (int)e_rab->e_RAB_ID);
+                ogs_list_add(&mme_ue->bearer_to_modify_list,
+                                &bearer->to_modify_node);
             }
         }
 
@@ -1184,7 +1163,7 @@ void s1ap_handle_initial_context_setup_failure(
     ogs_debug("    Cause[Group:%d Cause:%d]",
             Cause->present, (int)Cause->choice.radioNetwork);
 
-    mme_ue = mme_ue_find_by_id(enb_ue->mme_ue_id);
+    mme_ue = enb_ue->mme_ue;
 
     if (mme_ue) {
         /*
@@ -1296,7 +1275,7 @@ void s1ap_handle_ue_context_modification_response(
     ogs_debug("    ENB_UE_S1AP_ID[%d] MME_UE_S1AP_ID[%d]",
             enb_ue->enb_ue_s1ap_id, enb_ue->mme_ue_s1ap_id);
 
-    mme_ue = mme_ue_find_by_id(enb_ue->mme_ue_id);
+    mme_ue = enb_ue->mme_ue;
     if (!mme_ue) {
         ogs_error("No UE(mme-ue) context");
         return;
@@ -1408,7 +1387,7 @@ void s1ap_handle_ue_context_modification_failure(
     ogs_debug("    Cause[Group:%d Cause:%d]",
             Cause->present, (int)Cause->choice.radioNetwork);
 
-    mme_ue = mme_ue_find_by_id(enb_ue->mme_ue_id);
+    mme_ue = enb_ue->mme_ue;
     if (!mme_ue) {
         ogs_error("No UE(mme-ue) context");
         return;
@@ -1518,7 +1497,7 @@ void s1ap_handle_e_rab_setup_response(
     ogs_debug("    ENB_UE_S1AP_ID[%d] MME_UE_S1AP_ID[%d]",
         enb_ue->enb_ue_s1ap_id, enb_ue->mme_ue_s1ap_id);
 
-    mme_ue = mme_ue_find_by_id(enb_ue->mme_ue_id);
+    mme_ue = enb_ue->mme_ue;
     if (!mme_ue) {
         ogs_error("No UE(mme-ue) context");
         return;
@@ -1853,16 +1832,18 @@ void s1ap_handle_ue_context_release_action(enb_ue_t *enb_ue)
     int r;
     mme_ue_t *mme_ue = NULL;
 
-    if (!enb_ue) {
+    ogs_assert(enb_ue);
+
+    if (enb_ue_cycle(enb_ue) == NULL) {
         ogs_error("S1 context has already been removed");
         return;
     }
 
+    mme_ue = enb_ue->mme_ue;
+
     ogs_info("UE Context Release [Action:%d]", enb_ue->ue_ctx_rel_action);
     ogs_info("    ENB_UE_S1AP_ID[%d] MME_UE_S1AP_ID[%d]",
             enb_ue->enb_ue_s1ap_id, enb_ue->mme_ue_s1ap_id);
-
-    mme_ue = mme_ue_find_by_id(enb_ue->mme_ue_id);
     if (mme_ue) {
         ogs_info("    IMSI[%s]", mme_ue->imsi_bcd);
 
@@ -1958,7 +1939,11 @@ void s1ap_handle_ue_context_release_action(enb_ue_t *enb_ue)
             return;
         }
 
-        mme_ue_remove(mme_ue);
+        if (mme_ue->location_updated_but_not_canceled_yet == true) {
+            mme_s6a_send_pur(mme_ue);
+        } else {
+            mme_ue_remove(mme_ue);
+        }
         break;
     case S1AP_UE_CTX_REL_S1_HANDOVER_COMPLETE:
         ogs_debug("    Action: S1 handover complete");
@@ -2001,12 +1986,11 @@ void s1ap_handle_ue_context_release_action(enb_ue_t *enb_ue)
             ogs_warn("  Packet could be dropped during S1-Handover");
             mme_ue_clear_indirect_tunnel(mme_ue);
 
-            enb_ue = enb_ue_find_by_id(mme_ue->enb_ue_id);
-            if (!enb_ue) {
+            if (!mme_ue->enb_ue) {
                 ogs_error("No S1 context");
                 return;
             }
-            r = s1ap_send_handover_cancel_ack(enb_ue);
+            r = s1ap_send_handover_cancel_ack(mme_ue->enb_ue);
             ogs_expect(r == OGS_OK);
             ogs_assert(r != OGS_ERROR);
         }
@@ -2074,6 +2058,7 @@ void s1ap_handle_e_rab_modification_indication(
     ogs_assert(E_RABModificationIndication);
 
     ogs_info("E_RABModificationIndication");
+    MME_UE_LIST_CHECK;
 
     for (i = 0; i < E_RABModificationIndication->protocolIEs.list.count; i++) {
         ie = E_RABModificationIndication->protocolIEs.list.array[i];
@@ -2147,7 +2132,7 @@ void s1ap_handle_e_rab_modification_indication(
         return;
     }
 
-    mme_ue = mme_ue_find_by_id(enb_ue->mme_ue_id);
+    mme_ue = enb_ue->mme_ue;
     if (!mme_ue) {
         ogs_error("No UE(mme-ue) context");
         return;
@@ -2209,13 +2194,7 @@ void s1ap_handle_e_rab_modification_indication(
             return;
         }
 
-        if (ogs_list_exists(
-                    &mme_ue->bearer_to_modify_list,
-                    &bearer->to_modify_node) == false)
-            ogs_list_add(
-                    &mme_ue->bearer_to_modify_list, &bearer->to_modify_node);
-        else
-            ogs_warn("Bearer [%d] Duplicated", (int)e_rab->e_RAB_ID);
+        ogs_list_add(&mme_ue->bearer_to_modify_list, &bearer->to_modify_node);
     }
 
     if (ogs_list_count(&mme_ue->bearer_to_modify_list)) {
@@ -2503,7 +2482,7 @@ void s1ap_handle_path_switch_request(
         return;
     }
 
-    mme_ue = mme_ue_find_by_id(enb_ue->mme_ue_id);
+    mme_ue = mme_ue_cycle(enb_ue->mme_ue);
     if (!mme_ue) {
         ogs_error("No UE(mme-ue) context");
         return;
@@ -2643,13 +2622,8 @@ void s1ap_handle_path_switch_request(
             return;
         }
 
-        if (ogs_list_exists(
-                    &mme_ue->bearer_to_modify_list,
-                    &bearer->to_modify_node) == false)
-            ogs_list_add(
-                    &mme_ue->bearer_to_modify_list, &bearer->to_modify_node);
-        else
-            ogs_warn("Bearer [%d] Duplicated", (int)e_rab->e_RAB_ID);
+        ogs_list_add(
+                &mme_ue->bearer_to_modify_list, &bearer->to_modify_node);
     }
 
     relocation = sgw_ue_check_if_relocated(mme_ue);
@@ -2809,7 +2783,7 @@ static void s1ap_handle_handover_required_intralte(enb_ue_t *source_ue,
         return;
     }
 
-    mme_ue = mme_ue_find_by_id(source_ue->mme_ue_id);
+    mme_ue = source_ue->mme_ue;
     if (!mme_ue) {
         ogs_error("No UE(mme-ue) context");
         return;
@@ -3105,7 +3079,7 @@ void s1ap_handle_handover_request_ack(
         return;
     }
 
-    source_ue = enb_ue_find_by_id(target_ue->source_ue_id);
+    source_ue = target_ue->source_ue;
     if (!source_ue) {
         ogs_error("No Source UE");
         r = s1ap_send_error_indication(enb, MME_UE_S1AP_ID, ENB_UE_S1AP_ID,
@@ -3115,7 +3089,7 @@ void s1ap_handle_handover_request_ack(
         return;
     }
 
-    mme_ue = mme_ue_find_by_id(source_ue->mme_ue_id);
+    mme_ue = source_ue->mme_ue;
     if (!mme_ue) {
         ogs_error("No UE(mme-ue) context");
         return;
@@ -3308,7 +3282,7 @@ void s1ap_handle_handover_failure(mme_enb_t *enb, ogs_s1ap_message_t *message)
         return;
     }
 
-    source_ue = enb_ue_find_by_id(target_ue->source_ue_id);
+    source_ue = target_ue->source_ue;
     if (!source_ue) {
         ogs_error("No Source UE");
         r = s1ap_send_error_indication(enb, MME_UE_S1AP_ID, NULL,
@@ -3430,7 +3404,7 @@ void s1ap_handle_handover_cancel(mme_enb_t *enb, ogs_s1ap_message_t *message)
         return;
     }
 
-    target_ue = enb_ue_find_by_id(source_ue->target_ue_id);
+    target_ue = source_ue->target_ue;
     if (!target_ue) {
         ogs_error("No Target UE");
         r = s1ap_send_error_indication(enb, MME_UE_S1AP_ID, ENB_UE_S1AP_ID,
@@ -3558,7 +3532,7 @@ void s1ap_handle_enb_status_transfer(
         return;
     }
 
-    target_ue = enb_ue_find_by_id(source_ue->target_ue_id);
+    target_ue = source_ue->target_ue;
     if (!target_ue) {
         ogs_error("No Target UE");
         r = s1ap_send_error_indication(enb, MME_UE_S1AP_ID, ENB_UE_S1AP_ID,
@@ -3704,7 +3678,7 @@ void s1ap_handle_handover_notification(
     tAC = &TAI->tAC;
     ogs_assert(tAC && tAC->size == sizeof(uint16_t));
 
-    source_ue = enb_ue_find_by_id(target_ue->source_ue_id);
+    source_ue = target_ue->source_ue;
     if (!source_ue) {
         ogs_error("No Source UE");
         r = s1ap_send_error_indication(enb, MME_UE_S1AP_ID, ENB_UE_S1AP_ID,
@@ -3714,7 +3688,7 @@ void s1ap_handle_handover_notification(
         return;
     }
 
-    mme_ue = mme_ue_find_by_id(source_ue->mme_ue_id);
+    mme_ue = source_ue->mme_ue;
     if (!mme_ue) {
         ogs_error("No UE(mme-ue) context");
         return;
@@ -3937,7 +3911,7 @@ void s1ap_handle_s1_reset(
             /* ENB_UE Context where PartOfS1_interface was requested */
             enb_ue->part_of_s1_reset_requested = true;
 
-            mme_ue = mme_ue_find_by_id(enb_ue->mme_ue_id);
+            mme_ue = enb_ue->mme_ue;
             if (mme_ue) {
                 ogs_assert(OGS_OK ==
                     mme_gtp_send_release_access_bearers_request(mme_ue,

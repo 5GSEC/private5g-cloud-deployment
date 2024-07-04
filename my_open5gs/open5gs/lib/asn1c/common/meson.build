@@ -22,8 +22,6 @@ libasn1c_common_sources = files('''
     OPEN_TYPE.h
     OPEN_TYPE.c
     constr_CHOICE.h
-    ENUMERATED.h
-    ENUMERATED.c
     GraphicString.h
     GraphicString.c
     INTEGER.h
@@ -94,7 +92,6 @@ libasn1c_common_sources = files('''
     aper_support.c
     aper_opentype.c
     ANY_aper.c
-    ENUMERATED_aper.c
     INTEGER_aper.c
     NULL_aper.c
     NativeEnumerated_aper.c
@@ -127,13 +124,26 @@ libasn1c_common_sources = files('''
     constr_CHOICE_rfill.c
     constr_SEQUENCE_rfill.c
     constr_SET_OF_rfill.c
+    ANY_jer.c
+	BIT_STRING_jer.c
+	INTEGER_jer.c
+	NULL_jer.c
+	NativeEnumerated_jer.c
+	NativeInteger_jer.c
+	OBJECT_IDENTIFIER_jer.c
+	OCTET_STRING_jer.c
+	jer_encoder.c
+	jer_encoder.h
+	constr_CHOICE_jer.c
+	constr_SEQUENCE_OF_jer.c
+	constr_SEQUENCE_jer.c
+	constr_SET_OF_jer.c
 '''.split())
 
 libasn1c_common_cc_flags = ['-DASN_DISABLE_BER_SUPPORT',
                             '-DASN_DISABLE_XER_SUPPORT',
                             '-DASN_DISABLE_OER_SUPPORT',
-                            '-DASN_DISABLE_UPER_SUPPORT',
-                            '-DASN_DISABLE_JER_SUPPORT']
+                            '-DASN_DISABLE_UPER_SUPPORT']
 
 #libasn1c_common_cc_flags += cc.get_supported_arguments([
 #    '-Wno-parentheses-equality',

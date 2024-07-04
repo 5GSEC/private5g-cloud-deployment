@@ -62,15 +62,8 @@ bool pcf_nbsf_management_handle_register(
 
     OpenAPI_list_t *PolicyCtrlReqTriggers = NULL;
 
-    bool rc;
-    ogs_sbi_client_t *client = NULL;
-    OpenAPI_uri_scheme_e scheme = OpenAPI_uri_scheme_NULL;
-    char *fqdn = NULL;
-    uint16_t fqdn_port = 0;
-    ogs_sockaddr_t *addr = NULL, *addr6 = NULL;
-
     ogs_assert(sess);
-    pcf_ue = pcf_ue_find_by_id(sess->pcf_ue_id);
+    pcf_ue = sess->pcf_ue;
     ogs_assert(pcf_ue);
     ogs_assert(stream);
     server = ogs_sbi_server_from_stream(stream);
@@ -122,39 +115,10 @@ bool pcf_nbsf_management_handle_register(
         goto cleanup;
     }
 
-    rc = ogs_sbi_getaddr_from_uri(
-            &scheme, &fqdn, &fqdn_port, &addr, &addr6, header.uri);
-    if (rc == false || scheme == OpenAPI_uri_scheme_NULL) {
-        strerror = ogs_msprintf("[%s:%d] Invalid URI [%s]",
-                pcf_ue->supi, sess->psi, header.uri);
-        ogs_sbi_header_free(&header);
-        goto cleanup;
-    }
-
-    client = ogs_sbi_client_find(scheme, fqdn, fqdn_port, addr, addr6);
-    if (!client) {
-        ogs_debug("[%s:%d] ogs_sbi_client_add()", pcf_ue->supi, sess->psi);
-        client = ogs_sbi_client_add(scheme, fqdn, fqdn_port, addr, addr6);
-        if (!client) {
-            strerror = ogs_msprintf("[%s:%d] ogs_sbi_client_add() failed",
-                    pcf_ue->supi, sess->psi);
-
-            ogs_sbi_header_free(&header);
-            ogs_free(fqdn);
-            ogs_freeaddrinfo(addr);
-            ogs_freeaddrinfo(addr6);
-
-            goto cleanup;
-        }
-    }
-
-    OGS_SBI_SETUP_CLIENT(&sess->binding, client);
-
-    ogs_free(fqdn);
-    ogs_freeaddrinfo(addr);
-    ogs_freeaddrinfo(addr6);
-
-    PCF_BINDING_STORE(sess, header.uri, message.h.resource.component[1]);
+    if (sess->binding_id)
+        ogs_free(sess->binding_id);
+    sess->binding_id = ogs_strdup(message.h.resource.component[1]);
+    ogs_assert(sess->binding_id);
 
     ogs_sbi_header_free(&header);
 
@@ -360,7 +324,7 @@ bool pcf_nbsf_management_handle_register(
     memset(&header, 0, sizeof(header));
     header.service.name = (char *)OGS_SBI_SERVICE_NAME_NPCF_SMPOLICYCONTROL;
     header.api.version = (char *)OGS_SBI_API_V1;
-    header.resource.component[0] = (char *)OGS_SBI_RESOURCE_NAME_SM_POLICIES;
+    header.resource.component[0] = (char *)OGS_SBI_RESOURCE_NAME_POLICIES;
     header.resource.component[1] = sess->sm_policy_id;
 
     memset(&sendmsg, 0, sizeof(sendmsg));
@@ -423,7 +387,7 @@ bool pcf_nbsf_management_handle_register(
     if (SmPolicyDecision.supp_feat)
         ogs_free(SmPolicyDecision.supp_feat);
 
-    pcf_metrics_inst_by_slice_add(&pcf_ue->guami.plmn_id,
+    pcf_metrics_inst_by_slice_add(&sess->pcf_ue->guami.plmn_id,
             &sess->s_nssai, PCF_METR_CTR_PA_POLICYSMASSOSUCC, 1);
 
     OGS_SESSION_DATA_FREE(&session_data);
@@ -435,8 +399,7 @@ cleanup:
     ogs_assert(status);
     ogs_error("%s", strerror);
     ogs_assert(true ==
-        ogs_sbi_server_send_error(stream, status, recvmsg, strerror, NULL,
-                NULL));
+        ogs_sbi_server_send_error(stream, status, recvmsg, strerror, NULL));
     ogs_free(strerror);
 
     OGS_SESSION_DATA_FREE(&session_data);

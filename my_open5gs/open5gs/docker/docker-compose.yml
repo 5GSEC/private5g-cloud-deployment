@@ -20,7 +20,7 @@ services:
     depends_on:
       - mongodb
     ports:
-      - "9999:9999"
+      - "3000:3000"
     environment:
       - DB_URI=mongodb://mongodb/open5gs
       - WAIT_HOSTS=mongodb:27017

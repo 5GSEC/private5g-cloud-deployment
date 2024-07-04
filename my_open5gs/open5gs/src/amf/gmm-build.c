@@ -318,6 +318,7 @@ ogs_pkbuf_t *gmm_build_de_registration_request(
         OGS_NAS_EXTENDED_PROTOCOL_DISCRIMINATOR_5GMM;
     message.gmm.h.message_type = OGS_NAS_5GS_DEREGISTRATION_REQUEST_TO_UE;
 
+    dereg_req->de_registration_type.switch_off = 1;
     dereg_req->de_registration_type.re_registration_required =
         dereg_reason == OpenAPI_deregistration_reason_REREGISTRATION_REQUIRED;
     dereg_req->de_registration_type.access_type = OGS_ACCESS_TYPE_3GPP;
@@ -595,9 +596,6 @@ ogs_pkbuf_t *gmm_build_configuration_update_command(
             configuration_update_command->presencemask |=
                 OGS_NAS_5GS_CONFIGURATION_UPDATE_COMMAND_NETWORK_DAYLIGHT_SAVING_TIME_PRESENT;
             network_daylight_saving_time->length = 1;
-            if (local.tm_isdst > 0) {
-                network_daylight_saving_time->value = 1;
-            }
         }
     }
 
@@ -636,7 +634,7 @@ ogs_pkbuf_t *gmm_build_dl_nas_transport(amf_sess_t *sess,
     ogs_nas_gprs_timer_3_t *back_off_timer_value = NULL;
 
     ogs_assert(sess);
-    amf_ue = amf_ue_find_by_id(sess->amf_ue_id);
+    amf_ue = sess->amf_ue;
     ogs_assert(amf_ue);
     ogs_assert(payload_container_type);
     ogs_assert(payload_container);

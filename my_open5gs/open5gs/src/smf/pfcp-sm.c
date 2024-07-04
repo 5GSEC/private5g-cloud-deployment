@@ -117,20 +117,13 @@ void smf_pfcp_state_will_associate(ogs_fsm_t *s, smf_event_t *e)
             ogs_pfcp_cp_send_association_setup_request(node, node_timeout);
             break;
         case SMF_TIMER_PFCP_NO_ESTABLISHMENT_RESPONSE:
-            sess = smf_sess_find_by_id(e->sess_id);
+            sess = e->sess;
+            sess = smf_sess_cycle(sess);
             if (!sess) {
                 ogs_warn("Session has already been removed");
                 break;
             }
             ogs_fsm_dispatch(&sess->sm, e);
-            break;
-        case SMF_TIMER_PFCP_NO_DELETION_RESPONSE:
-            sess = smf_sess_find_by_id(e->sess_id);
-            if (!sess) {
-                ogs_warn("Session has already been removed");
-                break;
-            }
-            SMF_SESS_CLEAR(sess);
             break;
         default:
             ogs_error("Unknown timer[%s:%d]",
@@ -141,7 +134,7 @@ void smf_pfcp_state_will_associate(ogs_fsm_t *s, smf_event_t *e)
     case SMF_EVT_N4_MESSAGE:
         message = e->pfcp_message;
         ogs_assert(message);
-        xact = ogs_pfcp_xact_find_by_id(e->pfcp_xact_id);
+        xact = e->pfcp_xact;
         ogs_assert(xact);
 
         switch (message->h.type) {
@@ -223,7 +216,7 @@ void smf_pfcp_state_associated(ogs_fsm_t *s, smf_event_t *e)
     case SMF_EVT_N4_MESSAGE:
         message = e->pfcp_message;
         ogs_assert(message);
-        xact = ogs_pfcp_xact_find_by_id(e->pfcp_xact_id);
+        xact = e->pfcp_xact;
         ogs_assert(xact);
 
         if (message->h.seid_presence && message->h.seid != 0) {
@@ -237,7 +230,7 @@ void smf_pfcp_state_associated(ogs_fsm_t *s, smf_event_t *e)
             sess = smf_sess_find_by_seid(xact->local_seid);
         }
         if (sess)
-            e->sess_id = sess->id;
+            e->sess = sess;
 
         switch (message->h.type) {
         case OGS_PFCP_HEARTBEAT_REQUEST_TYPE:
@@ -313,8 +306,7 @@ void smf_pfcp_state_associated(ogs_fsm_t *s, smf_event_t *e)
             if (!message->h.seid_presence) ogs_error("No SEID");
 
             if (!sess) {
-                ogs_gtp_xact_t *gtp_xact =
-                    ogs_gtp_xact_find_by_id(xact->assoc_xact_id);
+                ogs_gtp_xact_t *gtp_xact = xact->assoc_xact;
                 ogs_error("No Session");
                 if (!gtp_xact) {
                     ogs_error("No associated GTP transaction");
@@ -349,8 +341,7 @@ void smf_pfcp_state_associated(ogs_fsm_t *s, smf_event_t *e)
             if (!message->h.seid_presence) ogs_error("No SEID");
 
             if (!sess) {
-                ogs_gtp_xact_t *gtp_xact =
-                    ogs_gtp_xact_find_by_id(xact->assoc_xact_id);
+                ogs_gtp_xact_t *gtp_xact = xact->assoc_xact;
                 ogs_error("No Session");
                 if (!gtp_xact) {
                     ogs_error("No associated GTP transaction");
@@ -372,14 +363,8 @@ void smf_pfcp_state_associated(ogs_fsm_t *s, smf_event_t *e)
         case OGS_PFCP_SESSION_REPORT_REQUEST_TYPE:
             if (!message->h.seid_presence) ogs_error("No SEID");
 
-            if (!sess) {
-                    ogs_error("No Session");
-                    ogs_pfcp_send_error_message(xact, 0,
-                        OGS_PFCP_SESSION_REPORT_RESPONSE_TYPE,
-                        OGS_PFCP_CAUSE_SESSION_CONTEXT_NOT_FOUND, 0);
-                    break;
-            }
-            ogs_fsm_dispatch(&sess->sm, e);
+            smf_n4_handle_session_report_request(
+                sess, xact, &message->pfcp_session_report_request);
             break;
 
         default:
@@ -399,20 +384,13 @@ void smf_pfcp_state_associated(ogs_fsm_t *s, smf_event_t *e)
                 ogs_pfcp_send_heartbeat_request(node, node_timeout));
             break;
         case SMF_TIMER_PFCP_NO_ESTABLISHMENT_RESPONSE:
-            sess = smf_sess_find_by_id(e->sess_id);
+            sess = e->sess;
+            sess = smf_sess_cycle(sess);
             if (!sess) {
                 ogs_warn("Session has already been removed");
                 break;
             }
             ogs_fsm_dispatch(&sess->sm, e);
-            break;
-        case SMF_TIMER_PFCP_NO_DELETION_RESPONSE:
-            sess = smf_sess_find_by_id(e->sess_id);
-            if (!sess) {
-                ogs_warn("Session has already been removed");
-                break;
-            }
-            SMF_SESS_CLEAR(sess);
             break;
         default:
             ogs_error("Unknown timer[%s:%d]",
@@ -421,19 +399,12 @@ void smf_pfcp_state_associated(ogs_fsm_t *s, smf_event_t *e)
         }
         break;
     case SMF_EVT_N4_NO_HEARTBEAT:
+
+        /* 'node' context was removed in ogs_pfcp_xact_delete(xact)
+         * So, we should not use PFCP node here */
+
         ogs_warn("No Heartbeat from UPF [%s]:%d",
                     OGS_ADDR(addr, buf), OGS_PORT(addr));
-
-        /*
-         * reselect_upf() should not be executed on node_timeout
-         * because the timer cannot be deleted in the timer expiration function.
-         *
-         * Note that reselct_upf contains SMF_SESS_CLEAR.
-         */
-        node = e->pfcp_node;
-        ogs_assert(node);
-        reselect_upf(node);
-
         OGS_FSM_TRAN(s, smf_pfcp_state_will_associate);
         break;
     default:
@@ -484,7 +455,7 @@ static void pfcp_restoration(ogs_pfcp_node_t *node)
                             OGS_INET6_NTOP(&sess->ipv6->addr, buf2) : "");
                     ogs_assert(OGS_OK ==
                         smf_epc_pfcp_send_session_establishment_request(
-                            sess, OGS_INVALID_POOL_ID,
+                            sess, NULL,
                             OGS_PFCP_CREATE_RESTORATION_INDICATION));
                 } else {
                     ogs_info("UE SUPI[%s] DNN[%s] IPv4[%s] IPv6[%s]",
@@ -537,7 +508,7 @@ static void reselect_upf(ogs_pfcp_node_t *node)
                     ogs_error("[%s:%s] EPC restoration is not implemented",
                             smf_ue->imsi_bcd, sess->session.name);
                 } else {
-                    if (PCF_SM_POLICY_ASSOCIATED(sess)) {
+                    if (sess->policy_association_id) {
                         smf_npcf_smpolicycontrol_param_t param;
 
                         ogs_info("[%s:%d] SMF-initiated Deletion",
@@ -577,6 +548,7 @@ static void node_timeout(ogs_pfcp_xact_t *xact, void *data)
     switch (type) {
     case OGS_PFCP_HEARTBEAT_REQUEST_TYPE:
         ogs_assert(data);
+        reselect_upf(data);
 
         e = smf_event_new(SMF_EVT_N4_NO_HEARTBEAT);
         e->pfcp_node = data;

@@ -42,7 +42,6 @@ void sepp_state_operational(ogs_fsm_t *s, sepp_event_t *e)
     sepp_node_t *sepp_node = NULL;
 
     ogs_sbi_stream_t *stream = NULL;
-    ogs_pool_id_t stream_id = OGS_INVALID_POOL_ID;
     ogs_sbi_request_t *request = NULL;
     ogs_sbi_server_t *server = NULL;
 
@@ -65,17 +64,8 @@ void sepp_state_operational(ogs_fsm_t *s, sepp_event_t *e)
     case OGS_EVENT_SBI_SERVER:
         request = e->h.sbi.request;
         ogs_assert(request);
-
-        stream_id = OGS_POINTER_TO_UINT(e->h.sbi.data);
-        ogs_assert(stream_id >= OGS_MIN_POOL_ID &&
-                stream_id <= OGS_MAX_POOL_ID);
-
-        stream = ogs_sbi_stream_find_by_id(stream_id);
-        if (!stream) {
-            ogs_error("STREAM has already been removed [%d]", stream_id);
-            break;
-        }
-
+        stream = e->h.sbi.data;
+        ogs_assert(stream);
         server = ogs_sbi_server_from_stream(stream);
         ogs_assert(server);
 
@@ -86,7 +76,7 @@ void sepp_state_operational(ogs_fsm_t *s, sepp_event_t *e)
             ogs_assert(true ==
                 ogs_sbi_server_send_error(
                     stream, OGS_SBI_HTTP_STATUS_BAD_REQUEST,
-                    NULL, "cannot parse HTTP sbi_message", NULL, NULL));
+                    NULL, "cannot parse HTTP sbi_message", NULL));
             break;
         }
 
@@ -95,7 +85,7 @@ void sepp_state_operational(ogs_fsm_t *s, sepp_event_t *e)
             ogs_assert(true ==
                 ogs_sbi_server_send_error(
                     stream, OGS_SBI_HTTP_STATUS_BAD_REQUEST,
-                    &message, "Not supported version", NULL, NULL));
+                    &message, "Not supported version", NULL));
             ogs_sbi_message_free(&message);
             break;
         }
@@ -121,7 +111,7 @@ void sepp_state_operational(ogs_fsm_t *s, sepp_event_t *e)
                     ogs_assert(true ==
                         ogs_sbi_server_send_error(stream,
                             OGS_SBI_HTTP_STATUS_FORBIDDEN, &message,
-                            "Invalid HTTP method", message.h.method, NULL));
+                            "Invalid HTTP method", message.h.method));
                 END
                 break;
 
@@ -132,7 +122,7 @@ void sepp_state_operational(ogs_fsm_t *s, sepp_event_t *e)
                     ogs_sbi_server_send_error(stream,
                         OGS_SBI_HTTP_STATUS_BAD_REQUEST, &message,
                         "Invalid resource name",
-                        message.h.resource.component[0], NULL));
+                        message.h.resource.component[0]));
             END
             break;
 
@@ -167,7 +157,7 @@ void sepp_state_operational(ogs_fsm_t *s, sepp_event_t *e)
                     ogs_assert(true ==
                         ogs_sbi_server_send_error(stream,
                             OGS_SBI_HTTP_STATUS_FORBIDDEN, &message,
-                            "Invalid HTTP method", message.h.method, NULL));
+                            "Invalid HTTP method", message.h.method));
                 END
                 break;
 
@@ -178,7 +168,7 @@ void sepp_state_operational(ogs_fsm_t *s, sepp_event_t *e)
                     ogs_sbi_server_send_error(stream,
                         OGS_SBI_HTTP_STATUS_BAD_REQUEST, &message,
                         "Invalid resource name",
-                        message.h.resource.component[0], NULL));
+                        message.h.resource.component[0]));
             END
 
             if (!sepp_node) {
@@ -186,7 +176,7 @@ void sepp_state_operational(ogs_fsm_t *s, sepp_event_t *e)
                 ogs_assert(true ==
                     ogs_sbi_server_send_error(
                         stream, OGS_SBI_HTTP_STATUS_NOT_FOUND,
-                        &message, "Not found", message.h.method, NULL));
+                        &message, "Not found", message.h.method));
                 break;
             }
 
@@ -204,7 +194,7 @@ void sepp_state_operational(ogs_fsm_t *s, sepp_event_t *e)
             ogs_assert(true ==
                 ogs_sbi_server_send_error(stream,
                     OGS_SBI_HTTP_STATUS_BAD_REQUEST, &message,
-                    "Invalid API name", message.h.service.name, NULL));
+                    "Invalid API name", message.h.service.name));
         END
 
         /* In lib/sbi/server.c, notify_completed() releases 'request' buffer. */

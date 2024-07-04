@@ -27,12 +27,7 @@ ssize_t aper_get_nslength(asn_per_data_t *pd);
 /*
  * Get the normally small non-negative whole number.
  */
-ssize_t aper_get_nsnnwn(asn_per_data_t *pd);
-
-/*
- * Get the constrained whole number.
- */
-long aper_get_constrained_whole_number(asn_per_data_t *po, long lb, long ub);
+ssize_t aper_get_nsnnwn(asn_per_data_t *pd, int range);
 
 /*
  * X.691 (08/2015) #11.9 "General rules for encoding a length determinant"
@@ -59,12 +54,7 @@ int aper_put_nslength(asn_per_outp_t *po, size_t length);
 /*
  * Put the normally small non-negative whole number.
  */
-int aper_put_nsnnwn(asn_per_outp_t *po, int number);
-
-/*
- * Put the constrained whole number.
- */
-int aper_put_constrained_whole_number(asn_per_outp_t *po, long lb, long ub, long number);
+int aper_put_nsnnwn(asn_per_outp_t *po, int range, int number);
 
 #ifdef __cplusplus
 }

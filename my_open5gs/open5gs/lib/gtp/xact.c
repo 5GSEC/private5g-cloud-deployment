@@ -75,8 +75,9 @@ ogs_gtp_xact_t *ogs_gtp1_xact_local_create(ogs_gtp_node_t *gnode,
     ogs_assert(gnode);
     ogs_assert(hdesc);
 
-    ogs_pool_id_calloc(&pool, &xact);
+    ogs_pool_alloc(&pool, &xact);
     ogs_assert(xact);
+    memset(xact, 0, sizeof *xact);
     xact->index = ogs_pool_index(&pool, xact);
 
     xact->gtp_version = 1;
@@ -130,8 +131,9 @@ ogs_gtp_xact_t *ogs_gtp_xact_local_create(ogs_gtp_node_t *gnode,
     ogs_assert(gnode);
     ogs_assert(hdesc);
 
-    ogs_pool_id_calloc(&pool, &xact);
+    ogs_pool_alloc(&pool, &xact);
     ogs_assert(xact);
+    memset(xact, 0, sizeof *xact);
     xact->index = ogs_pool_index(&pool, xact);
 
     xact->gtp_version = 2;
@@ -182,8 +184,9 @@ static ogs_gtp_xact_t *ogs_gtp_xact_remote_create(ogs_gtp_node_t *gnode, uint8_t
 
     ogs_assert(gnode);
 
-    ogs_pool_id_calloc(&pool, &xact);
+    ogs_pool_alloc(&pool, &xact);
     ogs_assert(xact);
+    memset(xact, 0, sizeof *xact);
     xact->index = ogs_pool_index(&pool, xact);
 
     xact->gtp_version = gtp_version;
@@ -213,9 +216,9 @@ static ogs_gtp_xact_t *ogs_gtp_xact_remote_create(ogs_gtp_node_t *gnode, uint8_t
     return xact;
 }
 
-ogs_gtp_xact_t *ogs_gtp_xact_find_by_id(ogs_pool_id_t id)
+ogs_gtp_xact_t *ogs_gtp_xact_cycle(ogs_gtp_xact_t *xact)
 {
-    return ogs_pool_find_by_id(&pool, id);
+    return ogs_pool_cycle(&pool, xact);
 }
 
 void ogs_gtp_xact_delete_all(ogs_gtp_node_t *gnode)
@@ -265,7 +268,7 @@ int ogs_gtp1_xact_update_tx(ogs_gtp_xact_t *xact,
             return OGS_ERROR;
 
         case GTP_XACT_FINAL_STAGE:
-            if (xact->step != 2 && xact->step != 3) {
+            if (xact->step != 2) {
                 ogs_error("invalid step[%d]", xact->step);
                 ogs_pkbuf_free(pkbuf);
                 return OGS_ERROR;
@@ -652,12 +655,9 @@ int ogs_gtp_xact_commit(ogs_gtp_xact_t *xact)
             break;
 
         case GTP_XACT_INTERMEDIATE_STAGE:
-            if (xact->step != 2) {
-                ogs_error("invalid step[%d]", xact->step);
-                ogs_gtp_xact_delete(xact);
-                return OGS_ERROR;
-            }
-            return OGS_OK;
+            ogs_expect(0);
+            ogs_gtp_xact_delete(xact);
+            return OGS_ERROR;
 
         case GTP_XACT_FINAL_STAGE:
             if (xact->step != 2 && xact->step != 3) {
@@ -800,20 +800,6 @@ static void holding_timeout(void *data)
                 xact->step, xact->seq[xact->step-1].type,
                 OGS_ADDR(&xact->gnode->addr, buf),
                 OGS_PORT(&xact->gnode->addr));
-        /*
-         * Even for remotely created transactions, there are things
-         * that need to be done, such as returning memory
-         * when the transaction is deleted after a holding timeout.
-         * We added a Callback Function for that purpose.
-         *
-         * You can set it up and use it as follows.
-         *
-         *   xact->cb = gtp_remote_holding_timeout;
-         *   xact->data = bearer;
-         */
-        if (xact->cb)
-            xact->cb(xact, xact->data);
-
         ogs_gtp_xact_delete(xact);
     }
 }
@@ -852,13 +838,7 @@ int ogs_gtp1_xact_receive(
         list = &gnode->local_list;
         break;
     case GTP_XACT_FINAL_STAGE:
-        /* For types which are replies to replies, the xact is never locally
-         * created during transmit, but actually during rx of the initial req, hence
-         * it is never placed in the local_list, but in the remote_list. */
-        if (type == OGS_GTP1_SGSN_CONTEXT_ACKNOWLEDGE_TYPE)
-            list = &gnode->remote_list;
-        else
-            list = &gnode->local_list;
+        list = &gnode->local_list; // FIXME: is this correct?
         break;
     default:
         ogs_error("[%d] Unexpected type %u from GTPv1 peer [%s]:%d",
@@ -879,11 +859,11 @@ int ogs_gtp1_xact_receive(
         }
     }
 
-    if (!new) {
-        ogs_debug("[%d] Cannot find xact type %u from GTPv1 peer [%s]:%d",
-                  xid, type, OGS_ADDR(&gnode->addr, buf), OGS_PORT(&gnode->addr));
+    ogs_debug("[%d] Cannot find xact type %u from GTPv1 peer [%s]:%d",
+            xid, type, OGS_ADDR(&gnode->addr, buf), OGS_PORT(&gnode->addr));
+
+    if (!new)
         new = ogs_gtp_xact_remote_create(gnode, 1, sqn);
-    }
     ogs_assert(new);
 
     ogs_debug("[%d] %s Receive peer [%s]:%d",
@@ -967,11 +947,12 @@ int ogs_gtp_xact_receive(
         }
     }
 
-    if (!new) {
-        ogs_debug("[%d] Cannot find xact type %u from GTPv2 peer [%s]:%d",
-                  xid, type, OGS_ADDR(&gnode->addr, buf), OGS_PORT(&gnode->addr));
+    ogs_debug("[%d] Cannot find xact type %u from GTPv2 peer [%s]:%d",
+            xid, type,
+            OGS_ADDR(&gnode->addr, buf), OGS_PORT(&gnode->addr));
+
+    if (!new)
         new = ogs_gtp_xact_remote_create(gnode, 2, sqn);
-    }
     ogs_assert(new);
 
     ogs_debug("[%d] %s Receive peer [%s]:%d",
@@ -1018,9 +999,6 @@ static ogs_gtp_xact_stage_t ogs_gtp1_xact_get_stage(uint8_t type, uint32_t xid)
     case OGS_GTP1_RAN_INFORMATION_RELAY_TYPE:
         stage = GTP_XACT_INITIAL_STAGE;
         break;
-    case OGS_GTP1_SGSN_CONTEXT_RESPONSE_TYPE:
-        stage = GTP_XACT_INTERMEDIATE_STAGE;
-        break;
     case OGS_GTP1_ECHO_RESPONSE_TYPE:
     case OGS_GTP1_NODE_ALIVE_RESPONSE_TYPE:
     case OGS_GTP1_REDIRECTION_RESPONSE_TYPE:
@@ -1034,7 +1012,7 @@ static ogs_gtp_xact_stage_t ogs_gtp1_xact_get_stage(uint8_t type, uint32_t xid)
     case OGS_GTP1_FAILURE_REPORT_RESPONSE_TYPE:
     case OGS_GTP1_NOTE_MS_GPRS_PRESENT_RESPONSE_TYPE:
     case OGS_GTP1_IDENTIFICATION_RESPONSE_TYPE:
-    case OGS_GTP1_SGSN_CONTEXT_ACKNOWLEDGE_TYPE:
+    case OGS_GTP1_SGSN_CONTEXT_RESPONSE_TYPE:
     case OGS_GTP1_FORWARD_RELOCATION_RESPONSE_TYPE:
     case OGS_GTP1_RELOCATION_CANCEL_RESPONSE_TYPE:
     case OGS_GTP1_UE_REGISTRATION_QUERY_RESPONSE_TYPE:
@@ -1131,11 +1109,11 @@ void ogs_gtp_xact_associate(ogs_gtp_xact_t *xact1, ogs_gtp_xact_t *xact2)
     ogs_assert(xact1);
     ogs_assert(xact2);
 
-    ogs_assert(xact1->assoc_xact_id == OGS_INVALID_POOL_ID);
-    ogs_assert(xact2->assoc_xact_id == OGS_INVALID_POOL_ID);
+    ogs_assert(xact1->assoc_xact == NULL);
+    ogs_assert(xact2->assoc_xact == NULL);
 
-    xact1->assoc_xact_id = xact2->id;
-    xact2->assoc_xact_id = xact1->id;
+    xact1->assoc_xact = xact2;
+    xact2->assoc_xact = xact1;
 }
 
 void ogs_gtp_xact_deassociate(ogs_gtp_xact_t *xact1, ogs_gtp_xact_t *xact2)
@@ -1143,17 +1121,16 @@ void ogs_gtp_xact_deassociate(ogs_gtp_xact_t *xact1, ogs_gtp_xact_t *xact2)
     ogs_assert(xact1);
     ogs_assert(xact2);
 
-    ogs_assert(xact1->assoc_xact_id != OGS_INVALID_POOL_ID);
-    ogs_assert(xact2->assoc_xact_id != OGS_INVALID_POOL_ID);
+    ogs_assert(xact1->assoc_xact != NULL);
+    ogs_assert(xact2->assoc_xact != NULL);
 
-    xact1->assoc_xact_id = OGS_INVALID_POOL_ID;
-    xact2->assoc_xact_id = OGS_INVALID_POOL_ID;
+    xact1->assoc_xact = NULL;
+    xact2->assoc_xact = NULL;
 }
 
 static int ogs_gtp_xact_delete(ogs_gtp_xact_t *xact)
 {
     char buf[OGS_ADDRSTRLEN];
-    ogs_gtp_xact_t *assoc_xact = NULL;
 
     ogs_assert(xact);
     ogs_assert(xact->gnode);
@@ -1176,13 +1153,12 @@ static int ogs_gtp_xact_delete(ogs_gtp_xact_t *xact)
     if (xact->tm_holding)
         ogs_timer_delete(xact->tm_holding);
 
-    assoc_xact = ogs_gtp_xact_find_by_id(xact->assoc_xact_id);
-    if (assoc_xact)
-        ogs_gtp_xact_deassociate(xact, assoc_xact);
+    if (xact->assoc_xact)
+        ogs_gtp_xact_deassociate(xact, xact->assoc_xact);
 
     ogs_list_remove(xact->org == OGS_GTP_LOCAL_ORIGINATOR ?
             &xact->gnode->local_list : &xact->gnode->remote_list, xact);
-    ogs_pool_id_free(&pool, xact);
+    ogs_pool_free(&pool, xact);
 
     return OGS_OK;
 }

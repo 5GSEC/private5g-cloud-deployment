@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2024 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -1003,12 +1003,13 @@ static smf_ue_t *smf_ue_add(void)
 {
     smf_ue_t *smf_ue = NULL;
 
-    ogs_pool_id_calloc(&smf_ue_pool, &smf_ue);
+    ogs_pool_alloc(&smf_ue_pool, &smf_ue);
     if (!smf_ue) {
         ogs_error("Maximum number of smf_ue[%lld] reached",
                     (long long)ogs_global_conf()->max.ue);
         return NULL;
     }
+    memset(smf_ue, 0, sizeof *smf_ue);
 
     ogs_list_init(&smf_ue->sess_list);
 
@@ -1048,7 +1049,7 @@ smf_ue_t *smf_ue_add_by_imsi(uint8_t *imsi, int imsi_len)
     if ((smf_ue = smf_ue_add()) == NULL)
         return NULL;;
 
-    smf_ue->imsi_len = ogs_min(imsi_len, OGS_MAX_IMSI_LEN);
+    smf_ue->imsi_len = imsi_len;
     memcpy(smf_ue->imsi, imsi, smf_ue->imsi_len);
     ogs_buffer_to_bcd(smf_ue->imsi, smf_ue->imsi_len, smf_ue->imsi_bcd);
     ogs_hash_set(self.imsi_hash, smf_ue->imsi, smf_ue->imsi_len, smf_ue);
@@ -1073,7 +1074,7 @@ void smf_ue_remove(smf_ue_t *smf_ue)
         ogs_hash_set(self.imsi_hash, smf_ue->imsi, smf_ue->imsi_len, NULL);
     }
 
-    ogs_pool_id_free(&smf_ue_pool, smf_ue);
+    ogs_pool_free(&smf_ue_pool, smf_ue);
 
     smf_metrics_inst_global_dec(SMF_METR_GLOB_GAUGE_UES_ACTIVE);
     ogs_info("[Removed] Number of SMF-UEs is now %d",
@@ -1199,12 +1200,13 @@ smf_sess_t *smf_sess_add_by_apn(smf_ue_t *smf_ue, char *apn, uint8_t rat_type)
     ogs_assert(smf_ue);
     ogs_assert(apn);
 
-    ogs_pool_id_calloc(&smf_sess_pool, &sess);
+    ogs_pool_alloc(&smf_sess_pool, &sess);
     if (!sess) {
         ogs_error("Maximum number of session[%lld] reached",
                     (long long)ogs_app()->pool.sess);
         return NULL;
     }
+    memset(sess, 0, sizeof *sess);
 
     ogs_pfcp_pool_init(&sess->pfcp);
     smf_qfi_pool_init(sess);
@@ -1241,10 +1243,10 @@ smf_sess_t *smf_sess_add_by_apn(smf_ue_t *smf_ue, char *apn, uint8_t rat_type)
     sess->epc = true;
 
     memset(&e, 0, sizeof(e));
-    e.sess_id = sess->id;
+    e.sess = sess;
     ogs_fsm_init(&sess->sm, smf_gsm_state_initial, smf_gsm_state_final, &e);
 
-    sess->smf_ue_id = smf_ue->id;
+    sess->smf_ue = smf_ue;
 
     ogs_list_add(&smf_ue->sess_list, sess);
 
@@ -1276,14 +1278,7 @@ smf_sess_t *smf_sess_add_by_gtp1_message(ogs_gtp1_message_t *message)
     if (req->access_point_name.presence == 0) {
         ogs_error("No APN");
         return NULL;
-    } else {
-        if (ogs_fqdn_parse(apn, req->access_point_name.data,
-            ogs_min(req->access_point_name.len, OGS_MAX_APN_LEN)) <= 0) {
-            ogs_error("Invalid APN");
-            return NULL;
-        }
     }
-
     if (req->sgsn_address_for_signalling.presence == 0) {
         ogs_error("No SGSN Address for signalling");
         return NULL;
@@ -1298,6 +1293,12 @@ smf_sess_t *smf_sess_add_by_gtp1_message(ogs_gtp1_message_t *message)
     }
     if (req->rat_type.presence == 0) {
         ogs_error("No RAT Type");
+        return NULL;
+    }
+
+    if ((ogs_fqdn_parse(apn, req->access_point_name.data,
+            ogs_min(req->access_point_name.len, OGS_MAX_APN_LEN+1))) <= 0) {
+        ogs_error("No APN");
         return NULL;
     }
 
@@ -1348,17 +1349,14 @@ smf_sess_t *smf_sess_add_by_gtp2_message(ogs_gtp2_message_t *message)
     if (req->access_point_name.presence == 0) {
         ogs_error("No APN");
         return NULL;
-    } else {
-        if (ogs_fqdn_parse(apn, req->access_point_name.data,
-            ogs_min(req->access_point_name.len, OGS_MAX_APN_LEN)) <= 0) {
-            ogs_error("Invalid APN");
-            return NULL;
-        }
     }
     if (req->rat_type.presence == 0) {
         ogs_error("No RAT Type");
         return NULL;
     }
+
+    ogs_assert(0 < ogs_fqdn_parse(apn, req->access_point_name.data,
+            ogs_min(req->access_point_name.len, OGS_MAX_APN_LEN)));
 
     ogs_trace("smf_sess_add_by_message() [APN:%s]", apn);
 
@@ -1410,12 +1408,13 @@ smf_sess_t *smf_sess_add_by_psi(smf_ue_t *smf_ue, uint8_t psi)
     ogs_assert(smf_ue);
     ogs_assert(psi != OGS_NAS_PDU_SESSION_IDENTITY_UNASSIGNED);
 
-    ogs_pool_id_calloc(&smf_sess_pool, &sess);
+    ogs_pool_alloc(&smf_sess_pool, &sess);
     if (!sess) {
         ogs_error("Maximum number of session[%lld] reached",
             (long long)ogs_app()->pool.sess);
         return NULL;
     }
+    memset(sess, 0, sizeof *sess);
 
     /* SBI Features */
     OGS_SBI_FEATURES_SET(sess->smpolicycontrol_features,
@@ -1458,10 +1457,10 @@ smf_sess_t *smf_sess_add_by_psi(smf_ue_t *smf_ue, uint8_t psi)
     sess->charging.id = sess->index;
 
     memset(&e, 0, sizeof(e));
-    e.sess_id = sess->id;
+    e.sess = sess;
     ogs_fsm_init(&sess->sm, smf_gsm_state_initial, smf_gsm_state_final, &e);
 
-    sess->smf_ue_id = smf_ue->id;
+    sess->smf_ue = smf_ue;
 
     ogs_list_add(&smf_ue->sess_list, sess);
 
@@ -1525,7 +1524,7 @@ uint8_t smf_sess_set_ue_ip(smf_sess_t *sess)
     uint8_t cause_value = OGS_PFCP_CAUSE_REQUEST_ACCEPTED;
 
     ogs_assert(sess);
-    smf_ue = smf_ue_find_by_id(sess->smf_ue_id);
+    smf_ue = sess->smf_ue;
     ogs_assert(smf_ue);
 
     if (sess->session.session_type == OGS_PDU_SESSION_TYPE_IPV4V6) {
@@ -1549,18 +1548,13 @@ uint8_t smf_sess_set_ue_ip(smf_sess_t *sess)
         subnet = ogs_pfcp_find_subnet_by_dnn(AF_INET, sess->session.name);
         subnet6 = ogs_pfcp_find_subnet_by_dnn(AF_INET6, sess->session.name);
 
-        if (subnet != NULL && subnet6 == NULL) {
+        if (subnet != NULL && subnet6 == NULL)
             sess->session.session_type = OGS_PDU_SESSION_TYPE_IPV4;
-            ogs_error("[%s] No IPv6 subnet or set to /63 or /64, "
-                    "only IPv4 assigned", sess->session.name);
-        } else if (subnet == NULL && subnet6 != NULL) {
+        else if (subnet == NULL && subnet6 != NULL)
             sess->session.session_type = OGS_PDU_SESSION_TYPE_IPV6;
-            ogs_error("[%s] No IPv4 subnet or set to /31 or /32, "
-                    "only IPv6 assigned", sess->session.name);
-        }
     }
 
-    sess->paa.session_type = sess->session.session_type;
+    sess->session.paa.session_type = sess->session.session_type;
     ogs_assert(sess->session.session_type);
 
     if (sess->ipv4) {
@@ -1581,7 +1575,7 @@ uint8_t smf_sess_set_ue_ip(smf_sess_t *sess)
             ogs_error("ogs_pfcp_ue_ip_alloc() failed[%d]", cause_value);
             return cause_value;
         }
-        sess->paa.addr = sess->ipv4->addr[0];
+        sess->session.paa.addr = sess->ipv4->addr[0];
         ogs_hash_set(smf_self()->ipv4_hash,
                 sess->ipv4->addr, OGS_IPV4_LEN, sess);
     } else if (sess->session.session_type == OGS_PDU_SESSION_TYPE_IPV6) {
@@ -1595,8 +1589,8 @@ uint8_t smf_sess_set_ue_ip(smf_sess_t *sess)
         subnet6 = sess->ipv6->subnet;
         ogs_assert(subnet6);
 
-        sess->paa.len = OGS_IPV6_DEFAULT_PREFIX_LEN >> 3;
-        memcpy(sess->paa.addr6, sess->ipv6->addr, OGS_IPV6_LEN);
+        sess->session.paa.len = OGS_IPV6_DEFAULT_PREFIX_LEN >> 3;
+        memcpy(sess->session.paa.addr6, sess->ipv6->addr, OGS_IPV6_LEN);
         ogs_hash_set(smf_self()->ipv6_hash,
                 sess->ipv6->addr, OGS_IPV6_DEFAULT_PREFIX_LEN >> 3, sess);
     } else if (sess->session.session_type == OGS_PDU_SESSION_TYPE_IPV4V6) {
@@ -1623,9 +1617,9 @@ uint8_t smf_sess_set_ue_ip(smf_sess_t *sess)
         subnet6 = sess->ipv6->subnet;
         ogs_assert(subnet6);
 
-        sess->paa.both.addr = sess->ipv4->addr[0];
-        sess->paa.both.len = OGS_IPV6_DEFAULT_PREFIX_LEN >> 3;
-        memcpy(sess->paa.both.addr6, sess->ipv6->addr, OGS_IPV6_LEN);
+        sess->session.paa.both.addr = sess->ipv4->addr[0];
+        sess->session.paa.both.len = OGS_IPV6_DEFAULT_PREFIX_LEN >> 3;
+        memcpy(sess->session.paa.both.addr6, sess->ipv6->addr, OGS_IPV6_LEN);
         ogs_hash_set(smf_self()->ipv4_hash,
                 sess->ipv4->addr, OGS_IPV4_LEN, sess);
         ogs_hash_set(smf_self()->ipv6_hash,
@@ -1672,7 +1666,7 @@ void smf_sess_remove(smf_sess_t *sess)
     char buf2[OGS_ADDRSTRLEN];
 
     ogs_assert(sess);
-    smf_ue = smf_ue_find_by_id(sess->smf_ue_id);
+    smf_ue = sess->smf_ue;
     ogs_assert(smf_ue);
 
     ogs_info("Removed Session: UE IMSI:[%s] DNN:[%s:%d] IPv4:[%s] IPv6:[%s]",
@@ -1684,11 +1678,10 @@ void smf_sess_remove(smf_sess_t *sess)
     ogs_list_remove(&smf_ue->sess_list, sess);
 
     memset(&e, 0, sizeof(e));
-    e.sess_id = sess->id;
+    e.sess = sess;
     ogs_fsm_fini(&sess->sm, &e);
 
     OGS_TLV_CLEAR_DATA(&sess->gtp.ue_pco);
-    OGS_TLV_CLEAR_DATA(&sess->gtp.ue_apco);
     OGS_TLV_CLEAR_DATA(&sess->gtp.ue_epco);
     OGS_TLV_CLEAR_DATA(&sess->gtp.user_location_information);
     OGS_TLV_CLEAR_DATA(&sess->gtp.ue_timezone);
@@ -1730,9 +1723,8 @@ void smf_sess_remove(smf_sess_t *sess)
     if (sess->namf.client)
         ogs_sbi_client_remove(sess->namf.client);
 
-    PCF_SM_POLICY_CLEAR(sess);
-    if (sess->policy_association.client)
-        ogs_sbi_client_remove(sess->policy_association.client);
+    if (sess->policy_association_id)
+        ogs_free(sess->policy_association_id);
 
     if (sess->session.name)
         ogs_free(sess->session.name);
@@ -1796,7 +1788,7 @@ void smf_sess_remove(smf_sess_t *sess)
     stats_remove_smf_session(sess);
 
     ogs_pool_free(&smf_n4_seid_pool, sess->smf_n4_seid_node);
-    ogs_pool_id_free(&smf_sess_pool, sess);
+    ogs_pool_free(&smf_sess_pool, sess);
 }
 
 void smf_sess_remove_all(smf_ue_t *smf_ue)
@@ -1920,8 +1912,9 @@ smf_bearer_t *smf_qos_flow_add(smf_sess_t *sess)
 
     ogs_assert(sess);
 
-    ogs_pool_id_calloc(&smf_bearer_pool, &qos_flow);
+    ogs_pool_alloc(&smf_bearer_pool, &qos_flow);
     ogs_assert(qos_flow);
+    memset(qos_flow, 0, sizeof *qos_flow);
 
     smf_pf_identifier_pool_init(qos_flow);
 
@@ -2018,7 +2011,7 @@ smf_bearer_t *smf_qos_flow_add(smf_sess_t *sess)
 
     qos_flow->qfi = ul_pdr->qfi = qer->qfi = *(qos_flow->qfi_node);
 
-    qos_flow->sess_id = sess->id;
+    qos_flow->sess = sess;
 
     ogs_list_add(&sess->bearer_list, qos_flow);
     smf_metrics_inst_by_5qi_add(&sess->serving_plmn_id, &sess->s_nssai,
@@ -2123,7 +2116,7 @@ void smf_sess_create_indirect_data_forwarding(smf_sess_t *sess)
 
                 resource = ogs_pfcp_find_gtpu_resource(
                         &sess->pfcp_node->gtpu_resource_list,
-                        sess->session.name, pdr->src_if);
+                        sess->session.name, OGS_PFCP_INTERFACE_ACCESS);
 
                 if (resource) {
                     ogs_user_plane_ip_resource_info_to_sockaddr(&resource->info,
@@ -2360,8 +2353,9 @@ smf_bearer_t *smf_bearer_add(smf_sess_t *sess)
 
     ogs_assert(sess);
 
-    ogs_pool_id_calloc(&smf_bearer_pool, &bearer);
+    ogs_pool_alloc(&smf_bearer_pool, &bearer);
     ogs_assert(bearer);
+    memset(bearer, 0, sizeof *bearer);
 
     smf_pf_identifier_pool_init(bearer);
 
@@ -2430,7 +2424,7 @@ smf_bearer_t *smf_bearer_add(smf_sess_t *sess)
 
     ul_far->apply_action = OGS_PFCP_APPLY_ACTION_FORW;
 
-    bearer->sess_id = sess->id;
+    bearer->sess = sess;
 
     ogs_list_add(&sess->bearer_list, bearer);
 
@@ -2440,12 +2434,10 @@ smf_bearer_t *smf_bearer_add(smf_sess_t *sess)
 
 int smf_bearer_remove(smf_bearer_t *bearer)
 {
-    smf_sess_t *sess = NULL;
     ogs_assert(bearer);
-    sess = smf_sess_find_by_id(bearer->sess_id);
-    ogs_assert(sess);
+    ogs_assert(bearer->sess);
 
-    ogs_list_remove(&sess->bearer_list, bearer);
+    ogs_list_remove(&bearer->sess->bearer_list, bearer);
 
     ogs_assert(bearer->dl_pdr);
     ogs_pfcp_pdr_remove(bearer->dl_pdr);
@@ -2474,9 +2466,9 @@ int smf_bearer_remove(smf_bearer_t *bearer)
     smf_pf_identifier_pool_final(bearer);
 
     if (SMF_IS_QOF_FLOW(bearer))
-        ogs_pool_free(&sess->qfi_pool, bearer->qfi_node);
+        ogs_pool_free(&bearer->sess->qfi_pool, bearer->qfi_node);
 
-    ogs_pool_id_free(&smf_bearer_pool, bearer);
+    ogs_pool_free(&smf_bearer_pool, bearer);
 
     smf_metrics_inst_global_dec(SMF_METR_GLOB_GAUGE_BEARERS_ACTIVE);
     return OGS_OK;
@@ -2577,28 +2569,16 @@ void smf_bearer_tft_update(smf_bearer_t *bearer)
 
     ogs_list_for_each(&bearer->pf_list, pf) {
         if (pf->direction == OGS_FLOW_DOWNLINK_ONLY) {
-            dl_pdr->flow[dl_pdr->num_of_flow].fd = 1;
-            dl_pdr->flow[dl_pdr->num_of_flow].description =
+            dl_pdr->flow_description[dl_pdr->num_of_flow++] =
                 pf->flow_description;
-            dl_pdr->num_of_flow++;
+
         } else if (pf->direction == OGS_FLOW_UPLINK_ONLY) {
-            ul_pdr->flow[ul_pdr->num_of_flow].fd = 1;
-            ul_pdr->flow[ul_pdr->num_of_flow].description =
+            ul_pdr->flow_description[ul_pdr->num_of_flow++] =
                 pf->flow_description;
-            ul_pdr->num_of_flow++;
-        } else if (pf->direction == OGS_FLOW_BIDIRECTIONAL) {
-            dl_pdr->flow[dl_pdr->num_of_flow].fd = 1;
-            dl_pdr->flow[dl_pdr->num_of_flow].description =
-                pf->flow_description;
-            dl_pdr->flow[dl_pdr->num_of_flow].bid = 1;
-            dl_pdr->flow[dl_pdr->num_of_flow].sdf_filter_id = pf->sdf_filter_id;
-            dl_pdr->num_of_flow++;
-            ul_pdr->flow[ul_pdr->num_of_flow].bid = 1;
-            ul_pdr->flow[ul_pdr->num_of_flow].sdf_filter_id = pf->sdf_filter_id;
-            ul_pdr->num_of_flow++;
         } else {
-            ogs_fatal("Unsupported direction [%d]", pf->direction);
             ogs_assert_if_reached();
+            ogs_fatal("Flow Bidirectional is not supported[%d]",
+                    pf->direction);
         }
     }
 }
@@ -2611,7 +2591,7 @@ void smf_bearer_qos_update(smf_bearer_t *bearer)
     ogs_pfcp_qer_t *qer = NULL;
 
     ogs_assert(bearer);
-    sess = smf_sess_find_by_id(bearer->sess_id);
+    sess = bearer->sess;
     ogs_assert(sess);
 
     dl_pdr = bearer->dl_pdr;
@@ -2641,29 +2621,24 @@ smf_bearer_t *smf_default_bearer_in_sess(smf_sess_t *sess)
     return ogs_list_first(&sess->bearer_list);
 }
 
-smf_ue_t *smf_ue_find_by_id(ogs_pool_id_t id)
+smf_ue_t *smf_ue_cycle(smf_ue_t *smf_ue)
 {
-    return ogs_pool_find_by_id(&smf_ue_pool, id);
+    return ogs_pool_cycle(&smf_ue_pool, smf_ue);
 }
 
-smf_sess_t *smf_sess_find_by_id(ogs_pool_id_t id)
+smf_sess_t *smf_sess_cycle(smf_sess_t *sess)
 {
-    return ogs_pool_find_by_id(&smf_sess_pool, id);
+    return ogs_pool_cycle(&smf_sess_pool, sess);
 }
 
-smf_bearer_t *smf_bearer_find_by_id(ogs_pool_id_t id)
+smf_bearer_t *smf_bearer_cycle(smf_bearer_t *bearer)
 {
-    return ogs_pool_find_by_id(&smf_bearer_pool, id);
+    return ogs_pool_cycle(&smf_bearer_pool, bearer);
 }
 
-smf_bearer_t *smf_qos_flow_find_by_id(ogs_pool_id_t id)
+smf_bearer_t *smf_qos_flow_cycle(smf_bearer_t *qos_flow)
 {
-    return ogs_pool_find_by_id(&smf_bearer_pool, id);
-}
-
-smf_pf_t *smf_pf_find_by_id(ogs_pool_id_t id)
-{
-    return ogs_pool_find_by_id(&smf_pf_pool, id);
+    return ogs_pool_cycle(&smf_bearer_pool, qos_flow);
 }
 
 smf_pf_t *smf_pf_add(smf_bearer_t *bearer)
@@ -2672,16 +2647,17 @@ smf_pf_t *smf_pf_add(smf_bearer_t *bearer)
     smf_pf_t *pf = NULL;
 
     ogs_assert(bearer);
-    sess = smf_sess_find_by_id(bearer->sess_id);
+    sess = bearer->sess;
     ogs_assert(sess);
 
-    ogs_pool_id_calloc(&smf_pf_pool, &pf);
+    ogs_pool_alloc(&smf_pf_pool, &pf);
     ogs_assert(pf);
+    memset(pf, 0, sizeof *pf);
 
     ogs_pool_alloc(&bearer->pf_identifier_pool, &pf->identifier_node);
     if (!pf->identifier_node) {
         ogs_error("smf_pf_add: Expectation `pf->identifier_node' failed");
-        ogs_pool_id_free(&smf_pf_pool, pf);
+        ogs_pool_free(&smf_pf_pool, pf);
         return NULL;
     }
 
@@ -2693,7 +2669,7 @@ smf_pf_t *smf_pf_add(smf_bearer_t *bearer)
     if (!pf->precedence_node) {
         ogs_error("smf_pf_add: Expectation `pf->precedence_node' failed");
         ogs_pool_free(&bearer->pf_identifier_pool, pf->identifier_node);
-        ogs_pool_id_free(&smf_pf_pool, pf);
+        ogs_pool_free(&smf_pf_pool, pf);
         return NULL;
     }
 
@@ -2701,10 +2677,7 @@ smf_pf_t *smf_pf_add(smf_bearer_t *bearer)
     ogs_assert(pf->precedence > 0 && pf->precedence <=
             (OGS_MAX_NUM_OF_BEARER * OGS_MAX_NUM_OF_FLOW_IN_BEARER));
 
-    /* Re-use 'pf_precedence_pool' to generate SDF Filter ID */
-    pf->sdf_filter_id = *(pf->precedence_node);
-
-    pf->bearer_id = bearer->id;
+    pf->bearer = bearer;
 
     ogs_list_add(&bearer->pf_list, pf);
 
@@ -2713,26 +2686,21 @@ smf_pf_t *smf_pf_add(smf_bearer_t *bearer)
 
 int smf_pf_remove(smf_pf_t *pf)
 {
-    smf_sess_t *sess = NULL;
-    smf_bearer_t *bearer = NULL;
-
     ogs_assert(pf);
-    bearer = smf_bearer_find_by_id(pf->bearer_id);
-    ogs_assert(bearer);
-    sess = smf_sess_find_by_id(bearer->sess_id);
-    ogs_assert(sess);
+    ogs_assert(pf->bearer);
+    ogs_assert(pf->bearer->sess);
 
-    ogs_list_remove(&bearer->pf_list, pf);
+    ogs_list_remove(&pf->bearer->pf_list, pf);
     if (pf->flow_description)
         ogs_free(pf->flow_description);
 
     if (pf->identifier_node)
-        ogs_pool_free(&bearer->pf_identifier_pool, pf->identifier_node);
+        ogs_pool_free(&pf->bearer->pf_identifier_pool, pf->identifier_node);
     if (pf->precedence_node)
         ogs_pool_free(
-                &sess->pf_precedence_pool, pf->precedence_node);
+                &pf->bearer->sess->pf_precedence_pool, pf->precedence_node);
 
-    ogs_pool_id_free(&smf_pf_pool, pf);
+    ogs_pool_free(&smf_pf_pool, pf);
 
     return OGS_OK;
 }
@@ -2746,13 +2714,12 @@ void smf_pf_remove_all(smf_bearer_t *bearer)
         smf_pf_remove(pf);
 }
 
-smf_pf_t *smf_pf_find_by_identifier(
-        smf_bearer_t *bearer, uint8_t identifier)
+smf_pf_t *smf_pf_find_by_id(smf_bearer_t *bearer, uint8_t id)
 {
     smf_pf_t *pf = NULL;
 
     ogs_list_for_each(&bearer->pf_list, pf) {
-        if (pf->identifier == identifier) return pf;
+        if (pf->identifier == id) return pf;
     }
 
     return NULL;
@@ -2898,7 +2865,6 @@ int smf_pco_build(uint8_t *pco_buf, uint8_t *buffer, int length)
 
                 ogs_assert(num_of_ipcp <= OGS_PCO_MAX_NUM_OF_IPCP);
                 pco_ipcp[num_of_ipcp].code = 2; /* Code : Configuration Ack */
-                pco_ipcp[num_of_ipcp].identifier = ipcp->identifier; /* ID: Needs to match request */
 
                 out_len = 4;
                 /* Primary DNS Server IP Address */

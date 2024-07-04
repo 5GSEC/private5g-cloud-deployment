@@ -58,28 +58,6 @@ extern "C" {
  */
 typedef struct ogs_gtp_xact_s {
     ogs_lnode_t     node;           /**< A node of list */
-
-    ogs_pool_id_t   id;
-
-    /*
-     * Issues #3240
-     *
-     * SMF->SGW-C->MME: First Update Bearer Request
-     * MME->UE:         First Modify EPS bearer context request
-     * SMF->SGW-C->MME: Second Update Bearer Request
-     * MME->UE:         Second Modify EPS bearer context request
-     * UE->MME:         First Modify EPS bearer context accept
-     * MME->SGW-C->SMF: First Update Bearer Response
-     * UE->MME:         Second Modify EPS bearer context accept
-     * MME->SGW-C->SMF: Second Update Bearer Response
-     *
-     * In the above situation, while NAS-ESM messages are exchanged
-     * between the MME and UE, the bearer may have multiple transactions
-     * that need to be managed. to_update_node is used as a node
-     * in the Transaction List related to Update Bearer Request/Response.
-     */
-    ogs_lnode_t     to_update_node;
-
     ogs_pool_id_t   index;
 
     uint8_t gtp_version;            /**< 1 or 2 */
@@ -112,7 +90,7 @@ typedef struct ogs_gtp_xact_s {
     uint32_t        local_teid;     /**< Local TEID,
                                          expected in reply from peer */
 
-    ogs_pool_id_t   assoc_xact_id;  /**< Associated GTP transaction ID */
+    void            *assoc_xact;    /**< Associated GTP transaction */
     void            *pfcp_xact;     /**< Associated PFCP transaction */
 
 #define OGS_GTP_MODIFY_TFT_UPDATE ((uint64_t)1<<0)
@@ -143,7 +121,6 @@ typedef struct ogs_gtp_xact_s {
 #define OGS_GTP_CREATE_IN_ATTACH_REQUEST 1
 #define OGS_GTP_CREATE_IN_UPLINK_NAS_TRANSPORT 2
 #define OGS_GTP_CREATE_IN_PATH_SWITCH_REQUEST 3
-#define OGS_GTP_CREATE_IN_TRACKING_AREA_UPDATE 4 /* 3GPP TS 33.401 9.1.2 */
     int             create_action;
 
 #define OGS_GTP_MODIFY_IN_PATH_SWITCH_REQUEST 1
@@ -161,7 +138,7 @@ ogs_gtp_xact_t *ogs_gtp_xact_local_create(ogs_gtp_node_t *gnode,
         ogs_gtp2_header_t *hdesc, ogs_pkbuf_t *pkbuf,
         void (*cb)(ogs_gtp_xact_t *xact, void *data), void *data);
 
-ogs_gtp_xact_t *ogs_gtp_xact_find_by_id(ogs_pool_id_t id);
+ogs_gtp_xact_t *ogs_gtp_xact_cycle(ogs_gtp_xact_t *xact);
 void ogs_gtp_xact_delete_all(ogs_gtp_node_t *gnode);
 
 int ogs_gtp1_xact_update_tx(ogs_gtp_xact_t *xact,

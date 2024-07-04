@@ -32,20 +32,19 @@ int ogs_sctp_recvdata(ogs_sock_t *sock, void *msg, size_t len,
 
     do {
         size = ogs_sctp_recvmsg(sock, msg, len, from, sinfo, &flags);
-        if (size < 0 || size >= OGS_MAX_SDU_LEN) {
-            ogs_error("ogs_sctp_recvmsg(%d) failed(%d:%s)",
-                    size, errno, strerror(errno));
+        if (size < 0) {
+            ogs_log_message(OGS_LOG_ERROR, ogs_socket_errno,
+                    "ogs_sctp_recvdata(%d)", size);
             return size;
         }
 
         if (flags & MSG_NOTIFICATION) {
             /* Nothing */
-        } else if (flags & MSG_EOR) {
+        }
+        else if (flags & MSG_EOR) {
             break;
-        } else {
-            ogs_fatal("ogs_sctp_recvmsg(%d) failed(%d:%s-0x%x)",
-                    size, errno, strerror(errno), flags);
-            ogs_fatal("Probably MME might be crashed");
+        }
+        else {
             ogs_assert_if_reached();
         }
     } while(1);

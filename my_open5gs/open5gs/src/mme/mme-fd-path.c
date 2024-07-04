@@ -34,8 +34,7 @@ static int mme_s6a_subscription_data_from_avp(struct avp *avp,
     mme_ue_t *mme_ue, uint32_t *subdatamask);
 
 struct sess_state {
-    ogs_pool_id_t mme_ue_id;
-    ogs_pool_id_t enb_ue_id;
+    mme_ue_t *mme_ue;
     struct timespec ts; /* Time of sending the message */
 };
 
@@ -80,9 +79,9 @@ static int mme_s6a_subscription_data_from_avp(struct avp *avp,
         ret = fd_msg_avp_hdr(avpch1, &hdr);
         ogs_assert(ret == 0);
         if (hdr->avp_value->os.data && hdr->avp_value->os.len) {
-            mme_ue->msisdn_len =
-                ogs_min(hdr->avp_value->os.len, OGS_MAX_MSISDN_LEN);
-            memcpy(mme_ue->msisdn, hdr->avp_value->os.data, mme_ue->msisdn_len);
+            mme_ue->msisdn_len = hdr->avp_value->os.len;
+            memcpy(mme_ue->msisdn, hdr->avp_value->os.data,
+                    ogs_min(mme_ue->msisdn_len, OGS_MAX_MSISDN_LEN));
             ogs_buffer_to_bcd(mme_ue->msisdn,
                     mme_ue->msisdn_len, mme_ue->msisdn_bcd);
             *subdatamask = (*subdatamask | OGS_DIAM_S6A_SUBDATA_MSISDN);
@@ -103,10 +102,9 @@ static int mme_s6a_subscription_data_from_avp(struct avp *avp,
         ret = fd_msg_avp_hdr(avpch1, &hdr);
         ogs_assert(ret == 0);
         if (hdr->avp_value->os.data && hdr->avp_value->os.len) {
-            mme_ue->a_msisdn_len =
-                ogs_min(hdr->avp_value->os.len, OGS_MAX_MSISDN_LEN);
+            mme_ue->a_msisdn_len = hdr->avp_value->os.len;
             memcpy(mme_ue->a_msisdn, hdr->avp_value->os.data,
-                    mme_ue->a_msisdn_len);
+                    ogs_min(mme_ue->a_msisdn_len, OGS_MAX_MSISDN_LEN));
             ogs_buffer_to_bcd(mme_ue->a_msisdn,
                     mme_ue->a_msisdn_len, mme_ue->a_msisdn_bcd);
             *subdatamask = (*subdatamask | OGS_DIAM_S6A_SUBDATA_A_MSISDN);
@@ -379,27 +377,34 @@ static int mme_s6a_subscription_data_from_avp(struct avp *avp,
                         ogs_assert(ret == 0);
 
                         if (addr.ogs_sa_family == AF_INET) {
-                            session->ue_ip.addr = addr.sin.sin_addr.s_addr;
                             if (session->session_type ==
                                     OGS_PDU_SESSION_TYPE_IPV4) {
+                                session->paa.addr =
+                                    addr.sin.sin_addr.s_addr;
                             } else if (session->session_type ==
                                     OGS_PDU_SESSION_TYPE_IPV4V6) {
+                                session->paa.both.addr =
+                                    addr.sin.sin_addr.s_addr;
                             } else {
                                 ogs_error("Warning: Received a static IPv4 "
-                                    "address but PDN-Type[%d] does not include "
-                                    "IPv4. Ignoring...", session->session_type);
+                                    "address but PDN-Type does not include "
+                                    "IPv4. Ignoring...");
                             }
                         } else if (addr.ogs_sa_family == AF_INET6) {
-                            memcpy(session->ue_ip.addr6,
-                                    addr.sin6.sin6_addr.s6_addr, OGS_IPV6_LEN);
                             if (session->session_type ==
                                     OGS_PDU_SESSION_TYPE_IPV6) {
+                                memcpy(session->paa.addr6,
+                                    addr.sin6.sin6_addr.s6_addr,
+                                    OGS_IPV6_LEN);
                             } else if (session->session_type ==
                                     OGS_PDU_SESSION_TYPE_IPV4V6) {
+                                memcpy(session->paa.both.addr6,
+                                    addr.sin6.sin6_addr.s6_addr,
+                                    OGS_IPV6_LEN);
                             } else {
                                 ogs_error("Warning: Received a static IPv6 "
-                                    "address but PDN-Type[%d] does not include "
-                                    "IPv6. Ignoring...", session->session_type);
+                                    "address but PDN-Type does not include "
+                                    "IPv6. Ignoring...");
                             }
                         } else {
                             ogs_error("Invalid family[%d]",
@@ -662,7 +667,7 @@ static int mme_s6a_subscription_data_from_avp(struct avp *avp,
 }
 
 /* MME Sends Authentication Information Request to HSS */
-void mme_s6a_send_air(enb_ue_t *enb_ue, mme_ue_t *mme_ue,
+void mme_s6a_send_air(mme_ue_t *mme_ue,
     ogs_nas_authentication_failure_parameter_t
         *authentication_failure_parameter)
 {
@@ -678,15 +683,7 @@ void mme_s6a_send_air(enb_ue_t *enb_ue, mme_ue_t *mme_ue,
 
     uint8_t resync[OGS_AUTS_LEN + OGS_RAND_LEN];
 
-    if (!mme_ue) {
-        ogs_error("UE(mme-ue) context has already been removed");
-        return;
-    }
-
-    if (!enb_ue) {
-        ogs_error("S1 context has already been removed");
-        return;
-    }
+    ogs_assert(mme_ue);
 
     ogs_debug("[MME] Authentication-Information-Request");
 
@@ -697,8 +694,7 @@ void mme_s6a_send_air(enb_ue_t *enb_ue, mme_ue_t *mme_ue,
     sess_data = ogs_calloc(1, sizeof (*sess_data));
     ogs_assert(sess_data);
 
-    sess_data->mme_ue_id = mme_ue->id;
-    sess_data->enb_ue_id = enb_ue->id;
+    sess_data->mme_ue = mme_ue;
 
     /* Create the request */
     ret = fd_msg_new(ogs_diam_s6a_cmd_air, MSGFL_ALLOC_ETEID, &req);
@@ -835,7 +831,6 @@ static void mme_s6a_aia_cb(void *data, struct msg **msg)
 
     mme_event_t *e = NULL;
     mme_ue_t *mme_ue = NULL;
-    enb_ue_t *enb_ue = NULL;
     ogs_diam_s6a_message_t *s6a_message = NULL;
     ogs_diam_s6a_aia_message_t *aia_message = NULL;
     ogs_diam_e_utran_vector_t *e_utran_vector = NULL;
@@ -870,10 +865,8 @@ static void mme_s6a_aia_cb(void *data, struct msg **msg)
         return;
     }
 
-    mme_ue = mme_ue_find_by_id(sess_data->mme_ue_id);
+    mme_ue = sess_data->mme_ue;
     ogs_assert(mme_ue);
-    enb_ue = enb_ue_find_by_id(sess_data->enb_ue_id);
-    ogs_assert(enb_ue);
 
     /* Set Authentication-Information Command */
     s6a_message = ogs_calloc(1, sizeof(ogs_diam_s6a_message_t));
@@ -980,11 +973,9 @@ static void mme_s6a_aia_cb(void *data, struct msg **msg)
     if (avp) {
         ret = fd_msg_avp_hdr(avp_xres, &hdr);
         ogs_assert(ret == 0);
-        e_utran_vector->xres_len =
-            ogs_min(hdr->avp_value->os.len,
-                    OGS_ARRAY_SIZE(e_utran_vector->xres));
         memcpy(e_utran_vector->xres,
-                hdr->avp_value->os.data, e_utran_vector->xres_len);
+                hdr->avp_value->os.data, hdr->avp_value->os.len);
+        e_utran_vector->xres_len = hdr->avp_value->os.len;
     } else {
         ogs_error("no_XRES");
         error++;
@@ -995,9 +986,8 @@ static void mme_s6a_aia_cb(void *data, struct msg **msg)
     if (avp) {
         ret = fd_msg_avp_hdr(avp_kasme, &hdr);
         ogs_assert(ret == 0);
-        memcpy(e_utran_vector->kasme, hdr->avp_value->os.data,
-                ogs_min(hdr->avp_value->os.len,
-                    OGS_ARRAY_SIZE(e_utran_vector->kasme)));
+        memcpy(e_utran_vector->kasme,
+                hdr->avp_value->os.data, hdr->avp_value->os.len);
     } else {
         ogs_error("no_KASME");
         error++;
@@ -1007,9 +997,8 @@ static void mme_s6a_aia_cb(void *data, struct msg **msg)
     ret = fd_avp_search_avp(avp_e_utran_vector, ogs_diam_s6a_rand, &avp_rand);
     if (avp) {
         ret = fd_msg_avp_hdr(avp_rand, &hdr);
-        memcpy(e_utran_vector->rand, hdr->avp_value->os.data,
-                ogs_min(hdr->avp_value->os.len,
-                    OGS_ARRAY_SIZE(e_utran_vector->rand)));
+        memcpy(e_utran_vector->rand,
+                hdr->avp_value->os.data, hdr->avp_value->os.len);
     } else {
         ogs_error("no_RAND");
         error++;
@@ -1020,9 +1009,8 @@ static void mme_s6a_aia_cb(void *data, struct msg **msg)
     if (avp) {
         ret = fd_msg_avp_hdr(avp_autn, &hdr);
         ogs_assert(ret == 0);
-        memcpy(e_utran_vector->autn, hdr->avp_value->os.data,
-                ogs_min(hdr->avp_value->os.len,
-                    OGS_ARRAY_SIZE(e_utran_vector->autn)));
+        memcpy(e_utran_vector->autn,
+                hdr->avp_value->os.data, hdr->avp_value->os.len);
     } else {
         ogs_error("no_AUTN");
         error++;
@@ -1033,8 +1021,7 @@ out:
         int rv;
         e = mme_event_new(MME_EVENT_S6A_MESSAGE);
         ogs_assert(e);
-        e->mme_ue_id = mme_ue->id;
-        e->enb_ue_id = enb_ue->id;
+        e->mme_ue = mme_ue;
         e->s6a_message = s6a_message;
         rv = ogs_queue_push(ogs_app()->queue, e);
         if (rv != OGS_OK) {
@@ -1091,7 +1078,7 @@ out:
 }
 
 /* MME Sends Update Location Request to HSS */
-void mme_s6a_send_ulr(enb_ue_t *enb_ue, mme_ue_t *mme_ue)
+void mme_s6a_send_ulr(mme_ue_t *mme_ue)
 {
     int ret;
 
@@ -1102,23 +1089,14 @@ void mme_s6a_send_ulr(enb_ue_t *enb_ue, mme_ue_t *mme_ue)
     struct session *session = NULL;
     ogs_nas_plmn_id_t nas_plmn_id;
 
-    if (!mme_ue) {
-        ogs_error("UE(mme-ue) context has already been removed");
-        return;
-    }
-
-    if (!enb_ue) {
-        ogs_error("S1 context has already been removed");
-        return;
-    }
+    ogs_assert(mme_ue);
 
     ogs_debug("[MME] Update-Location-Request");
 
     /* Create the random value to store with the session */
     sess_data = ogs_calloc(1, sizeof(*sess_data));
     ogs_assert(sess_data);
-    sess_data->mme_ue_id = mme_ue->id;
-    sess_data->enb_ue_id = enb_ue->id;
+    sess_data->mme_ue = mme_ue;
 
     /* Create the request */
     ret = fd_msg_new(ogs_diam_s6a_cmd_ulr, MSGFL_ALLOC_ETEID, &req);
@@ -1256,6 +1234,98 @@ void mme_s6a_send_ulr(enb_ue_t *enb_ue, mme_ue_t *mme_ue)
     ogs_assert(pthread_mutex_unlock(&ogs_diam_logger_self()->stats_lock) == 0);
 }
 
+/* MME Sends Purge UE Request to HSS */
+void mme_s6a_send_pur(mme_ue_t *mme_ue)
+{
+    int ret;
+
+    struct msg *req = NULL;
+    struct avp *avp;
+    union avp_value val;
+    struct sess_state *sess_data = NULL, *svg;
+    struct session *session = NULL;
+
+    ogs_assert(mme_ue);
+
+    ogs_debug("[MME] Purge-UE-Request");
+
+    /* Create the random value to store with the session */
+    sess_data = ogs_calloc(1, sizeof(*sess_data));
+    ogs_assert(sess_data);
+    sess_data->mme_ue = mme_ue;
+
+    /* Create the request */
+    ret = fd_msg_new(ogs_diam_s6a_cmd_pur, MSGFL_ALLOC_ETEID, &req);
+    ogs_assert(ret == 0);
+
+    /* Create a new session */
+    #define OGS_DIAM_S6A_APP_SID_OPT  "app_s6a"
+    ret = fd_msg_new_session(req, (os0_t)OGS_DIAM_S6A_APP_SID_OPT, 
+            CONSTSTRLEN(OGS_DIAM_S6A_APP_SID_OPT));
+    ogs_assert(ret == 0);
+    ret = fd_msg_sess_get(fd_g_config->cnf_dict, req, &session, NULL);
+    ogs_assert(ret == 0);
+
+    /* Set the Auth-Session-State AVP */
+    ret = fd_msg_avp_new(ogs_diam_auth_session_state, 0, &avp);
+    ogs_assert(ret == 0);
+    val.i32 = OGS_DIAM_AUTH_SESSION_NO_STATE_MAINTAINED;
+    ret = fd_msg_avp_setvalue(avp, &val);
+    ogs_assert(ret == 0);
+    ret = fd_msg_avp_add(req, MSG_BRW_LAST_CHILD, avp);
+    ogs_assert(ret == 0);
+
+    /* Set Origin-Host & Origin-Realm */
+    ret = fd_msg_add_origin(req, 0);
+    ogs_assert(ret == 0);
+
+    /* Set the Destination-Realm AVP */
+    ret = fd_msg_avp_new(ogs_diam_destination_realm, 0, &avp);
+    ogs_assert(ret == 0);
+    val.os.data = (unsigned char *)(fd_g_config->cnf_diamrlm);
+    val.os.len  = strlen(fd_g_config->cnf_diamrlm);
+    ret = fd_msg_avp_setvalue(avp, &val);
+    ogs_assert(ret == 0);
+    ret = fd_msg_avp_add(req, MSG_BRW_LAST_CHILD, avp);
+    ogs_assert(ret == 0);
+
+    /* Set the User-Name AVP */
+    ret = fd_msg_avp_new(ogs_diam_user_name, 0, &avp);
+    ogs_assert(ret == 0);
+    val.os.data = (uint8_t *)mme_ue->imsi_bcd;
+    val.os.len  = strlen(mme_ue->imsi_bcd);
+    ret = fd_msg_avp_setvalue(avp, &val);
+    ogs_assert(ret == 0);
+    ret = fd_msg_avp_add(req, MSG_BRW_LAST_CHILD, avp);
+    ogs_assert(ret == 0);
+
+    /* Set Vendor-Specific-Application-Id AVP */
+    ret = ogs_diam_message_vendor_specific_appid_set(
+            req, OGS_DIAM_S6A_APPLICATION_ID);
+    ogs_assert(ret == 0);
+
+    ret = clock_gettime(CLOCK_REALTIME, &sess_data->ts);
+    ogs_assert(ret == 0);
+
+    /* Keep a pointer to the session data for debug purpose,
+     * in real life we would not need it */
+    svg = sess_data;
+
+    /* Store this value in the session */
+    ret = fd_sess_state_store(mme_s6a_reg, session, &sess_data);
+    ogs_assert(ret == 0);
+    ogs_assert(sess_data == 0);
+
+    /* Send the request */
+    ret = fd_msg_send(&req, mme_s6a_pua_cb, svg);
+    ogs_assert(ret == 0);
+
+    /* Increment the counter */
+    ogs_assert(pthread_mutex_lock(&ogs_diam_logger_self()->stats_lock) == 0);
+    ogs_diam_logger_self()->stats.nb_sent++;
+    ogs_assert(pthread_mutex_unlock(&ogs_diam_logger_self()->stats_lock) == 0);
+}
+
 /* MME received Update Location Answer from HSS */
 static void mme_s6a_ula_cb(void *data, struct msg **msg)
 {
@@ -1272,7 +1342,6 @@ static void mme_s6a_ula_cb(void *data, struct msg **msg)
 
     mme_event_t *e = NULL;
     mme_ue_t *mme_ue = NULL;
-    enb_ue_t *enb_ue = NULL;
     ogs_diam_s6a_message_t *s6a_message = NULL;
     ogs_diam_s6a_ula_message_t *ula_message = NULL;
     ogs_subscription_data_t *subscription_data = NULL;
@@ -1307,10 +1376,8 @@ static void mme_s6a_ula_cb(void *data, struct msg **msg)
         return;
     }
 
-    mme_ue = mme_ue_find_by_id(sess_data->mme_ue_id);
+    mme_ue = sess_data->mme_ue;
     ogs_assert(mme_ue);
-    enb_ue = enb_ue_find_by_id(sess_data->enb_ue_id);
-    ogs_assert(enb_ue);
 
     /* Set Update-Location Command */
     s6a_message = ogs_calloc(1, sizeof(ogs_diam_s6a_message_t));
@@ -1451,8 +1518,7 @@ static void mme_s6a_ula_cb(void *data, struct msg **msg)
         int rv;
         e = mme_event_new(MME_EVENT_S6A_MESSAGE);
         ogs_assert(e);
-        e->mme_ue_id = mme_ue->id;
-        e->enb_ue_id = enb_ue->id;
+        e->mme_ue = mme_ue;
         e->s6a_message = s6a_message;
         rv = ogs_queue_push(ogs_app()->queue, e);
         if (rv != OGS_OK) {
@@ -1513,107 +1579,6 @@ static void mme_s6a_ula_cb(void *data, struct msg **msg)
     return;
 }
 
-/* MME Sends Purge UE Request to HSS */
-void mme_s6a_send_pur(enb_ue_t *enb_ue, mme_ue_t *mme_ue)
-{
-    int ret;
-
-    struct msg *req = NULL;
-    struct avp *avp;
-    union avp_value val;
-    struct sess_state *sess_data = NULL, *svg;
-    struct session *session = NULL;
-
-    if (!mme_ue) {
-        ogs_error("UE(mme-ue) context has already been removed");
-        return;
-    }
-
-    if (!enb_ue) {
-        ogs_error("S1 context has already been removed");
-        return;
-    }
-
-    ogs_debug("[MME] Purge-UE-Request");
-
-    /* Create the random value to store with the session */
-    sess_data = ogs_calloc(1, sizeof(*sess_data));
-    ogs_assert(sess_data);
-    sess_data->mme_ue_id = mme_ue->id;
-    sess_data->enb_ue_id = enb_ue->id;
-
-    /* Create the request */
-    ret = fd_msg_new(ogs_diam_s6a_cmd_pur, MSGFL_ALLOC_ETEID, &req);
-    ogs_assert(ret == 0);
-
-    /* Create a new session */
-    #define OGS_DIAM_S6A_APP_SID_OPT  "app_s6a"
-    ret = fd_msg_new_session(req, (os0_t)OGS_DIAM_S6A_APP_SID_OPT,
-            CONSTSTRLEN(OGS_DIAM_S6A_APP_SID_OPT));
-    ogs_assert(ret == 0);
-    ret = fd_msg_sess_get(fd_g_config->cnf_dict, req, &session, NULL);
-    ogs_assert(ret == 0);
-
-    /* Set the Auth-Session-State AVP */
-    ret = fd_msg_avp_new(ogs_diam_auth_session_state, 0, &avp);
-    ogs_assert(ret == 0);
-    val.i32 = OGS_DIAM_AUTH_SESSION_NO_STATE_MAINTAINED;
-    ret = fd_msg_avp_setvalue(avp, &val);
-    ogs_assert(ret == 0);
-    ret = fd_msg_avp_add(req, MSG_BRW_LAST_CHILD, avp);
-    ogs_assert(ret == 0);
-
-    /* Set Origin-Host & Origin-Realm */
-    ret = fd_msg_add_origin(req, 0);
-    ogs_assert(ret == 0);
-
-    /* Set the Destination-Realm AVP */
-    ret = fd_msg_avp_new(ogs_diam_destination_realm, 0, &avp);
-    ogs_assert(ret == 0);
-    val.os.data = (unsigned char *)(fd_g_config->cnf_diamrlm);
-    val.os.len  = strlen(fd_g_config->cnf_diamrlm);
-    ret = fd_msg_avp_setvalue(avp, &val);
-    ogs_assert(ret == 0);
-    ret = fd_msg_avp_add(req, MSG_BRW_LAST_CHILD, avp);
-    ogs_assert(ret == 0);
-
-    /* Set the User-Name AVP */
-    ret = fd_msg_avp_new(ogs_diam_user_name, 0, &avp);
-    ogs_assert(ret == 0);
-    val.os.data = (uint8_t *)mme_ue->imsi_bcd;
-    val.os.len  = strlen(mme_ue->imsi_bcd);
-    ret = fd_msg_avp_setvalue(avp, &val);
-    ogs_assert(ret == 0);
-    ret = fd_msg_avp_add(req, MSG_BRW_LAST_CHILD, avp);
-    ogs_assert(ret == 0);
-
-    /* Set Vendor-Specific-Application-Id AVP */
-    ret = ogs_diam_message_vendor_specific_appid_set(
-            req, OGS_DIAM_S6A_APPLICATION_ID);
-    ogs_assert(ret == 0);
-
-    ret = clock_gettime(CLOCK_REALTIME, &sess_data->ts);
-    ogs_assert(ret == 0);
-
-    /* Keep a pointer to the session data for debug purpose,
-     * in real life we would not need it */
-    svg = sess_data;
-
-    /* Store this value in the session */
-    ret = fd_sess_state_store(mme_s6a_reg, session, &sess_data);
-    ogs_assert(ret == 0);
-    ogs_assert(sess_data == 0);
-
-    /* Send the request */
-    ret = fd_msg_send(&req, mme_s6a_pua_cb, svg);
-    ogs_assert(ret == 0);
-
-    /* Increment the counter */
-    ogs_assert(pthread_mutex_lock(&ogs_diam_logger_self()->stats_lock) == 0);
-    ogs_diam_logger_self()->stats.nb_sent++;
-    ogs_assert(pthread_mutex_unlock(&ogs_diam_logger_self()->stats_lock) == 0);
-}
-
 /* MME received Purge UE Answer from HSS */
 static void mme_s6a_pua_cb(void *data, struct msg **msg)
 {
@@ -1630,7 +1595,6 @@ static void mme_s6a_pua_cb(void *data, struct msg **msg)
 
     mme_event_t *e = NULL;
     mme_ue_t *mme_ue = NULL;
-    enb_ue_t *enb_ue = NULL;
     ogs_diam_s6a_message_t *s6a_message = NULL;
     ogs_diam_s6a_pua_message_t *pua_message = NULL;
 
@@ -1664,10 +1628,8 @@ static void mme_s6a_pua_cb(void *data, struct msg **msg)
         return;
     }
 
-    mme_ue = mme_ue_find_by_id(sess_data->mme_ue_id);
+    mme_ue = sess_data->mme_ue;
     ogs_assert(mme_ue);
-    enb_ue = enb_ue_find_by_id(sess_data->enb_ue_id);
-    ogs_assert(enb_ue);
 
     /* Set Purge-UE Command */
     s6a_message = ogs_calloc(1, sizeof(ogs_diam_s6a_message_t));
@@ -1764,8 +1726,7 @@ static void mme_s6a_pua_cb(void *data, struct msg **msg)
         int rv;
         e = mme_event_new(MME_EVENT_S6A_MESSAGE);
         ogs_assert(e);
-        e->mme_ue_id = mme_ue->id;
-        e->enb_ue_id = enb_ue->id;
+        e->mme_ue = mme_ue;
         e->s6a_message = s6a_message;
         rv = ogs_queue_push(ogs_app()->queue, e);
         if (rv != OGS_OK) {
@@ -1922,7 +1883,7 @@ static int mme_ogs_diam_s6a_clr_cb( struct msg **msg, struct avp *avp,
 
     e = mme_event_new(MME_EVENT_S6A_MESSAGE);
     ogs_assert(e);
-    e->mme_ue_id = mme_ue->id;
+    e->mme_ue = mme_ue;
     e->s6a_message = s6a_message;
     rv = ogs_queue_push(ogs_app()->queue, e);
     if (rv != OGS_OK) {
@@ -1971,7 +1932,7 @@ static int mme_ogs_diam_s6a_idr_cb( struct msg **msg, struct avp *avp,
     char imsi_bcd[OGS_MAX_IMSI_BCD_LEN+1];
     uint32_t result_code = 0;
     bool has_subscriber_data;
-
+    
     struct msg *ans, *qry;
 
     mme_event_t *e = NULL;
@@ -2061,7 +2022,7 @@ static int mme_ogs_diam_s6a_idr_cb( struct msg **msg, struct avp *avp,
 
         uint32_t ida_cell_id = mme_ue->e_cgi.cell_id;
         uint16_t ida_tac = mme_ue->tai.tac;
-
+        
         struct avp *avp_mme_location_information;
         struct avp *avp_e_utran_cell_global_identity;
         struct avp *avp_tracking_area_identity;
@@ -2127,58 +2088,18 @@ static int mme_ogs_diam_s6a_idr_cb( struct msg **msg, struct avp *avp,
         ogs_assert(ret == 0);
 
         ret = fd_msg_avp_add(ans, MSG_BRW_LAST_CHILD, avp);
-        ogs_assert(ret == 0);
-    }
-    if (idr_message->idr_flags & OGS_DIAM_S6A_IDR_FLAGS_EPS_USER_STATE) {
-#define OGS_DIAM_S6A_USER_STATE_DETACHED                           0
-#define OGS_DIAM_S6A_USER_STATE_ATTACHED_NOT_REACHABLE_FOR_PAGING  1
-#define OGS_DIAM_S6A_USER_STATE_ATTACHED_REACHABLE_FOR_PAGING      2
-#define OGS_DIAM_S6A_USER_STATE_CONNECTED_NOT_REACHABLE_FOR_PAGING 3
-#define OGS_DIAM_S6A_USER_STATE_CONNECTED_REACHABLE_FOR_PAGING     4
-#define OGS_DIAM_S6A_USER_STATE_RESERVED                           5
-        struct avp *avp_eps_user_state = NULL;
-        struct avp *avp_mme_user_state = NULL;
-        struct avp *avp_user_state = NULL;
-        uint32_t user_state = 0;
-
-        /* check user state */
-        if (!ECM_CONNECTED(mme_ue))
-            user_state = OGS_DIAM_S6A_USER_STATE_DETACHED;
-        else if (mme_ue->paging.failed)
-            user_state = OGS_DIAM_S6A_USER_STATE_CONNECTED_NOT_REACHABLE_FOR_PAGING;
-        else
-            user_state = OGS_DIAM_S6A_USER_STATE_CONNECTED_REACHABLE_FOR_PAGING;
-
-        /* Set the EPS-User-State AVP */
-        ret = fd_msg_avp_new(ogs_diam_s6a_eps_user_state, 0, &avp_eps_user_state);
-        ogs_assert(ret == 0);
-        ret = fd_msg_avp_new(ogs_diam_s6a_mme_user_state, 0, &avp_mme_user_state);
-        ogs_assert(ret == 0);
-        ret = fd_msg_avp_new(ogs_diam_s6a_user_state, 0, &avp_user_state);
-        ogs_assert(ret == 0);
-        memset(&val, 0, sizeof(val));
-        val.i32 = user_state;
-        ret = fd_msg_avp_setvalue(avp_user_state, &val);
-        ogs_assert(ret == 0);
-        ret = fd_msg_avp_add(avp_mme_user_state, MSG_BRW_LAST_CHILD, avp_user_state);
-        ogs_assert(ret == 0);
-        ret = fd_msg_avp_add(avp_eps_user_state, MSG_BRW_LAST_CHILD, avp_mme_user_state);
-        ogs_assert(ret == 0);
-        ret = fd_msg_avp_add(ans, MSG_BRW_LAST_CHILD, avp_eps_user_state);
-        ogs_assert(ret == 0);
-    }
-    if (!has_subscriber_data &&
-        !(idr_message->idr_flags & OGS_DIAM_S6A_IDR_FLAGS_EPS_LOCATION_INFO) &&
-        !(idr_message->idr_flags & OGS_DIAM_S6A_IDR_FLAGS_EPS_USER_STATE))
-    {
-        ogs_error("Insert Subscriber Data "
-                "with unsupported IDR Flags "
-                "or no Subscriber-Data for IMSI[%s]", imsi_bcd);
-        /* Set the Origin-Host, Origin-Realm, and Result-Code AVPs */
-        ret = fd_msg_rescode_set(
-                ans, (char*)"DIAMETER_UNABLE_TO_COMPLY", NULL, NULL, 1);
-        ogs_assert(ret == 0);
-        goto outnoexp;
+        ogs_assert(ret == 0);        
+    } else {
+        if (!has_subscriber_data) {
+            ogs_error("Insert Subscriber Data "
+                    "with unsupported IDR Flags "
+                    "or no Subscriber-Data for IMSI[%s]", imsi_bcd);
+            /* Set the Origin-Host, Origin-Realm, and Result-Code AVPs */
+            ret = fd_msg_rescode_set(
+                    ans, (char*)"DIAMETER_UNABLE_TO_COMPLY", NULL, NULL, 1);
+            ogs_assert(ret == 0);
+            goto outnoexp;
+        }
     }
 
     /* Set the Origin-Host, Origin-Realm, andResult-Code AVPs */
@@ -2213,7 +2134,7 @@ static int mme_ogs_diam_s6a_idr_cb( struct msg **msg, struct avp *avp,
     int rv;
     e = mme_event_new(MME_EVENT_S6A_MESSAGE);
     ogs_assert(e);
-    e->mme_ue_id = mme_ue->id;
+    e->mme_ue = mme_ue;
     e->s6a_message = s6a_message;
     rv = ogs_queue_push(ogs_app()->queue, e);
     if (rv != OGS_OK) {

@@ -47,7 +47,6 @@ typedef struct pcf_context_s {
 
 struct pcf_ue_s {
     ogs_sbi_object_t sbi;
-    ogs_pool_id_t id;
     ogs_fsm_t sm;
 
     char *association_id;
@@ -76,41 +75,13 @@ struct pcf_ue_s {
 
 struct pcf_sess_s {
     ogs_sbi_object_t sbi;
-    ogs_pool_id_t id;
     ogs_fsm_t sm;
 
     char *sm_policy_id;
 
     /* BSF sends the RESPONSE
      * of [POST] /nbsf-management/v1/PcfBindings */
-#define PCF_BINDING_ASSOCIATED(__sESS) \
-    ((__sESS) && ((__sESS)->binding.id))
-#define PCF_BINDING_CLEAR(__sESS) \
-    do { \
-        ogs_assert((__sESS)); \
-        if ((__sESS)->binding.resource_uri) \
-            ogs_free((__sESS)->binding.resource_uri); \
-        (__sESS)->binding.resource_uri = NULL; \
-        if ((__sESS)->binding.id) \
-            ogs_free((__sESS)->binding.id); \
-        (__sESS)->binding.id = NULL; \
-    } while(0)
-#define PCF_BINDING_STORE(__sESS, __rESOURCE_URI, __iD) \
-    do { \
-        ogs_assert((__sESS)); \
-        ogs_assert((__rESOURCE_URI)); \
-        ogs_assert((__iD)); \
-        PCF_BINDING_CLEAR(__sESS); \
-        (__sESS)->binding.resource_uri = ogs_strdup(__rESOURCE_URI); \
-        ogs_assert((__sESS)->binding.resource_uri); \
-        (__sESS)->binding.id = ogs_strdup(__iD); \
-        ogs_assert((__sESS)->binding.id); \
-    } while(0)
-    struct {
-        char *resource_uri;
-        char *id;
-        ogs_sbi_client_t *client;
-    } binding;
+    char *binding_id;
 
     uint8_t psi; /* PDU Session Identity */
 
@@ -156,7 +127,7 @@ struct pcf_sess_s {
     ogs_list_t app_list;
 
     /* Related Context */
-    ogs_pool_id_t pcf_ue_id;
+    pcf_ue_t *pcf_ue;
 };
 
 typedef struct pcf_app_s {
@@ -204,8 +175,8 @@ pcf_sess_t *pcf_sess_find_by_ipv6prefix(char *ipv6prefix_string);
 int pcf_sessions_number_by_snssai_and_dnn(
         pcf_ue_t *pcf_ue, ogs_s_nssai_t *s_nssai, char *dnn);
 
-pcf_ue_t *pcf_ue_find_by_id(ogs_pool_id_t id);
-pcf_sess_t *pcf_sess_find_by_id(ogs_pool_id_t id);
+pcf_ue_t *pcf_ue_cycle(pcf_ue_t *pcf_ue);
+pcf_sess_t *pcf_sess_cycle(pcf_sess_t *sess);
 
 pcf_app_t *pcf_app_add(pcf_sess_t *sess);
 int pcf_app_remove(pcf_app_t *app);

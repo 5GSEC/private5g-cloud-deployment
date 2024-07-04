@@ -57,9 +57,7 @@ void amf_nnrf_handle_nf_discover(
     amf_sbi_select_nf(sbi_object,
             service_type, requester_nf_type, discovery_option);
 
-    nf_instance = OGS_SBI_GET_NF_INSTANCE(
-            sbi_object->service_type_array[service_type]);
-
+    nf_instance = sbi_object->service_type_array[service_type].nf_instance;
     if (!nf_instance) {
         amf_ue_t *amf_ue = NULL;
         amf_sess_t *sess = NULL;
@@ -81,18 +79,19 @@ void amf_nnrf_handle_nf_discover(
             sess = (amf_sess_t *)sbi_object;
             ogs_assert(sess);
                         
+            amf_ue = sess->amf_ue;
+            ogs_assert(amf_ue);
+                        
             ogs_error("[%d:%d] (NF discover) No [%s]", sess->psi, sess->pti,
                         ogs_sbi_service_type_to_name(service_type));
             if (sess->payload_container_type) {
-                r = nas_5gs_send_back_gsm_message(
-                        ran_ue_find_by_id(sess->ran_ue_id), sess,
+                r = nas_5gs_send_back_gsm_message(sess,
                         OGS_5GMM_CAUSE_PAYLOAD_WAS_NOT_FORWARDED,
                         AMF_NAS_BACKOFF_TIME);
                 ogs_expect(r == OGS_OK);
                 ogs_assert(r != OGS_ERROR);
             } else {
-                r = ngap_send_error_indication2(
-                        ran_ue_find_by_id(sess->ran_ue_id),
+                r = ngap_send_error_indication2(amf_ue,
                         NGAP_Cause_PR_transport,
                         NGAP_CauseTransport_transport_resource_unavailable);
                 ogs_expect(r == OGS_OK);

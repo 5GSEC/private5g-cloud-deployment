@@ -210,7 +210,6 @@ void smf_pfcp_close(void)
 
 static void sess_5gc_timeout(ogs_pfcp_xact_t *xact, void *data)
 {
-    ogs_pool_id_t sess_id = OGS_INVALID_POOL_ID;
     smf_ue_t *smf_ue = NULL;
     smf_sess_t *sess = NULL;
     ogs_sbi_stream_t *stream = NULL;
@@ -223,22 +222,13 @@ static void sess_5gc_timeout(ogs_pfcp_xact_t *xact, void *data)
     ogs_assert(xact);
     ogs_assert(data);
 
-    if (xact->assoc_stream_id >= OGS_MIN_POOL_ID &&
-            xact->assoc_stream_id <= OGS_MAX_POOL_ID)
-        stream = ogs_sbi_stream_find_by_id(xact->assoc_stream_id);
-
-    type = xact->seq[0].type;
-
-    sess_id = OGS_POINTER_TO_UINT(data);
-    ogs_assert(sess_id >= OGS_MIN_POOL_ID && sess_id <= OGS_MAX_POOL_ID);
-
-    sess = smf_sess_find_by_id(sess_id);
-    if (!sess) {
-        ogs_error("Session has already been removed [%d]", type);
-        return;
-    }
-    smf_ue = smf_ue_find_by_id(sess->smf_ue_id);
+    sess = data;
+    ogs_assert(sess);
+    smf_ue = sess->smf_ue;
     ogs_assert(smf_ue);
+
+    stream = xact->assoc_stream;
+    type = xact->seq[0].type;
 
     switch (type) {
     case OGS_PFCP_SESSION_ESTABLISHMENT_REQUEST_TYPE:
@@ -246,7 +236,7 @@ static void sess_5gc_timeout(ogs_pfcp_xact_t *xact, void *data)
 
         e = smf_event_new(SMF_EVT_N4_TIMER);
         ogs_assert(e);
-        e->sess_id = sess->id;
+        e->sess = sess;
         e->h.timer_id = SMF_TIMER_PFCP_NO_ESTABLISHMENT_RESPONSE;
         e->pfcp_node = sess->pfcp_node;
 
@@ -290,8 +280,7 @@ static void sess_5gc_timeout(ogs_pfcp_xact_t *xact, void *data)
             ogs_assert(stream);
             ogs_assert(true ==
                 ogs_sbi_server_send_error(stream,
-                    OGS_SBI_HTTP_STATUS_GATEWAY_TIMEOUT, NULL, strerror,
-                    NULL, NULL));
+                    OGS_SBI_HTTP_STATUS_GATEWAY_TIMEOUT, NULL, strerror, NULL));
         } else {
             ogs_fatal("Unknown trigger [%d]", trigger);
             ogs_assert_if_reached();
@@ -299,21 +288,7 @@ static void sess_5gc_timeout(ogs_pfcp_xact_t *xact, void *data)
 
         ogs_free(strerror);
 
-        /* We mustn't remove sess here. Removing a session may delete PFCP xact
-           timers and we must not delete any timers from within a timer
-           callback. Instead, we shall emit a new event to trigger session
-           removal from pfcp-sm state machine. */
-        e = smf_event_new(SMF_EVT_N4_TIMER);
-        ogs_assert(e);
-        e->sess_id = sess->id;
-        e->h.timer_id = SMF_TIMER_PFCP_NO_DELETION_RESPONSE;
-        e->pfcp_node = sess->pfcp_node;
-
-        rv = ogs_queue_push(ogs_app()->queue, e);
-        if (rv != OGS_OK) {
-            ogs_error("ogs_queue_push() failed:%d", (int)rv);
-            ogs_event_free(e);
-        }
+        smf_sess_remove(sess);
         break;
     default:
         ogs_error("Not implemented [type:%d]", type);
@@ -323,22 +298,10 @@ static void sess_5gc_timeout(ogs_pfcp_xact_t *xact, void *data)
 
 static void sess_epc_timeout(ogs_pfcp_xact_t *xact, void *data)
 {
-    smf_sess_t *sess = NULL;
-    ogs_pool_id_t sess_id = OGS_INVALID_POOL_ID;
     uint8_t type;
 
     ogs_assert(xact);
     type = xact->seq[0].type;
-
-    ogs_assert(data);
-    sess_id = OGS_POINTER_TO_UINT(data);
-    ogs_assert(sess_id >= OGS_MIN_POOL_ID && sess_id <= OGS_MAX_POOL_ID);
-
-    sess = smf_sess_find_by_id(sess_id);
-    if (!sess) {
-        ogs_error("Session has already been removed [%d]", type);
-        return;
-    }
 
     switch (type) {
     case OGS_PFCP_SESSION_ESTABLISHMENT_REQUEST_TYPE:
@@ -358,22 +321,10 @@ static void sess_epc_timeout(ogs_pfcp_xact_t *xact, void *data)
 
 static void bearer_epc_timeout(ogs_pfcp_xact_t *xact, void *data)
 {
-    smf_bearer_t *bearer = NULL;
-    ogs_pool_id_t bearer_id = OGS_INVALID_POOL_ID;
     uint8_t type;
 
     ogs_assert(xact);
     type = xact->seq[0].type;
-
-    ogs_assert(data);
-    bearer_id = OGS_POINTER_TO_UINT(data);
-    ogs_assert(bearer_id >= OGS_MIN_POOL_ID && bearer_id <= OGS_MAX_POOL_ID);
-
-    bearer = smf_bearer_find_by_id(bearer_id);
-    if (!bearer) {
-        ogs_error("Bearer has already been removed [%d]", type);
-        return;
-    }
 
     switch (type) {
     case OGS_PFCP_SESSION_MODIFICATION_REQUEST_TYPE:
@@ -438,8 +389,7 @@ int smf_5gc_pfcp_send_session_establishment_request(
 
     ogs_assert(sess);
 
-    xact = ogs_pfcp_xact_local_create(
-            sess->pfcp_node, sess_5gc_timeout, OGS_UINT_TO_POINTER(sess->id));
+    xact = ogs_pfcp_xact_local_create(sess->pfcp_node, sess_5gc_timeout, sess);
     if (!xact) {
         ogs_error("ogs_pfcp_xact_local_create() failed");
         return OGS_ERROR;
@@ -512,19 +462,13 @@ int smf_5gc_pfcp_send_all_pdr_modification_request(
     if ((flags & OGS_PFCP_MODIFY_ERROR_INDICATION) == 0)
         ogs_assert(stream);
 
-    xact = ogs_pfcp_xact_local_create(
-            sess->pfcp_node, sess_5gc_timeout, OGS_UINT_TO_POINTER(sess->id));
+    xact = ogs_pfcp_xact_local_create(sess->pfcp_node, sess_5gc_timeout, sess);
     if (!xact) {
         ogs_error("ogs_pfcp_xact_local_create() failed");
         return OGS_ERROR;
     }
 
-    if (stream) {
-        xact->assoc_stream_id = ogs_sbi_id_from_stream(stream);
-        ogs_assert(xact->assoc_stream_id >= OGS_MIN_POOL_ID &&
-                xact->assoc_stream_id <= OGS_MAX_POOL_ID);
-    }
-
+    xact->assoc_stream = stream;
     xact->local_seid = sess->smf_n4_seid;
     xact->modify_flags = flags | OGS_PFCP_MODIFY_SESSION;
 
@@ -548,19 +492,13 @@ int smf_5gc_pfcp_send_qos_flow_list_modification_request(
 
     ogs_assert(sess);
 
-    xact = ogs_pfcp_xact_local_create(
-            sess->pfcp_node, sess_5gc_timeout, OGS_UINT_TO_POINTER(sess->id));
+    xact = ogs_pfcp_xact_local_create(sess->pfcp_node, sess_5gc_timeout, sess);
     if (!xact) {
         ogs_error("ogs_pfcp_xact_local_create() failed");
         return OGS_ERROR;
     }
 
-    if (stream) {
-        xact->assoc_stream_id = ogs_sbi_id_from_stream(stream);
-        ogs_assert(xact->assoc_stream_id >= OGS_MIN_POOL_ID &&
-                xact->assoc_stream_id <= OGS_MAX_POOL_ID);
-    }
-
+    xact->assoc_stream = stream;
     xact->local_seid = sess->smf_n4_seid;
     xact->modify_flags = flags | OGS_PFCP_MODIFY_SESSION;
 
@@ -582,19 +520,13 @@ int smf_5gc_pfcp_send_session_deletion_request(
     ogs_assert(sess);
     ogs_assert(trigger);
 
-    xact = ogs_pfcp_xact_local_create(
-            sess->pfcp_node, sess_5gc_timeout, OGS_UINT_TO_POINTER(sess->id));
+    xact = ogs_pfcp_xact_local_create(sess->pfcp_node, sess_5gc_timeout, sess);
     if (!xact) {
         ogs_error("ogs_pfcp_xact_local_create() failed");
         return OGS_ERROR;
     }
 
-    if (stream) {
-        xact->assoc_stream_id = ogs_sbi_id_from_stream(stream);
-        ogs_assert(xact->assoc_stream_id >= OGS_MIN_POOL_ID &&
-                xact->assoc_stream_id <= OGS_MAX_POOL_ID);
-    }
-
+    xact->assoc_stream = stream;
     xact->delete_trigger = trigger;
     xact->local_seid = sess->smf_n4_seid;
 
@@ -621,7 +553,7 @@ int smf_5gc_pfcp_send_session_deletion_request(
 }
 
 int smf_epc_pfcp_send_session_establishment_request(
-        smf_sess_t *sess, ogs_pool_id_t gtp_xact_id, uint64_t flags)
+        smf_sess_t *sess, void *gtp_xact, uint64_t flags)
 {
     int rv;
     ogs_pkbuf_t *n4buf = NULL;
@@ -630,15 +562,14 @@ int smf_epc_pfcp_send_session_establishment_request(
 
     ogs_assert(sess);
 
-    xact = ogs_pfcp_xact_local_create(
-            sess->pfcp_node, sess_epc_timeout, OGS_UINT_TO_POINTER(sess->id));
+    xact = ogs_pfcp_xact_local_create(sess->pfcp_node, sess_epc_timeout, sess);
     if (!xact) {
         ogs_error("ogs_pfcp_xact_local_create() failed");
         return OGS_ERROR;
     }
 
     xact->epc = true; /* EPC PFCP transaction */
-    xact->assoc_xact_id = gtp_xact_id;
+    xact->assoc_xact = gtp_xact;
     xact->local_seid = sess->smf_n4_seid;
     xact->create_flags = flags;
 
@@ -695,7 +626,7 @@ int smf_epc_pfcp_send_session_establishment_request(
 }
 
 int smf_epc_pfcp_send_all_pdr_modification_request(
-        smf_sess_t *sess, ogs_pool_id_t gtp_xact_id, ogs_pkbuf_t *gtpbuf,
+        smf_sess_t *sess, void *gtp_xact, ogs_pkbuf_t *gtpbuf,
         uint64_t flags, uint8_t gtp_pti, uint8_t gtp_cause)
 {
     int rv;
@@ -704,15 +635,14 @@ int smf_epc_pfcp_send_all_pdr_modification_request(
 
     ogs_assert(sess);
 
-    xact = ogs_pfcp_xact_local_create(
-            sess->pfcp_node, sess_epc_timeout, OGS_UINT_TO_POINTER(sess->id));
+    xact = ogs_pfcp_xact_local_create(sess->pfcp_node, sess_epc_timeout, sess);
     if (!xact) {
         ogs_error("ogs_pfcp_xact_local_create() failed");
         return OGS_ERROR;
     }
 
     xact->epc = true; /* EPC PFCP transaction */
-    xact->assoc_xact_id = gtp_xact_id;
+    xact->assoc_xact = gtp_xact;
     xact->local_seid = sess->smf_n4_seid;
     xact->modify_flags = flags | OGS_PFCP_MODIFY_SESSION;
 
@@ -738,7 +668,7 @@ int smf_epc_pfcp_send_all_pdr_modification_request(
 }
 
 int smf_epc_pfcp_send_one_bearer_modification_request(
-        smf_bearer_t *bearer, ogs_pool_id_t gtp_xact_id,
+        smf_bearer_t *bearer, void *gtp_xact,
         uint64_t flags, uint8_t gtp_pti, uint8_t gtp_cause)
 {
     int rv;
@@ -746,19 +676,18 @@ int smf_epc_pfcp_send_one_bearer_modification_request(
     smf_sess_t *sess = NULL;
 
     ogs_assert(bearer);
-    sess = smf_sess_find_by_id(bearer->sess_id);
+    sess = bearer->sess;
     ogs_assert(sess);
 
     xact = ogs_pfcp_xact_local_create(
-            sess->pfcp_node, bearer_epc_timeout,
-            OGS_UINT_TO_POINTER(bearer->id));
+            sess->pfcp_node, bearer_epc_timeout, bearer);
     if (!xact) {
         ogs_error("ogs_pfcp_xact_local_create() failed");
         return OGS_ERROR;
     }
 
     xact->epc = true; /* EPC PFCP transaction */
-    xact->assoc_xact_id = gtp_xact_id;
+    xact->assoc_xact = gtp_xact;
     xact->local_seid = sess->smf_n4_seid;
     xact->modify_flags = flags;
 
@@ -776,7 +705,7 @@ int smf_epc_pfcp_send_one_bearer_modification_request(
 }
 
 int smf_epc_pfcp_send_session_deletion_request(
-        smf_sess_t *sess, ogs_pool_id_t gtp_xact_id)
+        smf_sess_t *sess, void *gtp_xact)
 {
     int rv;
     ogs_pkbuf_t *n4buf = NULL;
@@ -785,8 +714,7 @@ int smf_epc_pfcp_send_session_deletion_request(
 
     ogs_assert(sess);
 
-    xact = ogs_pfcp_xact_local_create(
-            sess->pfcp_node, sess_epc_timeout, OGS_UINT_TO_POINTER(sess->id));
+    xact = ogs_pfcp_xact_local_create(sess->pfcp_node, sess_epc_timeout, sess);
     if (!xact) {
         ogs_error("ogs_pfcp_xact_local_create() failed");
         return OGS_ERROR;
@@ -815,7 +743,7 @@ int smf_epc_pfcp_send_session_deletion_request(
      * - Bearer Resource Command
      * - Delete Bearer Request/Response with DEDICATED BEARER.
      */
-    xact->assoc_xact_id = gtp_xact_id;
+    xact->assoc_xact = gtp_xact;
     xact->local_seid = sess->smf_n4_seid;
 
     memset(&h, 0, sizeof(ogs_pfcp_header_t));
@@ -847,7 +775,7 @@ int smf_epc_pfcp_send_deactivation(smf_sess_t *sess, uint8_t gtp_cause)
     smf_sess_t *eutran_sess = NULL, *wlan_sess = NULL;
 
     ogs_assert(sess);
-    smf_ue = smf_ue_find_by_id(sess->smf_ue_id);
+    smf_ue = sess->smf_ue;
     ogs_assert(smf_ue);
 
     switch (gtp_cause) {
@@ -866,7 +794,7 @@ int smf_epc_pfcp_send_deactivation(smf_sess_t *sess, uint8_t gtp_cause)
 
         /* Deactivate WLAN Session */
         rv = smf_epc_pfcp_send_all_pdr_modification_request(
-                wlan_sess, OGS_INVALID_POOL_ID, NULL,
+                wlan_sess, NULL, NULL,
                 OGS_PFCP_MODIFY_DL_ONLY|OGS_PFCP_MODIFY_DEACTIVATE,
                 OGS_NAS_PROCEDURE_TRANSACTION_IDENTITY_UNASSIGNED,
                 OGS_GTP2_CAUSE_ACCESS_CHANGED_FROM_NON_3GPP_TO_3GPP);
@@ -889,7 +817,7 @@ int smf_epc_pfcp_send_deactivation(smf_sess_t *sess, uint8_t gtp_cause)
 
             /* Deactivate EUTRAN Session */
             rv = smf_epc_pfcp_send_all_pdr_modification_request(
-                    eutran_sess, OGS_INVALID_POOL_ID, NULL,
+                    eutran_sess, NULL, NULL,
                     OGS_PFCP_MODIFY_DL_ONLY|OGS_PFCP_MODIFY_DEACTIVATE,
                     OGS_NAS_PROCEDURE_TRANSACTION_IDENTITY_UNASSIGNED,
                     OGS_GTP2_CAUSE_RAT_CHANGED_FROM_3GPP_TO_NON_3GPP);

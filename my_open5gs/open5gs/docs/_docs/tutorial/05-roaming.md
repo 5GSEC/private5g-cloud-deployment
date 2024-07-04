@@ -92,8 +92,7 @@ NRF shall follow TS23.003(28.3.2.3.2 Format of NRF FQDN) for routing.
 ```bash
 $ sh -c 'cat << EOF > ./install/etc/open5gs/h-nrf.yaml
 logger:
-  file:
-    path: /home/acetcom/Documents/git/open5gs/install/var/log/open5gs/h-nrf.log
+  file: /home/acetcom/Documents/git/open5gs/install/var/log/open5gs/h-nrf.log
 #  level: info   # fatal|error|warn|info(default)|debug|trace
 
 global:
@@ -117,8 +116,7 @@ EOF'
 ```bash
 $ sh -c 'cat << EOF > ./install/etc/open5gs/h-scp.yaml
 logger:
-  file:
-    path: /home/acetcom/Documents/git/open5gs/install/var/log/open5gs/h-scp.log
+  file: /home/acetcom/Documents/git/open5gs/install/var/log/open5gs/h-scp.log
 #  level: info   # fatal|error|warn|info(default)|debug|trace
 
 global:
@@ -304,8 +302,7 @@ $ diff -u ./install/etc/open5gs/pcf.yaml.old ./install/etc/open5gs/pcf.yaml
 @@ -1,4 +1,3 @@
 -db_uri: mongodb://localhost/open5gs
  logger:
-   file:
-     path: /home/acetcom/Documents/git/open5gs/install/var/log/open5gs/pcf.log
+   file: /home/acetcom/Documents/git/open5gs/install/var/log/open5gs/pcf.log
  #  level: info   # fatal|error|warn|info(default)|debug|trace
 @@ -22,6 +21,29 @@
      server:
@@ -649,8 +646,7 @@ For now we will set up SEPP without using TLS.
 ```bash
 $ sh -c 'cat << EOF > ./install/etc/open5gs/sepp.yaml
 logger:
-    file:
-      path: /home/acetcom/Documents/git/open5gs/install/var/log/open5gs/sepp.log
+    file: /home/acetcom/Documents/git/open5gs/install/var/log/open5gs/sepp.log
 #    level: info   # fatal|error|warn|info(default)|debug|trace
 
 max:
@@ -970,8 +966,7 @@ For now we will set up SEPP without using TLS.
 ```bash
 $ sh -c 'cat << EOF > ./install/etc/open5gs/sepp.yaml
 logger:
-    file:
-      path: /home/acetcom/Documents/git/open5gs/install/var/log/open5gs/sepp.log
+    file: /home/acetcom/Documents/git/open5gs/install/var/log/open5gs/sepp.log
 #    level: info   # fatal|error|warn|info(default)|debug|trace
 
 max:
@@ -1291,8 +1286,7 @@ For now we will set up SEPP without using TLS.
 ```bash
 $ sh -c 'cat << EOF > ./install/etc/open5gs/sepp.yaml
 logger:
-    file:
-      path: /home/acetcom/Documents/git/open5gs/install/var/log/open5gs/sepp.log
+    file: /home/acetcom/Documents/git/open5gs/install/var/log/open5gs/sepp.log
 #    level: info   # fatal|error|warn|info(default)|debug|trace
 
 max:

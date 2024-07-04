@@ -24,33 +24,27 @@
 
 static void gtp_sess_timeout(ogs_gtp_xact_t *xact, void *data)
 {
-    sgwc_sess_t *sess = NULL;
-    ogs_pool_id_t sess_id = OGS_INVALID_POOL_ID;
+    sgwc_sess_t *sess = data;
     sgwc_ue_t *sgwc_ue = NULL;
     uint8_t type = 0;
 
     ogs_assert(xact);
-    type = xact->seq[0].type;
-
-    ogs_assert(data);
-    sess_id = OGS_POINTER_TO_UINT(data);
-    ogs_assert(sess_id >= OGS_MIN_POOL_ID && sess_id <= OGS_MAX_POOL_ID);
-
-    sess = sgwc_sess_find_by_id(sess_id);
-    if (!sess) {
-        ogs_error("Session has already been removed [%d]", type);
-        return;
-    }
-
-    sgwc_ue = sgwc_ue_find_by_id(sess->sgwc_ue_id);
+    ogs_assert(sess);
+    sgwc_ue = sess->sgwc_ue;
     ogs_assert(sgwc_ue);
+
+    type = xact->seq[0].type;
 
     switch (type) {
     case OGS_GTP2_DELETE_SESSION_REQUEST_TYPE:
         ogs_error("[%s] No Delete Session Response", sgwc_ue->imsi_bcd);
+        if (!sgwc_sess_cycle(sess)) {
+            ogs_error("[%s] Session has already been removed",
+                    sgwc_ue->imsi_bcd);
+            break;
+        }
         ogs_assert(OGS_OK ==
-            sgwc_pfcp_send_session_deletion_request(
-                sess, OGS_INVALID_POOL_ID, NULL));
+            sgwc_pfcp_send_session_deletion_request(sess, NULL, NULL));
         break;
     default:
         ogs_error("GTP Timeout : IMSI[%s] Message-Type[%d]",
@@ -60,29 +54,19 @@ static void gtp_sess_timeout(ogs_gtp_xact_t *xact, void *data)
 
 static void gtp_bearer_timeout(ogs_gtp_xact_t *xact, void *data)
 {
-    sgwc_bearer_t *bearer = NULL;
-    ogs_pool_id_t bearer_id = OGS_INVALID_POOL_ID;
+    sgwc_bearer_t *bearer = data;
     sgwc_sess_t *sess = NULL;
     sgwc_ue_t *sgwc_ue = NULL;
     uint8_t type = 0;
 
     ogs_assert(xact);
-    type = xact->seq[0].type;
-
-    ogs_assert(data);
-    bearer_id = OGS_POINTER_TO_UINT(data);
-    ogs_assert(bearer_id >= OGS_MIN_POOL_ID && bearer_id <= OGS_MAX_POOL_ID);
-
-    bearer = sgwc_bearer_find_by_id(bearer_id);
-    if (!bearer) {
-        ogs_error("Bearer has already been removed [%d]", type);
-        return;
-    }
-
-    sess = sgwc_sess_find_by_id(bearer->sess_id);
+    ogs_assert(bearer);
+    sess = bearer->sess;
     ogs_assert(sess);
-    sgwc_ue = sgwc_ue_find_by_id(sess->sgwc_ue_id);
+    sgwc_ue = sess->sgwc_ue;
     ogs_assert(sgwc_ue);
+
+    type = xact->seq[0].type;
 
     ogs_error("GTP Timeout : IMSI[%s] Message-Type[%d]",
             sgwc_ue->imsi_bcd, type);
@@ -90,22 +74,10 @@ static void gtp_bearer_timeout(ogs_gtp_xact_t *xact, void *data)
 
 static void pfcp_sess_timeout(ogs_pfcp_xact_t *xact, void *data)
 {
-    sgwc_sess_t *sess = NULL;
-    ogs_pool_id_t sess_id = OGS_INVALID_POOL_ID;
     uint8_t type;
 
     ogs_assert(xact);
     type = xact->seq[0].type;
-
-    ogs_assert(data);
-    sess_id = OGS_POINTER_TO_UINT(data);
-    ogs_assert(sess_id >= OGS_MIN_POOL_ID && sess_id <= OGS_MAX_POOL_ID);
-
-    sess = sgwc_sess_find_by_id(sess_id);
-    if (!sess) {
-        ogs_error("Session has already been removed [%d]", type);
-        return;
-    }
 
     switch (type) {
     case OGS_PFCP_SESSION_ESTABLISHMENT_REQUEST_TYPE:
@@ -231,12 +203,6 @@ void sgwc_s11_handle_create_session_request(
     if (req->access_point_name.presence == 0) {
         ogs_error("No APN");
         cause_value = OGS_GTP2_CAUSE_MANDATORY_IE_MISSING;
-    } else {
-        if (ogs_fqdn_parse(apn, req->access_point_name.data,
-            ogs_min(req->access_point_name.len, OGS_MAX_APN_LEN)) <= 0) {
-            ogs_error("Invalid APN");
-            cause_value = OGS_GTP2_CAUSE_MANDATORY_IE_INCORRECT;
-        }
     }
     if (req->sender_f_teid_for_control_plane.presence == 0) {
         ogs_error("No Sender F-TEID");
@@ -255,6 +221,9 @@ void sgwc_s11_handle_create_session_request(
     }
 
     /* Add Session */
+    ogs_assert(0 < ogs_fqdn_parse(apn,
+            req->access_point_name.data,
+            ogs_min(req->access_point_name.len, OGS_MAX_APN_LEN)));
     sess = sgwc_sess_find_by_ebi(sgwc_ue,
             req->bearer_contexts_to_be_created[0].eps_bearer_id.u8);
     if (sess) {
@@ -270,22 +239,21 @@ void sgwc_s11_handle_create_session_request(
     /* Set User Location Information */
     if (req->user_location_information.presence == 1) {
         decoded = ogs_gtp2_parse_uli(&uli, &req->user_location_information);
-        if (req->user_location_information.len == decoded) {
-            sgwc_ue->uli_presence = true;
+        ogs_assert(req->user_location_information.len == decoded);
 
-            ogs_nas_to_plmn_id(&sgwc_ue->e_tai.plmn_id, &uli.tai.nas_plmn_id);
-            sgwc_ue->e_tai.tac = uli.tai.tac;
-            ogs_nas_to_plmn_id(&sgwc_ue->e_cgi.plmn_id, &uli.e_cgi.nas_plmn_id);
-            sgwc_ue->e_cgi.cell_id = uli.e_cgi.cell_id;
+        sgwc_ue->uli_presence = true;
 
-            ogs_debug("    TAI[PLMN_ID:%06x,TAC:%d]",
-                    ogs_plmn_id_hexdump(&sgwc_ue->e_tai.plmn_id),
-                    sgwc_ue->e_tai.tac);
-            ogs_debug("    E_CGI[PLMN_ID:%06x,CELL_ID:0x%x]",
-                    ogs_plmn_id_hexdump(&sgwc_ue->e_cgi.plmn_id),
-                    sgwc_ue->e_cgi.cell_id);
-        } else
-            ogs_error("Invalid User Location Info(ULI)");
+        ogs_nas_to_plmn_id(&sgwc_ue->e_tai.plmn_id, &uli.tai.nas_plmn_id);
+        sgwc_ue->e_tai.tac = uli.tai.tac;
+        ogs_nas_to_plmn_id(&sgwc_ue->e_cgi.plmn_id, &uli.e_cgi.nas_plmn_id);
+        sgwc_ue->e_cgi.cell_id = uli.e_cgi.cell_id;
+
+        ogs_debug("    TAI[PLMN_ID:%06x,TAC:%d]",
+                ogs_plmn_id_hexdump(&sgwc_ue->e_tai.plmn_id),
+                sgwc_ue->e_tai.tac);
+        ogs_debug("    E_CGI[PLMN_ID:%06x,CELL_ID:0x%x]",
+                ogs_plmn_id_hexdump(&sgwc_ue->e_cgi.plmn_id),
+                sgwc_ue->e_cgi.cell_id);
     }
 
     /* Select SGW-U based on UE Location Information */
@@ -411,7 +379,7 @@ void sgwc_s11_handle_create_session_request(
 
     ogs_assert(OGS_OK ==
         sgwc_pfcp_send_session_establishment_request(
-            sess, s11_xact->id, gtpbuf, 0));
+            sess, s11_xact, gtpbuf, 0));
 }
 
 void sgwc_s11_handle_modify_bearer_request(
@@ -493,28 +461,22 @@ void sgwc_s11_handle_modify_bearer_request(
             break;
         }
 
-        sess = sgwc_sess_find_by_id(bearer->sess_id);
+        sess = bearer->sess;
         ogs_assert(sess);
 
         ogs_list_for_each_entry(&pfcp_xact_list, pfcp_xact, tmpnode) {
-            if (pfcp_xact->modify_flags & OGS_PFCP_MODIFY_SESSION) {
-                ogs_pool_id_t sess_id = OGS_POINTER_TO_UINT(pfcp_xact->data);
-                ogs_assert(sess_id >= OGS_MIN_POOL_ID &&
-                        sess_id <= OGS_MAX_POOL_ID);
-                if (sess->id == sess_id) {
-                    current_xact = pfcp_xact;
-                    break;
-                }
+            if (sess == pfcp_xact->data) {
+                current_xact = pfcp_xact;
+                break;
             }
         }
 
         if (!current_xact) {
             current_xact = ogs_pfcp_xact_local_create(
-                    sess->pfcp_node, pfcp_sess_timeout,
-                    OGS_UINT_TO_POINTER(sess->id));
+                    sess->pfcp_node, pfcp_sess_timeout, sess);
             ogs_assert(current_xact);
 
-            current_xact->assoc_xact_id = s11_xact->id;
+            current_xact->assoc_xact = s11_xact;
             current_xact->modify_flags = OGS_PFCP_MODIFY_SESSION|
                 OGS_PFCP_MODIFY_DL_ONLY|OGS_PFCP_MODIFY_ACTIVATE;
             if (gtpbuf) {
@@ -577,22 +539,21 @@ void sgwc_s11_handle_modify_bearer_request(
 
     if (req->user_location_information.presence == 1) {
         decoded = ogs_gtp2_parse_uli(&uli, &req->user_location_information);
-        if (req->user_location_information.len == decoded) {
-            sgwc_ue->uli_presence = true;
+        ogs_assert(req->user_location_information.len == decoded);
 
-            ogs_nas_to_plmn_id(&sgwc_ue->e_tai.plmn_id, &uli.tai.nas_plmn_id);
-            sgwc_ue->e_tai.tac = uli.tai.tac;
-            ogs_nas_to_plmn_id(&sgwc_ue->e_cgi.plmn_id, &uli.e_cgi.nas_plmn_id);
-            sgwc_ue->e_cgi.cell_id = uli.e_cgi.cell_id;
+        sgwc_ue->uli_presence = true;
 
-            ogs_debug("    TAI[PLMN_ID:%06x,TAC:%d]",
-                    ogs_plmn_id_hexdump(&sgwc_ue->e_tai.plmn_id),
-                    sgwc_ue->e_tai.tac);
-            ogs_debug("    E_CGI[PLMN_ID:%06x,CELL_ID:0x%x]",
-                    ogs_plmn_id_hexdump(&sgwc_ue->e_cgi.plmn_id),
-                    sgwc_ue->e_cgi.cell_id);
-        } else
-            ogs_error("Invalid User Location Info(ULI)");
+        ogs_nas_to_plmn_id(&sgwc_ue->e_tai.plmn_id, &uli.tai.nas_plmn_id);
+        sgwc_ue->e_tai.tac = uli.tai.tac;
+        ogs_nas_to_plmn_id(&sgwc_ue->e_cgi.plmn_id, &uli.e_cgi.nas_plmn_id);
+        sgwc_ue->e_cgi.cell_id = uli.e_cgi.cell_id;
+
+        ogs_debug("    TAI[PLMN_ID:%06x,TAC:%d]",
+                ogs_plmn_id_hexdump(&sgwc_ue->e_tai.plmn_id),
+                sgwc_ue->e_tai.tac);
+        ogs_debug("    E_CGI[PLMN_ID:%06x,CELL_ID:0x%x]",
+                ogs_plmn_id_hexdump(&sgwc_ue->e_cgi.plmn_id),
+                sgwc_ue->e_cgi.cell_id);
     }
 
     ogs_debug("    MME_S11_TEID[%d] SGW_S11_TEID[%d]",
@@ -600,20 +561,8 @@ void sgwc_s11_handle_modify_bearer_request(
     ogs_debug("    ENB_S1U_TEID[%d] SGW_S1U_TEID[%d]",
         dl_tunnel->remote_teid, dl_tunnel->local_teid);
 
-    ogs_list_for_each_entry(&pfcp_xact_list, pfcp_xact, tmpnode) {
-        if (pfcp_xact->modify_flags & OGS_PFCP_MODIFY_SESSION) {
-            sgwc_sess_t *sess = NULL;
-
-            ogs_pool_id_t sess_id = OGS_POINTER_TO_UINT(pfcp_xact->data);
-            ogs_assert(sess_id >= OGS_MIN_POOL_ID &&
-                    sess_id <= OGS_MAX_POOL_ID);
-
-            sess = sgwc_sess_find_by_id(sess_id);
-            ogs_assert(sess);
-
-            sgwc_pfcp_send_bearer_to_modify_list(sess, pfcp_xact);
-        }
-    }
+    ogs_list_for_each_entry(&pfcp_xact_list, pfcp_xact, tmpnode)
+        sgwc_pfcp_send_bearer_to_modify_list(pfcp_xact->data, pfcp_xact);
 }
 
 void sgwc_s11_handle_delete_session_request(
@@ -703,8 +652,7 @@ void sgwc_s11_handle_delete_session_request(
         indication->scope_indication == 1) {
 
         ogs_assert(OGS_OK ==
-            sgwc_pfcp_send_session_deletion_request(
-                sess, s11_xact->id, gtpbuf));
+            sgwc_pfcp_send_session_deletion_request(sess, s11_xact, gtpbuf));
 
     } else {
         message->h.type = OGS_GTP2_DELETE_SESSION_REQUEST_TYPE;
@@ -717,8 +665,7 @@ void sgwc_s11_handle_delete_session_request(
         }
 
         s5c_xact = ogs_gtp_xact_local_create(
-                sess->gnode, &message->h, gtpbuf, gtp_sess_timeout,
-                OGS_UINT_TO_POINTER(sess->id));
+                sess->gnode, &message->h, gtpbuf, gtp_sess_timeout, sess);
         if (!s5c_xact) {
             ogs_error("ogs_gtp_xact_local_create() failed");
             return;
@@ -743,7 +690,6 @@ void sgwc_s11_handle_create_bearer_response(
 
     sgwc_sess_t *sess = NULL;
     sgwc_bearer_t *bearer = NULL;
-    ogs_pool_id_t bearer_id = OGS_INVALID_POOL_ID;
     sgwc_tunnel_t *dl_tunnel = NULL, *ul_tunnel = NULL;
     ogs_pfcp_far_t *far = NULL;
 
@@ -764,29 +710,17 @@ void sgwc_s11_handle_create_bearer_response(
      * Check Transaction
      ********************/
     ogs_assert(s11_xact);
-    s5c_xact = ogs_gtp_xact_find_by_id(s11_xact->assoc_xact_id);
+    s5c_xact = s11_xact->assoc_xact;
     ogs_assert(s5c_xact);
 
-    if (s11_xact->xid & OGS_GTP_CMD_XACT_ID) {
+    if (s11_xact->xid & OGS_GTP_CMD_XACT_ID)
         /* MME received Bearer Resource Modification Request */
-        ogs_assert(s5c_xact->data);
-        bearer_id = OGS_POINTER_TO_UINT(s5c_xact->data);
-        ogs_assert(bearer_id >= OGS_MIN_POOL_ID &&
-                bearer_id <= OGS_MAX_POOL_ID);
+        bearer = s5c_xact->data;
+    else
+        bearer = s11_xact->data;
 
-        bearer = sgwc_bearer_find_by_id(bearer_id);
-        ogs_assert(bearer);
-    } else {
-        ogs_assert(s11_xact->data);
-        bearer_id = OGS_POINTER_TO_UINT(s11_xact->data);
-        ogs_assert(bearer_id >= OGS_MIN_POOL_ID &&
-                bearer_id <= OGS_MAX_POOL_ID);
-
-        bearer = sgwc_bearer_find_by_id(bearer_id);
-        ogs_assert(bearer);
-    }
-
-    sess = sgwc_sess_find_by_id(bearer->sess_id);
+    ogs_assert(bearer);
+    sess = bearer->sess;
     ogs_assert(sess);
 
     rv = ogs_gtp_xact_commit(s11_xact);
@@ -826,7 +760,7 @@ void sgwc_s11_handle_create_bearer_response(
     if (cause_value != OGS_GTP2_CAUSE_REQUEST_ACCEPTED) {
         ogs_assert(OGS_OK ==
             sgwc_pfcp_send_bearer_modification_request(
-                bearer, OGS_INVALID_POOL_ID, NULL,
+                bearer, NULL, NULL,
                 OGS_PFCP_MODIFY_UL_ONLY|OGS_PFCP_MODIFY_REMOVE));
         ogs_gtp_send_error_message(s5c_xact, sess ? sess->pgw_s5c_teid : 0,
                 OGS_GTP2_CREATE_BEARER_RESPONSE_TYPE, cause_value);
@@ -845,7 +779,7 @@ void sgwc_s11_handle_create_bearer_response(
         ogs_error("GTP Cause [Value:%d]", cause_value);
         ogs_assert(OGS_OK ==
             sgwc_pfcp_send_bearer_modification_request(
-                bearer, OGS_INVALID_POOL_ID, NULL,
+                bearer, NULL, NULL,
                 OGS_PFCP_MODIFY_UL_ONLY|OGS_PFCP_MODIFY_REMOVE));
         ogs_gtp_send_error_message(s5c_xact, sess ? sess->pgw_s5c_teid : 0,
                 OGS_GTP2_CREATE_BEARER_RESPONSE_TYPE, cause_value);
@@ -865,23 +799,9 @@ void sgwc_s11_handle_create_bearer_response(
 
     /* Find the Tunnel by SGW-S1U-TEID */
     ul_tunnel = sgwc_tunnel_find_by_teid(sgwc_ue, be32toh(sgw_s1u_teid->teid));
-    if (!ul_tunnel) {
-        ogs_error("No UL-tunnel [EBI:%d, TEID:0x%x]",
-                bearer->ebi, be32toh(sgw_s1u_teid->teid));
-        ogs_gtp_send_error_message(s5c_xact, sess ? sess->pgw_s5c_teid : 0,
-                OGS_GTP2_CREATE_BEARER_RESPONSE_TYPE,
-                OGS_GTP2_CAUSE_GRE_KEY_NOT_FOUND);
-        return;
-    }
+    ogs_assert(ul_tunnel);
     dl_tunnel = sgwc_dl_tunnel_in_bearer(bearer);
-    if (!dl_tunnel) {
-        ogs_error("No DL-tunnel [EBI:%d, TEID:0x%x]",
-                bearer->ebi, be32toh(sgw_s1u_teid->teid));
-        ogs_gtp_send_error_message(s5c_xact, sess ? sess->pgw_s5c_teid : 0,
-                OGS_GTP2_CREATE_BEARER_RESPONSE_TYPE,
-                OGS_GTP2_CAUSE_CONTEXT_NOT_FOUND);
-        return;
-    }
+    ogs_assert(dl_tunnel);
 
     /* Set EBI */
     bearer->ebi = rsp->bearer_contexts.eps_bearer_id.u8;
@@ -908,27 +828,26 @@ void sgwc_s11_handle_create_bearer_response(
 
     if (rsp->user_location_information.presence == 1) {
         decoded = ogs_gtp2_parse_uli(&uli, &rsp->user_location_information);
-        if (rsp->user_location_information.len == decoded) {
-            sgwc_ue->uli_presence = true;
+        ogs_assert(rsp->user_location_information.len == decoded);
 
-            ogs_nas_to_plmn_id(&sgwc_ue->e_tai.plmn_id, &uli.tai.nas_plmn_id);
-            sgwc_ue->e_tai.tac = uli.tai.tac;
-            ogs_nas_to_plmn_id(&sgwc_ue->e_cgi.plmn_id, &uli.e_cgi.nas_plmn_id);
-            sgwc_ue->e_cgi.cell_id = uli.e_cgi.cell_id;
+        sgwc_ue->uli_presence = true;
 
-            ogs_debug("    TAI[PLMN_ID:%06x,TAC:%d]",
-                    ogs_plmn_id_hexdump(&sgwc_ue->e_tai.plmn_id),
-                    sgwc_ue->e_tai.tac);
-            ogs_debug("    E_CGI[PLMN_ID:%06x,CELL_ID:0x%x]",
-                    ogs_plmn_id_hexdump(&sgwc_ue->e_cgi.plmn_id),
-                    sgwc_ue->e_cgi.cell_id);
-        } else
-            ogs_error("Invalid User Location Info(ULI)");
+        ogs_nas_to_plmn_id(&sgwc_ue->e_tai.plmn_id, &uli.tai.nas_plmn_id);
+        sgwc_ue->e_tai.tac = uli.tai.tac;
+        ogs_nas_to_plmn_id(&sgwc_ue->e_cgi.plmn_id, &uli.e_cgi.nas_plmn_id);
+        sgwc_ue->e_cgi.cell_id = uli.e_cgi.cell_id;
+
+        ogs_debug("    TAI[PLMN_ID:%06x,TAC:%d]",
+                ogs_plmn_id_hexdump(&sgwc_ue->e_tai.plmn_id),
+                sgwc_ue->e_tai.tac);
+        ogs_debug("    E_CGI[PLMN_ID:%06x,CELL_ID:0x%x]",
+                ogs_plmn_id_hexdump(&sgwc_ue->e_cgi.plmn_id),
+                sgwc_ue->e_cgi.cell_id);
     }
 
     ogs_assert(OGS_OK ==
         sgwc_pfcp_send_bearer_modification_request(
-            bearer, s5c_xact->id, gtpbuf,
+            bearer, s5c_xact, gtpbuf,
             OGS_PFCP_MODIFY_DL_ONLY|OGS_PFCP_MODIFY_CREATE));
 }
 
@@ -943,7 +862,6 @@ void sgwc_s11_handle_update_bearer_response(
     ogs_gtp_xact_t *s5c_xact = NULL;
     sgwc_sess_t *sess = NULL;
     sgwc_bearer_t *bearer = NULL;
-    ogs_pool_id_t bearer_id = OGS_INVALID_POOL_ID;
     ogs_gtp2_update_bearer_response_t *rsp = NULL;
 
     ogs_assert(sgwc_ue);
@@ -957,29 +875,17 @@ void sgwc_s11_handle_update_bearer_response(
      * Check Transaction
      ********************/
     ogs_assert(s11_xact);
-    s5c_xact = ogs_gtp_xact_find_by_id(s11_xact->assoc_xact_id);
+    s5c_xact = s11_xact->assoc_xact;
     ogs_assert(s5c_xact);
 
-    if (s11_xact->xid & OGS_GTP_CMD_XACT_ID) {
+    if (s11_xact->xid & OGS_GTP_CMD_XACT_ID)
         /* MME received Bearer Resource Modification Request */
-        ogs_assert(s5c_xact->data);
-        bearer_id = OGS_POINTER_TO_UINT(s5c_xact->data);
-        ogs_assert(bearer_id >= OGS_MIN_POOL_ID &&
-                bearer_id <= OGS_MAX_POOL_ID);
+        bearer = s5c_xact->data;
+    else
+        bearer = s11_xact->data;
 
-        bearer = sgwc_bearer_find_by_id(bearer_id);
-        ogs_assert(bearer);
-    } else {
-        ogs_assert(s11_xact->data);
-        bearer_id = OGS_POINTER_TO_UINT(s11_xact->data);
-        ogs_assert(bearer_id >= OGS_MIN_POOL_ID &&
-                bearer_id <= OGS_MAX_POOL_ID);
-
-        bearer = sgwc_bearer_find_by_id(bearer_id);
-        ogs_assert(bearer);
-    }
-
-    sess = sgwc_sess_find_by_id(bearer->sess_id);
+    ogs_assert(bearer);
+    sess = bearer->sess;
     ogs_assert(sess);
 
     rv = ogs_gtp_xact_commit(s11_xact);
@@ -1079,7 +985,6 @@ void sgwc_s11_handle_delete_bearer_response(
 
     sgwc_sess_t *sess = NULL;
     sgwc_bearer_t *bearer = NULL;
-    ogs_pool_id_t bearer_id = OGS_INVALID_POOL_ID;
     ogs_gtp2_delete_bearer_response_t *rsp = NULL;
 
     ogs_assert(sgwc_ue);
@@ -1093,29 +998,17 @@ void sgwc_s11_handle_delete_bearer_response(
      * Check Transaction
      ********************/
     ogs_assert(s11_xact);
-    s5c_xact = ogs_gtp_xact_find_by_id(s11_xact->assoc_xact_id);
+    s5c_xact = s11_xact->assoc_xact;
     ogs_assert(s5c_xact);
 
-    if (s11_xact->xid & OGS_GTP_CMD_XACT_ID) {
+    if (s11_xact->xid & OGS_GTP_CMD_XACT_ID)
         /* MME received Bearer Resource Modification Request */
-        ogs_assert(s5c_xact->data);
-        bearer_id = OGS_POINTER_TO_UINT(s5c_xact->data);
-        ogs_assert(bearer_id >= OGS_MIN_POOL_ID &&
-                bearer_id <= OGS_MAX_POOL_ID);
+        bearer = s5c_xact->data;
+    else
+        bearer = s11_xact->data;
 
-        bearer = sgwc_bearer_find_by_id(bearer_id);
-        ogs_assert(bearer);
-    } else {
-        ogs_assert(s11_xact->data);
-        bearer_id = OGS_POINTER_TO_UINT(s11_xact->data);
-        ogs_assert(bearer_id >= OGS_MIN_POOL_ID &&
-                bearer_id <= OGS_MAX_POOL_ID);
-
-        bearer = sgwc_bearer_find_by_id(bearer_id);
-        ogs_assert(bearer);
-    }
-
-    sess = sgwc_sess_find_by_id(bearer->sess_id);
+    ogs_assert(bearer);
+    sess = bearer->sess;
     ogs_assert(sess);
 
     rv = ogs_gtp_xact_commit(s11_xact);
@@ -1152,8 +1045,7 @@ void sgwc_s11_handle_delete_bearer_response(
         }
 
         ogs_assert(OGS_OK ==
-            sgwc_pfcp_send_session_deletion_request(
-                sess, s5c_xact->id, gtpbuf));
+            sgwc_pfcp_send_session_deletion_request(sess, s5c_xact, gtpbuf));
     } else {
        /*
         * << EPS Bearer IDs >>
@@ -1205,7 +1097,7 @@ void sgwc_s11_handle_delete_bearer_response(
 
         ogs_assert(OGS_OK ==
             sgwc_pfcp_send_bearer_modification_request(
-                bearer, s5c_xact->id, gtpbuf, OGS_PFCP_MODIFY_REMOVE));
+                bearer, s5c_xact, gtpbuf, OGS_PFCP_MODIFY_REMOVE));
     }
 }
 
@@ -1254,7 +1146,7 @@ void sgwc_s11_handle_release_access_bearers_request(
 
         ogs_assert(OGS_OK ==
             sgwc_pfcp_send_session_modification_request(
-                sess, s11_xact->id, gtpbuf,
+                sess, s11_xact, gtpbuf,
                 OGS_PFCP_MODIFY_DL_ONLY|OGS_PFCP_MODIFY_DEACTIVATE));
     }
 }
@@ -1267,7 +1159,6 @@ void sgwc_s11_handle_downlink_data_notification_ack(
     uint8_t cause_value;
 
     sgwc_bearer_t *bearer = NULL;
-    ogs_pool_id_t bearer_id = OGS_INVALID_POOL_ID;
     sgwc_sess_t *sess = NULL;
 
     ogs_gtp2_downlink_data_notification_acknowledge_t *ack = NULL;
@@ -1280,14 +1171,9 @@ void sgwc_s11_handle_downlink_data_notification_ack(
      * Check Transaction
      ********************/
     ogs_assert(s11_xact);
-    ogs_assert(s11_xact->data);
-    bearer_id = OGS_POINTER_TO_UINT(s11_xact->data);
-    ogs_assert(bearer_id >= OGS_MIN_POOL_ID &&
-            bearer_id <= OGS_MAX_POOL_ID);
-
-    bearer = sgwc_bearer_find_by_id(bearer_id);
+    bearer = s11_xact->data;
     ogs_assert(bearer);
-    sess = sgwc_sess_find_by_id(bearer->sess_id);
+    sess = bearer->sess;
     ogs_assert(sess);
 
     rv = ogs_gtp_xact_commit(s11_xact);
@@ -1453,7 +1339,7 @@ void sgwc_s11_handle_create_indirect_data_forwarding_tunnel_request(
 
         ogs_assert(OGS_OK ==
             sgwc_pfcp_send_session_modification_request(
-                sess, s11_xact->id, gtpbuf,
+                sess, s11_xact, gtpbuf,
                 OGS_PFCP_MODIFY_INDIRECT|OGS_PFCP_MODIFY_CREATE));
     }
 }
@@ -1499,7 +1385,7 @@ void sgwc_s11_handle_delete_indirect_data_forwarding_tunnel_request(
 
         ogs_assert(OGS_OK ==
             sgwc_pfcp_send_session_modification_request(
-                sess, s11_xact->id, gtpbuf,
+                sess, s11_xact, gtpbuf,
                 OGS_PFCP_MODIFY_INDIRECT| OGS_PFCP_MODIFY_REMOVE));
     }
 }
@@ -1586,7 +1472,7 @@ void sgwc_s11_handle_bearer_resource_command(
      * Check ALL Context
      ********************/
     ogs_assert(bearer);
-    sess = sgwc_sess_find_by_id(bearer->sess_id);
+    sess = bearer->sess;
     ogs_assert(sess);
     ogs_assert(sess->gnode);
     ogs_assert(sgwc_ue);
@@ -1606,8 +1492,7 @@ void sgwc_s11_handle_bearer_resource_command(
     }
 
     s5c_xact = ogs_gtp_xact_local_create(
-            sess->gnode, &message->h, pkbuf, gtp_bearer_timeout,
-            OGS_UINT_TO_POINTER(bearer->id));
+            sess->gnode, &message->h, pkbuf, gtp_bearer_timeout, bearer);
     if (!s5c_xact) {
         ogs_error("ogs_gtp_xact_local_create() failed");
         return;

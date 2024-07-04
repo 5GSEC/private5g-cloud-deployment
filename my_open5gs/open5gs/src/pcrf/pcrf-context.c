@@ -348,6 +348,7 @@ int pcrf_db_qos_data(
 {
     int rv, i;
     char *supi = NULL;
+    ogs_session_data_t zero_data;
 
     ogs_app_policy_conf_t *policy_conf = NULL;
     ogs_app_slice_conf_t *slice_conf = NULL;
@@ -358,7 +359,10 @@ int pcrf_db_qos_data(
 
     ogs_thread_mutex_lock(&self.db_lock);
 
-    memset(session_data, 0, sizeof(*session_data));
+    memset(&zero_data, 0, sizeof(zero_data));
+
+    /* session_data should be initialized to zero */
+    ogs_assert(memcmp(session_data, &zero_data, sizeof(zero_data)) == 0);
 
     supi = ogs_msprintf("%s-%s", OGS_ID_SUPI_TYPE_IMSI, imsi_bcd);
     ogs_assert(supi);

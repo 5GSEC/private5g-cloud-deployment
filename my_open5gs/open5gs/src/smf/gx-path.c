@@ -1,5 +1,5 @@
-/* Gx Interface, 3GPP TS 29.212 section 4
- * Copyright (C) 2019-2024 by Sukchan Lee <acetcom@gmail.com>
+/*
+ * Copyright (C) 2019 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -29,10 +29,10 @@ struct sess_state {
     os0_t       peer_host;          /* Peer Host */
 
 #define NUM_CC_REQUEST_SLOT 4
-    ogs_pool_id_t sess_id;
+    smf_sess_t *sess;
     struct {
         uint32_t cc_req_no;
-        ogs_pool_id_t id;
+        ogs_gtp_xact_t *ptr;
     } xact_data[NUM_CC_REQUEST_SLOT];
 
     uint32_t cc_request_type;
@@ -87,8 +87,7 @@ static void state_cleanup(struct sess_state *sess_data, os0_t sid, void *opaque)
     ogs_thread_mutex_unlock(&sess_state_mutex);
 }
 
-/* 3GPP TS 29.212 5.6.2 Credit-Control-Request */
-void smf_gx_send_ccr(smf_sess_t *sess, ogs_pool_id_t xact_id,
+void smf_gx_send_ccr(smf_sess_t *sess, ogs_gtp_xact_t *xact,
         uint32_t cc_request_type)
 {
     int ret;
@@ -112,7 +111,7 @@ void smf_gx_send_ccr(smf_sess_t *sess, ogs_pool_id_t xact_id,
     ogs_assert(sess);
 
     ogs_assert(sess->ipv4 || sess->ipv6);
-    smf_ue = smf_ue_find_by_id(sess->smf_ue_id);
+    smf_ue = sess->smf_ue;
     ogs_assert(smf_ue);
 
     ogs_debug("[Credit-Control-Request]");
@@ -198,9 +197,9 @@ void smf_gx_send_ccr(smf_sess_t *sess, ogs_pool_id_t xact_id,
         sess_data->cc_request_type, sess_data->cc_request_number);
 
     /* Update session state */
-    sess_data->sess_id = sess->id;
+    sess_data->sess = sess;
     req_slot = sess_data->cc_request_number % NUM_CC_REQUEST_SLOT;
-    sess_data->xact_data[req_slot].id = xact_id;
+    sess_data->xact_data[req_slot].ptr = xact;
     sess_data->xact_data[req_slot].cc_req_no = sess_data->cc_request_number;
 
     /* Set Origin-Host & Origin-Realm */
@@ -702,7 +701,6 @@ void smf_gx_send_ccr(smf_sess_t *sess, ogs_pool_id_t xact_id,
     ogs_assert(pthread_mutex_unlock(&ogs_diam_logger_self()->stats_lock) == 0);
 }
 
-/* 3GPP TS 29.212 5b.6.5 Credit-Control-Answer */
 static void smf_gx_cca_cb(void *data, struct msg **msg)
 {
     int rv;
@@ -718,6 +716,7 @@ static void smf_gx_cca_cb(void *data, struct msg **msg)
     int new;
     struct msg *req = NULL;
     smf_event_t *e = NULL;
+    ogs_gtp_xact_t *xact = NULL;
     smf_sess_t *sess = NULL;
     ogs_diam_gx_message_t *gx_message = NULL;
     uint32_t req_slot, cc_request_number = 0;
@@ -766,7 +765,8 @@ static void smf_gx_cca_cb(void *data, struct msg **msg)
 
     ogs_debug("    CC-Request-Number[%d]", cc_request_number);
 
-    sess = smf_sess_find_by_id(sess_data->sess_id);
+    xact = sess_data->xact_data[req_slot].ptr;
+    sess = sess_data->sess;
     ogs_assert(sess_data->xact_data[req_slot].cc_req_no == cc_request_number);
     ogs_assert(sess);
 
@@ -1037,9 +1037,9 @@ out:
         e = smf_event_new(SMF_EVT_GX_MESSAGE);
         ogs_assert(e);
 
-        e->sess_id = sess->id;
+        e->sess = sess;
         e->gx_message = gx_message;
-        e->gtp_xact_id = sess_data->xact_data[req_slot].id;
+        e->gtp_xact = xact;
         rv = ogs_queue_push(ogs_app()->queue, e);
         if (rv != OGS_OK) {
             ogs_error("ogs_queue_push() failed:%d", (int)rv);
@@ -1164,7 +1164,7 @@ static int smf_gx_rar_cb( struct msg **msg, struct avp *avp,
     }
 
     /* Get Session Information */
-    sess = smf_sess_find_by_id(sess_data->sess_id);
+    sess = sess_data->sess;
     ogs_assert(sess);
 
     ret = fd_msg_browse(qry, MSG_BRW_FIRST_CHILD, &avp, NULL);
@@ -1281,7 +1281,7 @@ static int smf_gx_rar_cb( struct msg **msg, struct avp *avp,
     e = smf_event_new(SMF_EVT_GX_MESSAGE);
     ogs_assert(e);
 
-    e->sess_id = sess->id;
+    e->sess = sess;
     e->gx_message = gx_message;
     rv = ogs_queue_push(ogs_app()->queue, e);
     if (rv != OGS_OK) {
@@ -1567,9 +1567,6 @@ static int decode_pcc_rule_definition(
             break;
         case OGS_DIAM_GX_AVP_CODE_PRECEDENCE:
             pcc_rule->precedence = hdr->avp_value->i32;
-            break;
-        case OGS_DIAM_GX_AVP_CODE_RATING_GROUP:
-            pcc_rule->rating_group = hdr->avp_value->i32;
             break;
         default:
             ogs_error("Not implemented(%d)", hdr->avp_code);

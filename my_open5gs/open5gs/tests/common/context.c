@@ -327,7 +327,7 @@ int test_context_parse_config(void)
                     ogs_5gs_tai1_list_t *list1 = NULL;
                     ogs_5gs_tai2_list_t *list2 = NULL;
 
-                    ogs_assert(self.num_of_nr_served_tai <
+                    ogs_assert(self.num_of_nr_served_tai <=
                             OGS_MAX_NUM_OF_SUPPORTED_TA);
                     list0 =
                         &self.nr_served_tai[self.num_of_nr_served_tai].list0;
@@ -512,7 +512,7 @@ int test_context_parse_config(void)
                     ogs_yaml_iter_recurse(&amf_iter, &plmn_support_array);
                     do {
                         const char *mnc = NULL, *mcc = NULL;
-                        ogs_assert(self.num_of_plmn_support <
+                        ogs_assert(self.num_of_plmn_support <=
                                 OGS_MAX_NUM_OF_PLMN);
 
                         if (ogs_yaml_iter_type(&plmn_support_array) ==
@@ -570,7 +570,7 @@ int test_context_parse_config(void)
                                     ogs_assert(
                                         self.plmn_support[
                                             self.num_of_plmn_support].
-                                                num_of_s_nssai <
+                                                num_of_s_nssai <=
                                             OGS_MAX_NUM_OF_SLICE_SUPPORT);
                                     s_nssai = &self.plmn_support[
                                             self.num_of_plmn_support].s_nssai[
@@ -807,7 +807,7 @@ int test_context_parse_config(void)
                     ogs_eps_tai1_list_t *list1 = NULL;
                     ogs_eps_tai2_list_t *list2 = NULL;
 
-                    ogs_assert(self.num_of_e_served_tai <
+                    ogs_assert(self.num_of_e_served_tai <=
                             OGS_MAX_NUM_OF_SUPPORTED_TA);
                     list0 = &self.e_served_tai[self.num_of_e_served_tai].list0;
                     list1 = &self.e_served_tai[self.num_of_e_served_tai].list1;
@@ -1295,18 +1295,6 @@ test_sess_t *test_sess_find_by_apn(
     return NULL;
 }
 
-test_sess_t *test_sess_find_by_pti(test_ue_t *test_ue, uint8_t pti)
-{
-    test_sess_t *sess = NULL;
-
-    ogs_assert(test_ue);
-
-    ogs_list_for_each(&test_ue->sess_list, sess)
-        if (sess->pti == pti) return sess;
-
-    return NULL;
-}
-
 test_sess_t *test_sess_find_by_psi(test_ue_t *test_ue, uint8_t psi)
 {
     test_sess_t *sess = NULL;
@@ -1551,11 +1539,6 @@ bson_t *test_db_new_simple(test_ue_t *test_ue)
                             "unit", BCON_INT32(3),
                         "}",
                     "}",
-#if 0 /* For static-IP test */
-                    "ue", "{", "ipv4", "1.1.1.1", "ipv6", "::1", "}",
-                    "ue", "{", "ipv4", "1.1.1.1", "}",
-                    "ue", "{", "ipv6", "::1", "}",
-#endif
                     "qos", "{",
                         "index", BCON_INT32(9),
                         "arp", "{",
@@ -1667,107 +1650,6 @@ bson_t *test_db_new_qos_flow(test_ue_t *test_ue)
                                  "description", BCON_UTF8("permit out udp from 10.200.136.98/32 23455 to assigned 1-65535"), "}",
                             "{", "direction", BCON_INT32(1),
                                  "description", BCON_UTF8("permit out udp from 10.200.136.98/32 1-65535 to assigned 50021"), "}",
-                        "]",
-                    "}", "]",
-                "}", "]",
-            "}", "]",
-            "security", "{",
-                "k", BCON_UTF8(test_ue->k_string),
-                "opc", BCON_UTF8(test_ue->opc_string),
-                "amf", BCON_UTF8("8000"),
-                "sqn", BCON_INT64(64),
-            "}",
-            "subscribed_rau_tau_timer", BCON_INT32(12),
-            "network_access_mode", BCON_INT32(0),
-            "subscriber_status", BCON_INT32(0),
-            "operator_determined_barring", BCON_INT32(0),
-            "access_restriction_data", BCON_INT32(32)
-          );
-    ogs_assert(doc);
-
-    return doc;
-}
-
-bson_t *test_db_new_qos_flow_bi_directional(test_ue_t *test_ue)
-{
-    bson_t *doc = NULL;
-
-    ogs_assert(test_ue);
-
-    doc = BCON_NEW(
-            "imsi", BCON_UTF8(test_ue->imsi),
-            "msisdn", "[",
-                BCON_UTF8(TEST_MSISDN),
-                BCON_UTF8(TEST_ADDITIONAL_MSISDN),
-            "]",
-            "ambr", "{",
-                "downlink", "{",
-                    "value", BCON_INT32(1),
-                    "unit", BCON_INT32(3),
-                "}",
-                "uplink", "{",
-                    "value", BCON_INT32(1),
-                    "unit", BCON_INT32(3),
-                "}",
-            "}",
-            "slice", "[", "{",
-                "sst", BCON_INT32(1),
-                "default_indicator", BCON_BOOL(true),
-                "session", "[", "{",
-                    "name", BCON_UTF8("internet"),
-                    "type", BCON_INT32(3),
-                    "ambr", "{",
-                        "downlink", "{",
-                            "value", BCON_INT32(1),
-                            "unit", BCON_INT32(3),
-                        "}",
-                        "uplink", "{",
-                            "value", BCON_INT32(1),
-                            "unit", BCON_INT32(3),
-                        "}",
-                    "}",
-                    "qos", "{",
-                        "index", BCON_INT32(9),
-                        "arp", "{",
-                            "priority_level", BCON_INT32(8),
-                            "pre_emption_vulnerability", BCON_INT32(1),
-                            "pre_emption_capability", BCON_INT32(1),
-                        "}",
-                    "}",
-                    "pcc_rule", "[", "{",
-                        "qos", "{",
-                            "index", BCON_INT32(1),
-                            "arp", "{",
-                                "priority_level", BCON_INT32(2),
-                                "pre_emption_vulnerability", BCON_INT32(2),
-                                "pre_emption_capability", BCON_INT32(2),
-                            "}",
-                            "mbr", "{",
-                                "downlink", "{",
-                                    "value", BCON_INT32(64),
-                                    "unit", BCON_INT32(1),
-                                "}",
-                                "uplink", "{",
-                                    "value", BCON_INT32(44),
-                                    "unit", BCON_INT32(1),
-                                "}",
-                            "}",
-                            "gbr", "{",
-                                "downlink", "{",
-                                    "value", BCON_INT32(64),
-                                    "unit", BCON_INT32(1),
-                                "}",
-                                "uplink", "{",
-                                    "value", BCON_INT32(44),
-                                    "unit", BCON_INT32(1),
-                                "}",
-                            "}",
-                        "}",
-                        "flow", "[",
-                            "{", "direction", BCON_INT32(3),
-                                 "description", BCON_UTF8("permit out icmp from any to assigned"), "}",
-                            "{", "direction", BCON_INT32(3),
-                                 "description", BCON_UTF8("permit out udp from 10.200.136.98/32 23455 to assigned 1-65535"), "}",
                         "]",
                     "}", "]",
                 "}", "]",

@@ -90,7 +90,6 @@ static int client_discover_cb(
     ogs_event_t *e = NULL;
 
     ogs_sbi_xact_t *xact = NULL;
-    ogs_pool_id_t xact_id = 0;
     ogs_sbi_object_t *sbi_object = NULL;
     ogs_sbi_service_type_e service_type = OGS_SBI_SERVICE_TYPE_NULL;
     ogs_sbi_discovery_option_t *discovery_option = NULL;
@@ -100,10 +99,10 @@ static int client_discover_cb(
     ogs_hash_index_t *hi = NULL;
     char *producer_id = NULL;
 
-    xact_id = OGS_POINTER_TO_UINT(data);
-    ogs_assert(xact_id >= OGS_MIN_POOL_ID && xact_id <= OGS_MAX_POOL_ID);
+    xact = data;
+    ogs_assert(xact);
 
-    xact = ogs_sbi_xact_find_by_id(xact_id);
+    xact = ogs_sbi_xact_cycle(xact);
     if (!xact) {
         ogs_error("SBI transaction has already been removed");
         if (response)
@@ -209,19 +208,18 @@ static int client_discover_cb(
 
             ogs_sbi_nf_fsm_init(nf_instance);
 
-            ogs_info("[%s] (SCP-discover) NF registered [%s]",
+            ogs_info("[%s] (SCP-discover) NF registered [%s:%d]",
                     nf_instance->nf_type ?
                         OpenAPI_nf_type_ToString(nf_instance->nf_type) : "NULL",
-                    nf_instance->id);
+                    nf_instance->id, nf_instance->reference_count);
         } else {
-            ogs_warn("[%s] (SCP-discover) NF has already been added [%s]",
-                    OpenAPI_nf_type_ToString(nf_instance->nf_type),
-                    nf_instance->id);
-            if (!OGS_FSM_CHECK(&nf_instance->sm, ogs_sbi_nf_state_registered)) {
-                ogs_error("[%s] (SCP-discover) NF invalid state [%s]",
-                        OpenAPI_nf_type_ToString(nf_instance->nf_type),
-                        nf_instance->id);
-            }
+            ogs_warn("[%s] (SCP-discover) NF has already been added [%s:%d]",
+                    nf_instance->nf_type ?
+                        OpenAPI_nf_type_ToString(nf_instance->nf_type) : "NULL",
+                    nf_instance->id, nf_instance->reference_count);
+
+            ogs_assert(OGS_FSM_STATE(&nf_instance->sm));
+            ogs_sbi_nf_fsm_tran(nf_instance, ogs_sbi_nf_state_registered);
         }
 
         OGS_SBI_SETUP_NF_INSTANCE(
@@ -283,16 +281,10 @@ int ogs_sbi_discover_and_send(ogs_sbi_xact_t *xact)
     }
 
     /* Target NF-Instance */
-    nf_instance = OGS_SBI_GET_NF_INSTANCE(
-            sbi_object->service_type_array[service_type]);
-    ogs_debug("OGS_SBI_GET_NF_INSTANCE [nf_instance:%p,service_name:%s]",
-            nf_instance, ogs_sbi_service_type_to_name(service_type));
+    nf_instance = sbi_object->service_type_array[service_type].nf_instance;
     if (!nf_instance) {
         nf_instance = ogs_sbi_nf_instance_find_by_discovery_param(
                         target_nf_type, requester_nf_type, discovery_option);
-        ogs_debug("ogs_sbi_nf_instance_find_by_discovery_param() "
-                "[nf_instance:%p,service_name:%s]",
-                nf_instance, ogs_sbi_service_type_to_name(service_type));
         if (nf_instance)
             OGS_SBI_SETUP_NF_INSTANCE(
                     sbi_object->service_type_array[service_type], nf_instance);
@@ -321,11 +313,6 @@ int ogs_sbi_discover_and_send(ogs_sbi_xact_t *xact)
         ogs_free(fqdn);
         ogs_freeaddrinfo(addr);
         ogs_freeaddrinfo(addr6);
-
-        if (!client) {
-            ogs_fatal("No Client : [%s]", request->h.uri);
-            ogs_assert_if_reached();
-        }
     }
 
     if (scp_client) {
@@ -343,15 +330,13 @@ int ogs_sbi_discover_and_send(ogs_sbi_xact_t *xact)
             apiroot = ogs_sbi_client_apiroot(client);
             ogs_assert(apiroot);
 
-            ogs_debug("apiroot [%s]", apiroot);
             ogs_sbi_header_set(request->http.headers,
                     OGS_SBI_CUSTOM_TARGET_APIROOT, apiroot);
 
             ogs_free(apiroot);
 
             rc = ogs_sbi_client_send_via_scp_or_sepp(
-                    scp_client, ogs_sbi_client_handler, request,
-                    OGS_UINT_TO_POINTER(xact->id));
+                    scp_client, ogs_sbi_client_handler, request, xact);
             ogs_expect(rc == true);
             return (rc == true) ? OGS_OK : OGS_ERROR;
 
@@ -363,8 +348,6 @@ int ogs_sbi_discover_and_send(ogs_sbi_xact_t *xact)
              */
             if (discovery_option &&
                 discovery_option->target_nf_instance_id) {
-                ogs_debug("target_nf_instance_id [%s]",
-                        discovery_option->target_nf_instance_id);
                 ogs_sbi_header_set(request->http.headers,
                         OGS_SBI_CUSTOM_DISCOVERY_TARGET_NF_INSTANCE_ID,
                         discovery_option->target_nf_instance_id);
@@ -372,7 +355,6 @@ int ogs_sbi_discover_and_send(ogs_sbi_xact_t *xact)
                 ogs_sbi_header_set(request->http.headers,
                         OGS_SBI_CUSTOM_DISCOVERY_TARGET_NF_INSTANCE_ID,
                         nf_instance->id);
-                ogs_debug("nf_instance->id [%s]", nf_instance->id);
             }
 
             if (discovery_option && discovery_option->num_of_snssais) {
@@ -384,7 +366,6 @@ int ogs_sbi_discover_and_send(ogs_sbi_xact_t *xact)
                 if (v) {
                     char *encoded = ogs_sbi_url_encode(v);
                     ogs_expect(encoded);
-                    ogs_debug("snssai [%s]", v);
 
                     if (encoded) {
             /*
@@ -411,7 +392,6 @@ int ogs_sbi_discover_and_send(ogs_sbi_xact_t *xact)
             }
 
             if (discovery_option && discovery_option->dnn) {
-                ogs_debug("dnn [%s]", discovery_option->dnn);
                 ogs_sbi_header_set(request->http.headers,
                         OGS_SBI_CUSTOM_DISCOVERY_DNN, discovery_option->dnn);
             }
@@ -421,11 +401,9 @@ int ogs_sbi_discover_and_send(ogs_sbi_xact_t *xact)
                 char *v = ogs_sbi_discovery_option_build_tai(discovery_option);
                 ogs_expect(v);
 
-
                 if (v) {
                     char *encoded = ogs_sbi_url_encode(v);
                     ogs_expect(encoded);
-                    ogs_debug("tai [%s]", v);
 
                     if (encoded) {
                         ogs_sbi_header_set(request->http.headers,
@@ -444,34 +422,6 @@ int ogs_sbi_discover_and_send(ogs_sbi_xact_t *xact)
                                 discovery_option->tai.tac.v);
             }
 
-            if (discovery_option && discovery_option->guami_presence) {
-                bool rc = false;
-                char *v = ogs_sbi_discovery_option_build_guami(discovery_option);
-                ogs_expect(v);
-
-                if (v) {
-                    char *encoded = ogs_sbi_url_encode(v);
-                    ogs_expect(encoded);
-                    ogs_debug("guami [%s]", v);
-
-                    if (encoded) {
-                        ogs_sbi_header_set(request->http.headers,
-                                OGS_SBI_CUSTOM_DISCOVERY_GUAMI, encoded);
-                        ogs_free(encoded);
-
-                        rc = true;
-                    }
-                    ogs_free(v);
-                }
-
-                if (rc == false)
-                    ogs_error("build failed: guami[PLMN_ID:%06x,AMF_ID:%x]",
-                                ogs_plmn_id_hexdump(
-                                    &discovery_option->guami.plmn_id),
-                                ogs_amf_id_hexdump(
-                                    &discovery_option->guami.amf_id));
-            }
-
             if (discovery_option &&
                 discovery_option->requester_features) {
                 char *v = ogs_uint64_to_string(
@@ -488,8 +438,7 @@ int ogs_sbi_discover_and_send(ogs_sbi_xact_t *xact)
             }
 
             rc = ogs_sbi_client_send_via_scp_or_sepp(
-                    scp_client, client_discover_cb, request,
-                    OGS_UINT_TO_POINTER(xact->id));
+                    scp_client, client_discover_cb, request, xact);
             ogs_expect(rc == true);
             return (rc == true) ? OGS_OK : OGS_ERROR;
         }
@@ -501,8 +450,7 @@ int ogs_sbi_discover_and_send(ogs_sbi_xact_t *xact)
 
         /* If `client` instance is available, use direct communication */
         rc = ogs_sbi_send_request_to_client(
-                client, ogs_sbi_client_handler, request,
-                OGS_UINT_TO_POINTER(xact->id));
+                client, ogs_sbi_client_handler, request, xact);
         ogs_expect(rc == true);
         return (rc == true) ? OGS_OK : OGS_ERROR;
 
@@ -562,8 +510,7 @@ int ogs_sbi_discover_only(ogs_sbi_xact_t *xact)
         }
 
         rc = ogs_sbi_client_send_request(
-                client, ogs_sbi_client_handler, request,
-                OGS_UINT_TO_POINTER(xact->id));
+                client, ogs_sbi_client_handler, request, xact);
         ogs_expect(rc == true);
 
         ogs_sbi_request_free(request);
@@ -685,8 +632,7 @@ bool ogs_sbi_send_request_to_nf_instance(
             }
 
             rc = ogs_sbi_client_send_request(
-                    nrf_client, sepp_discover_handler, nrf_request,
-                    OGS_UINT_TO_POINTER(xact->id));
+                    nrf_client, sepp_discover_handler, nrf_request, xact);
             if (rc == false) {
                 ogs_error("ogs_sbi_client_send_request() failed");
                 ogs_sbi_xact_remove(xact);
@@ -699,8 +645,7 @@ bool ogs_sbi_send_request_to_nf_instance(
     }
 
     rc = ogs_sbi_send_request_to_client(
-            client, ogs_sbi_client_handler, request,
-            OGS_UINT_TO_POINTER(xact->id));
+            client, ogs_sbi_client_handler, request, xact);
     if (rc == false) {
         ogs_error("ogs_sbi_send_request_to_client() failed");
         ogs_sbi_xact_remove(xact);
@@ -863,40 +808,26 @@ static int sepp_discover_handler(
     char *strerror = NULL;
     ogs_sbi_message_t message;
 
-    ogs_sbi_xact_t *xact = NULL;
-    ogs_pool_id_t xact_id = 0;
+    ogs_sbi_xact_t *xact = data;
 
     ogs_sbi_request_t *request = NULL;
     ogs_sbi_client_t *scp_client = NULL, *sepp_client = NULL;
 
-    xact_id = OGS_POINTER_TO_UINT(data);
-    ogs_assert(xact_id >= OGS_MIN_POOL_ID && xact_id <= OGS_MAX_POOL_ID);
-
-    xact = ogs_sbi_xact_find_by_id(xact_id);
-    if (!xact) {
-        ogs_error("SBI transaction has already been removed");
-        if (response)
-            ogs_sbi_response_free(response);
-
-        return OGS_ERROR;
-    }
+    ogs_assert(xact);
+    request = xact->request;
+    ogs_assert(request);
 
     if (status != OGS_OK) {
+
         ogs_log_message(
                 status == OGS_DONE ? OGS_LOG_DEBUG : OGS_LOG_WARN, 0,
                 "sepp_discover_handler() failed [%d]", status);
 
-        if (response)
-            ogs_sbi_response_free(response);
-
         ogs_sbi_xact_remove(xact);
-
         return OGS_ERROR;
     }
 
     ogs_assert(response);
-    request = xact->request;
-    ogs_assert(request);
 
     rv = ogs_sbi_parse_response(&message, response);
     if (rv != OGS_OK) {
@@ -936,8 +867,7 @@ static int sepp_discover_handler(
 
     if (false == ogs_sbi_client_send_via_scp_or_sepp(
                 scp_client ? scp_client : sepp_client,
-                ogs_sbi_client_handler, request,
-                OGS_UINT_TO_POINTER(xact->id))) {
+                ogs_sbi_client_handler, request, xact)) {
         strerror = ogs_msprintf("ogs_sbi_client_send_via_scp_or_sepp() failed");
         goto cleanup;
     }

@@ -78,11 +78,11 @@ int ngap_send_downlink_ran_status_transfer(
 
 int ngap_send_error_indication(
         amf_gnb_t *gnb,
-        uint64_t *ran_ue_ngap_id,
+        uint32_t *ran_ue_ngap_id,
         uint64_t *amf_ue_ngap_id,
         NGAP_Cause_PR group, long cause);
 int ngap_send_error_indication2(
-        ran_ue_t *ran_ue, NGAP_Cause_PR group, long cause);
+        amf_ue_t *amf_ue, NGAP_Cause_PR group, long cause);
 int ngap_send_ng_reset_ack(
         amf_gnb_t *gnb,
         NGAP_UE_associatedLogicalNG_connectionList_t *partOfNG_Interface);

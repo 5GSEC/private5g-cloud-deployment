@@ -53,7 +53,7 @@ bool smf_nudm_sdm_handle_get(smf_sess_t *sess, ogs_sbi_stream_t *stream,
 
     ogs_assert(sess);
     ogs_assert(stream);
-    smf_ue = smf_ue_find_by_id(sess->smf_ue_id);
+    smf_ue = sess->smf_ue;
     ogs_assert(smf_ue);
     server = ogs_sbi_server_from_stream(stream);
     ogs_assert(server);
@@ -373,7 +373,7 @@ cleanup:
     ogs_error("%s", strerror);
     ogs_assert(true ==
         ogs_sbi_server_send_error(stream, OGS_SBI_HTTP_STATUS_BAD_REQUEST,
-            recvmsg, strerror, NULL, NULL));
+            recvmsg, strerror, NULL));
     ogs_free(strerror);
 
     return false;

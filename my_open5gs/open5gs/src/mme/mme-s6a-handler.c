@@ -33,7 +33,7 @@
 static uint8_t emm_cause_from_diameter(
                 const uint32_t *dia_err, const uint32_t *dia_exp_err);
 
-static uint8_t mme_ue_session_from_slice_data(mme_ue_t *mme_ue,
+static uint8_t mme_ue_session_from_slice_data(mme_ue_t *mme_ue, 
     ogs_slice_data_t *slice_data);
 
 uint8_t mme_s6a_handle_aia(
@@ -118,16 +118,6 @@ uint8_t mme_s6a_handle_ula(
             return OGS_NAS_EMM_CAUSE_PROTOCOL_ERROR_UNSPECIFIED;
         }
     } else if (mme_ue->nas_eps.type == MME_EPS_TYPE_TAU_REQUEST) {
-        if (!SESSION_CONTEXT_IS_AVAILABLE(mme_ue)) {
-            ogs_warn("No PDN Connection : UE[%s]", mme_ue->imsi_bcd);
-            return OGS_NAS_EMM_CAUSE_UE_IDENTITY_CANNOT_BE_DERIVED_BY_THE_NETWORK;
-        }
-
-        if (!ACTIVE_EPS_BEARERS_IS_AVAIABLE(mme_ue)) {
-            ogs_warn("No active EPS bearers : IMSI[%s]", mme_ue->imsi_bcd);
-            return OGS_NAS_EMM_CAUSE_NO_EPS_BEARER_CONTEXT_ACTIVATED;
-        }
-
         r = nas_eps_send_tau_accept(mme_ue,
                 S1AP_ProcedureCode_id_InitialContextSetup);
         ogs_expect(r == OGS_OK);
@@ -218,6 +208,7 @@ void mme_s6a_handle_clr(mme_ue_t *mme_ue, ogs_diam_s6a_message_t *s6a_message)
     clr_message = &s6a_message->clr_message;
     ogs_assert(clr_message);
 
+    mme_ue = mme_ue_cycle(mme_ue);
     if (!mme_ue) {
         ogs_warn("UE(mme-ue) context has already been removed");
         return;
@@ -288,18 +279,7 @@ void mme_s6a_handle_clr(mme_ue_t *mme_ue, ogs_diam_s6a_message_t *s6a_message)
         }
         break;
     case OGS_DIAM_S6A_CT_MME_UPDATE_PROCEDURE:
-    case OGS_DIAM_S6A_CT_SGSN_UPDATE_PROCEDURE:
         mme_ue->detach_type = MME_DETACH_TYPE_HSS_IMPLICIT;
-
-        /* 3GPP TS 23.401 D.3.5.5 8), 3GPP TS 23.060 6.9.1.2.2 8):
-         * "When the timer described in step 2 is running, the MM and PDP/EPS
-         * Bearer Contexts and any affected S-GW resources are removed when the
-         * timer expires and the SGSN received a Cancel Location".
-         */
-        if (mme_ue->gn.t_gn_holding->running) {
-            ogs_debug("Gn Holding Timer is running, delay removing UE resources");
-            break;
-        }
 
         /*
          * There is no need to send NAS or S1AP message to the UE.
@@ -319,7 +299,7 @@ void mme_s6a_handle_clr(mme_ue_t *mme_ue, ogs_diam_s6a_message_t *s6a_message)
     }
 }
 
-static uint8_t mme_ue_session_from_slice_data(mme_ue_t *mme_ue,
+static uint8_t mme_ue_session_from_slice_data(mme_ue_t *mme_ue, 
     ogs_slice_data_t *slice_data)
 {
     int i;
@@ -351,8 +331,8 @@ static uint8_t mme_ue_session_from_slice_data(mme_ue_t *mme_ue,
                 ogs_free(mme_ue->session[i].name);
             break;
         }
-        memcpy(&mme_ue->session[i].ue_ip, &slice_data->session[i].ue_ip,
-                sizeof(mme_ue->session[i].ue_ip));
+        memcpy(&mme_ue->session[i].paa, &slice_data->session[i].paa,
+                sizeof(mme_ue->session[i].paa));
 
         memcpy(&mme_ue->session[i].qos, &slice_data->session[i].qos,
                 sizeof(mme_ue->session[i].qos));

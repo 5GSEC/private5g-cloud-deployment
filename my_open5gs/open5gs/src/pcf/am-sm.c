@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2024 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019-2022 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -40,7 +40,6 @@ void pcf_am_state_operational(ogs_fsm_t *s, pcf_event_t *e)
     pcf_ue_t *pcf_ue = NULL;
 
     ogs_sbi_stream_t *stream = NULL;
-    ogs_pool_id_t stream_id;
     ogs_sbi_message_t *message = NULL;
 
     ogs_assert(s);
@@ -48,7 +47,7 @@ void pcf_am_state_operational(ogs_fsm_t *s, pcf_event_t *e)
 
     pcf_sm_debug(e);
 
-    pcf_ue = pcf_ue_find_by_id(e->pcf_ue_id);
+    pcf_ue = e->pcf_ue;
     ogs_assert(pcf_ue);
 
     switch (e->h.id) {
@@ -61,16 +60,8 @@ void pcf_am_state_operational(ogs_fsm_t *s, pcf_event_t *e)
     case OGS_EVENT_SBI_SERVER:
         message = e->h.sbi.message;
         ogs_assert(message);
-
-        stream_id = OGS_POINTER_TO_UINT(e->h.sbi.data);
-        ogs_assert(stream_id >= OGS_MIN_POOL_ID &&
-                stream_id <= OGS_MAX_POOL_ID);
-
-        stream = ogs_sbi_stream_find_by_id(stream_id);
-        if (!stream) {
-            ogs_error("STREAM has already been removed [%d]", stream_id);
-            break;
-        }
+        stream = e->h.sbi.data;
+        ogs_assert(stream);
 
         SWITCH(message->h.method)
         CASE(OGS_SBI_HTTP_METHOD_POST)
@@ -92,24 +83,16 @@ void pcf_am_state_operational(ogs_fsm_t *s, pcf_event_t *e)
                     pcf_ue->supi, message->h.method);
             ogs_assert(true ==
                 ogs_sbi_server_send_error(stream,
-                    OGS_SBI_HTTP_STATUS_METHOD_NOT_ALLOWED, message,
-                    "Invalid HTTP method", message->h.method, NULL));
+                    OGS_SBI_HTTP_STATUS_FORBIDDEN, message,
+                    "Invalid HTTP method", message->h.method));
         END
         break;
 
     case OGS_EVENT_SBI_CLIENT:
         message = e->h.sbi.message;
         ogs_assert(message);
-
-        stream_id = OGS_POINTER_TO_UINT(e->h.sbi.data);
-        ogs_assert(stream_id >= OGS_MIN_POOL_ID &&
-                stream_id <= OGS_MAX_POOL_ID);
-
-        stream = ogs_sbi_stream_find_by_id(stream_id);
-        if (!stream) {
-            ogs_error("STREAM has already been removed [%d]", stream_id);
-            break;
-        }
+        stream = e->h.sbi.data;
+        ogs_assert(stream);
 
         SWITCH(message->h.service.name)
         CASE(OGS_SBI_SERVICE_NAME_NUDR_DR)
@@ -130,8 +113,7 @@ void pcf_am_state_operational(ogs_fsm_t *s, pcf_event_t *e)
                         ogs_assert(true ==
                             ogs_sbi_server_send_error(
                                 stream, message->res_status,
-                                NULL, "HTTP response error", pcf_ue->supi,
-                                NULL));
+                                NULL, "HTTP response error", pcf_ue->supi));
                         break;
                     }
 
@@ -158,8 +140,7 @@ void pcf_am_state_operational(ogs_fsm_t *s, pcf_event_t *e)
             ogs_assert(true ==
                 ogs_sbi_server_send_error(stream,
                     OGS_SBI_HTTP_STATUS_BAD_REQUEST, message,
-                    "Invalid API name", message->h.resource.component[0],
-                    NULL));
+                    "Invalid API name", message->h.resource.component[0]));
         END
         break;
 
@@ -177,7 +158,7 @@ void pcf_am_state_deleted(ogs_fsm_t *s, pcf_event_t *e)
 
     pcf_sm_debug(e);
 
-    pcf_ue = pcf_ue_find_by_id(e->pcf_ue_id);
+    pcf_ue = e->pcf_ue;
     ogs_assert(pcf_ue);
 
     switch (e->h.id) {
@@ -201,7 +182,7 @@ void pcf_am_state_exception(ogs_fsm_t *s, pcf_event_t *e)
 
     pcf_sm_debug(e);
 
-    pcf_ue = pcf_ue_find_by_id(e->pcf_ue_id);
+    pcf_ue = e->pcf_ue;
     ogs_assert(pcf_ue);
 
     switch (e->h.id) {

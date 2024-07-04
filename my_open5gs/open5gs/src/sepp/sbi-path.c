@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2023 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -25,7 +25,7 @@ static int response_handler(
 
 static void copy_request(
         ogs_sbi_request_t *target, ogs_sbi_request_t *source,
-        bool do_not_remove_custom_header);
+        bool include_discovery);
 
 int sepp_sbi_open(void)
 {
@@ -158,7 +158,6 @@ static int request_handler(ogs_sbi_request_t *request, void *data)
     ogs_hash_index_t *hi;
     ogs_sbi_client_t *client = NULL, *scp_client = NULL;
     ogs_sbi_stream_t *stream = data;
-    ogs_pool_id_t stream_id = OGS_INVALID_POOL_ID;
     ogs_sbi_server_t *server = NULL;
 
     ogs_sbi_request_t sepp_request;
@@ -178,17 +177,7 @@ static int request_handler(ogs_sbi_request_t *request, void *data)
 
     ogs_assert(request);
     ogs_assert(request->h.uri);
-
-    stream_id = OGS_POINTER_TO_UINT(data);
-    ogs_assert(stream_id >= OGS_MIN_POOL_ID &&
-            stream_id <= OGS_MAX_POOL_ID);
-
-    stream = ogs_sbi_stream_find_by_id(stream_id);
-    if (!stream) {
-        ogs_error("STREAM has already been removed [%d]", stream_id);
-        return OGS_ERROR;
-    }
-
+    ogs_assert(stream);
     server = ogs_sbi_server_from_stream(stream);
     ogs_assert(server);
 
@@ -218,7 +207,7 @@ static int request_handler(ogs_sbi_request_t *request, void *data)
         sepp_node_t *sepp_node = NULL;
         bool do_not_remove_custom_header;
 
-        assoc = sepp_assoc_add(stream_id);
+        assoc = sepp_assoc_add(stream);
         if (!assoc) {
             ogs_error("sepp_assoc_add() failed");
             return OGS_ERROR;
@@ -419,13 +408,10 @@ static int response_handler(
 {
     sepp_assoc_t *assoc = data;
     ogs_sbi_stream_t *stream = NULL;
-    ogs_pool_id_t stream_id = OGS_INVALID_POOL_ID;
 
     ogs_assert(assoc);
-
-    stream_id = assoc->stream_id;
-    ogs_assert(stream_id >= OGS_MIN_POOL_ID && stream_id <= OGS_MAX_POOL_ID);
-    stream = ogs_sbi_stream_find_by_id(stream_id);
+    stream = assoc->stream;
+    ogs_assert(stream);
 
     if (status != OGS_OK) {
 
@@ -433,29 +419,20 @@ static int response_handler(
                 status == OGS_DONE ? OGS_LOG_DEBUG : OGS_LOG_WARN, 0,
                 "response_handler() failed [%d]", status);
 
-        sepp_assoc_remove(assoc);
-
-        if (!stream) {
-            ogs_error("STREAM has already been removed [%d]", stream_id);
-            return OGS_ERROR;
-        }
         ogs_assert(true ==
             ogs_sbi_server_send_error(stream,
                 OGS_SBI_HTTP_STATUS_INTERNAL_SERVER_ERROR, NULL,
-                "response_handler() failed", NULL, NULL));
+                "response_handler() failed", NULL));
+
+        sepp_assoc_remove(assoc);
 
         return OGS_ERROR;
     }
 
     ogs_assert(response);
 
-    sepp_assoc_remove(assoc);
-
-    if (!stream) {
-        ogs_error("STREAM has already been removed [%d]", stream_id);
-        return OGS_ERROR;
-    }
     ogs_expect(true == ogs_sbi_server_send_response(stream, response));
+    sepp_assoc_remove(assoc);
 
     return OGS_OK;
 }

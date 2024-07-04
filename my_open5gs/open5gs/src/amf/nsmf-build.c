@@ -39,10 +39,10 @@ ogs_sbi_request_t *amf_nsmf_pdusession_build_create_sm_context(
     ogs_sbi_nf_instance_t *pcf_nf_instance = NULL;
 
     ogs_assert(sess);
-    amf_ue = amf_ue_find_by_id(sess->amf_ue_id);
+    amf_ue = sess->amf_ue;
     ogs_assert(amf_ue);
     ogs_assert(amf_ue->nas.access_type);
-    ogs_assert(ran_ue_find_by_id(amf_ue->ran_ue_id));
+    ogs_assert(ran_ue_cycle(amf_ue->ran_ue));
 
     memset(&message, 0, sizeof(message));
     message.h.method = (char *)OGS_SBI_HTTP_METHOD_POST;
@@ -190,9 +190,8 @@ ogs_sbi_request_t *amf_nsmf_pdusession_build_create_sm_context(
         goto end;
     }
 
-    pcf_nf_instance = OGS_SBI_GET_NF_INSTANCE(
-            amf_ue->sbi.service_type_array[
-            OGS_SBI_SERVICE_TYPE_NPCF_AM_POLICY_CONTROL]);
+    pcf_nf_instance = amf_ue->sbi.service_type_array[
+        OGS_SBI_SERVICE_TYPE_NPCF_AM_POLICY_CONTROL].nf_instance;
     if (!pcf_nf_instance) {
         ogs_error("No pcf_nf_instance");
         goto end;
@@ -273,15 +272,17 @@ ogs_sbi_request_t *amf_nsmf_pdusession_build_update_sm_context(
 
     ogs_assert(param);
     ogs_assert(sess);
-    ogs_assert(sess->sm_context.resource_uri);
-    amf_ue = amf_ue_find_by_id(sess->amf_ue_id);
+    ogs_assert(sess->sm_context_ref);
+    amf_ue = sess->amf_ue;
     ogs_assert(amf_ue);
 
     memset(&message, 0, sizeof(message));
     message.h.method = (char *)OGS_SBI_HTTP_METHOD_POST;
-    message.h.uri = ogs_msprintf("%s/%s",
-            sess->sm_context.resource_uri, OGS_SBI_RESOURCE_NAME_MODIFY);
-    ogs_assert(message.h.uri);
+    message.h.service.name = (char *)OGS_SBI_SERVICE_NAME_NSMF_PDUSESSION;
+    message.h.api.version = (char *)OGS_SBI_API_V1;
+    message.h.resource.component[0] = (char *)OGS_SBI_RESOURCE_NAME_SM_CONTEXTS;
+    message.h.resource.component[1] = sess->sm_context_ref;
+    message.h.resource.component[2] = (char *)OGS_SBI_RESOURCE_NAME_MODIFY;
 
     memset(&ueLocation, 0, sizeof(ueLocation));
     memset(&SmContextUpdateData, 0, sizeof(SmContextUpdateData));
@@ -376,8 +377,6 @@ ogs_sbi_request_t *amf_nsmf_pdusession_build_update_sm_context(
     ogs_expect(request);
 
 end:
-    if (message.h.uri)
-        ogs_free(message.h.uri);
     if (ueLocation.nr_location) {
         if (ueLocation.nr_location->ue_location_timestamp)
             ogs_free(ueLocation.nr_location->ue_location_timestamp);
@@ -406,13 +405,18 @@ ogs_sbi_request_t *amf_nsmf_pdusession_build_release_sm_context(
     OpenAPI_user_location_t ueLocation;
 
     ogs_assert(sess);
-    ogs_assert(sess->sm_context.resource_uri);
+    ogs_assert(sess->sm_context_ref);
+    amf_ue = sess->amf_ue;
+    ogs_assert(amf_ue);
 
     memset(&message, 0, sizeof(message));
     message.h.method = (char *)OGS_SBI_HTTP_METHOD_POST;
-    message.h.uri = ogs_msprintf("%s/%s",
-            sess->sm_context.resource_uri, OGS_SBI_RESOURCE_NAME_RELEASE);
-    ogs_assert(message.h.uri);
+    message.h.service.name = (char *)OGS_SBI_SERVICE_NAME_NSMF_PDUSESSION;
+    message.h.api.version = (char *)OGS_SBI_API_V1;
+    message.h.resource.component[0] =
+        (char *)OGS_SBI_RESOURCE_NAME_SM_CONTEXTS;
+    message.h.resource.component[1] = sess->sm_context_ref;
+    message.h.resource.component[2] = (char *)OGS_SBI_RESOURCE_NAME_RELEASE;
 
     memset(&SmContextReleaseData, 0, sizeof(SmContextReleaseData));
 
@@ -430,13 +434,6 @@ ogs_sbi_request_t *amf_nsmf_pdusession_build_release_sm_context(
     }
 
     memset(&ueLocation, 0, sizeof(ueLocation));
-
-    amf_ue = amf_ue_find_by_id(sess->amf_ue_id);
-    if (!amf_ue) {
-        ogs_error("UE(amf_ue) Context has already been removed");
-        goto end;
-    }
-
     ueLocation.nr_location = ogs_sbi_build_nr_location(
             &amf_ue->nr_tai, &amf_ue->nr_cgi);
     if (!ueLocation.nr_location) {
@@ -463,8 +460,6 @@ ogs_sbi_request_t *amf_nsmf_pdusession_build_release_sm_context(
     ogs_expect(request);
 
 end:
-    if (message.h.uri)
-        ogs_free(message.h.uri);
     if (ueLocation.nr_location) {
         if (ueLocation.nr_location->ue_location_timestamp)
             ogs_free(ueLocation.nr_location->ue_location_timestamp);

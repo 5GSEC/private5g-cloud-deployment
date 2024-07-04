@@ -433,8 +433,7 @@ static void test3_func(abts_case *tc, void *data)
     sess->pdn_connectivity_param.pco = 1;
     sess->pdn_connectivity_param.request_type =
         OGS_NAS_EPS_REQUEST_TYPE_HANDOVER;
-    esmbuf = testesm_build_pdn_connectivity_request(
-            sess, false, OGS_NAS_EPS_PDN_TYPE_IPV4V6);
+    esmbuf = testesm_build_pdn_connectivity_request(sess, false);
     ABTS_PTR_NOTNULL(tc, esmbuf);
 
     memset(&test_ue->attach_request_param,
@@ -558,8 +557,7 @@ static void test3_func(abts_case *tc, void *data)
     sess->pdn_connectivity_param.pco = 1;
     sess->pdn_connectivity_param.request_type =
         OGS_NAS_EPS_REQUEST_TYPE_INITIAL;
-    esmbuf = testesm_build_pdn_connectivity_request(
-            sess, true, OGS_NAS_EPS_PDN_TYPE_IPV4V6);
+    esmbuf = testesm_build_pdn_connectivity_request(sess, true);
     ABTS_PTR_NOTNULL(tc, esmbuf);
     sendbuf = test_s1ap_build_uplink_nas_transport(test_ue, esmbuf);
     ABTS_PTR_NOTNULL(tc, sendbuf);
@@ -659,8 +657,7 @@ static void test3_func(abts_case *tc, void *data)
     sess->pdn_connectivity_param.pco = 1;
     sess->pdn_connectivity_param.request_type =
         OGS_NAS_EPS_REQUEST_TYPE_HANDOVER;
-    esmbuf = testesm_build_pdn_connectivity_request(
-            sess, true, OGS_NAS_EPS_PDN_TYPE_IPV4V6);
+    esmbuf = testesm_build_pdn_connectivity_request(sess, true);
     ABTS_PTR_NOTNULL(tc, esmbuf);
     sendbuf = test_s1ap_build_uplink_nas_transport(test_ue, esmbuf);
     ABTS_PTR_NOTNULL(tc, sendbuf);

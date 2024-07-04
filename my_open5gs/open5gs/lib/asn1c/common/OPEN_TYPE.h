@@ -33,7 +33,6 @@ extern "C" {
 #endif  /* !defined(ASN_DISABLE_PRINT_SUPPORT) */
 
 #define OPEN_TYPE_compare CHOICE_compare
-#define OPEN_TYPE_copy    CHOICE_copy
 
 #define OPEN_TYPE_constraint CHOICE_constraint
 
@@ -60,13 +59,6 @@ asn_dec_rval_t OPEN_TYPE_xer_get(
 #endif  /* !defined(ASN_DISABLE_XER_SUPPORT) */
 
 #if !defined(ASN_DISABLE_JER_SUPPORT)
-asn_dec_rval_t OPEN_TYPE_jer_get(
-    const asn_codec_ctx_t *opt_codec_ctx,
-    const asn_TYPE_descriptor_t *parent_type,
-    void *parent_structure,
-    const asn_TYPE_member_t *element,
-    const void *ptr, size_t size);
-#define OPEN_TYPE_decode_jer NULL
 #define OPEN_TYPE_encode_jer CHOICE_encode_jer
 #endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 
@@ -78,10 +70,7 @@ asn_dec_rval_t OPEN_TYPE_oer_get(
     asn_TYPE_member_t *element, const void *ptr,
     size_t size);
 #define OPEN_TYPE_decode_oer NULL
-asn_enc_rval_t OPEN_TYPE_encode_oer(
-    const asn_TYPE_descriptor_t *type_descriptor,
-    const asn_oer_constraints_t *constraints, const void *struct_ptr,
-    asn_app_consume_bytes_f *consume_bytes_cb, void *app_key);
+#define OPEN_TYPE_encode_oer CHOICE_encode_oer
 #endif  /* !defined(ASN_DISABLE_OER_SUPPORT) */
 
 #if !defined(ASN_DISABLE_UPER_SUPPORT)

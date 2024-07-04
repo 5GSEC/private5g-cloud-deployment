@@ -33,9 +33,6 @@ static void terminate(void)
 {
     ogs_sctp_final();
 
-    ogs_app_config_final();
-    ogs_app_context_final();
-
     ogs_pkbuf_default_destroy();
     ogs_core_terminate();
 }

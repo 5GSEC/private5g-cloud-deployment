@@ -38,7 +38,7 @@ ogs_sbi_request_t *smf_npcf_smpolicycontrol_build_create(
     ogs_assert(sess);
     ogs_assert(sess->sm_context_ref);
     ogs_assert(sess->session.name);
-    smf_ue = smf_ue_find_by_id(sess->smf_ue_id);
+    smf_ue = sess->smf_ue;
     ogs_assert(smf_ue);
 
     memset(&message, 0, sizeof(message));
@@ -301,15 +301,17 @@ ogs_sbi_request_t *smf_npcf_smpolicycontrol_build_delete(
 
     ogs_assert(sess);
     ogs_assert(sess->sm_context_ref);
-    smf_ue = smf_ue_find_by_id(sess->smf_ue_id);
+    smf_ue = sess->smf_ue;
     ogs_assert(smf_ue);
-    ogs_assert(sess->policy_association.resource_uri);
+    ogs_assert(sess->policy_association_id);
 
     memset(&message, 0, sizeof(message));
     message.h.method = (char *)OGS_SBI_HTTP_METHOD_POST;
-    message.h.uri = ogs_msprintf("%s/%s",
-            sess->policy_association.resource_uri,
-            OGS_SBI_RESOURCE_NAME_DELETE);
+    message.h.service.name = (char *)OGS_SBI_SERVICE_NAME_NPCF_SMPOLICYCONTROL;
+    message.h.api.version = (char *)OGS_SBI_API_V1;
+    message.h.resource.component[0] = (char *)OGS_SBI_RESOURCE_NAME_SM_POLICIES;
+    message.h.resource.component[1] = sess->policy_association_id;
+    message.h.resource.component[2] = (char *)OGS_SBI_RESOURCE_NAME_DELETE;
 
     memset(&SmPolicyDeleteData, 0, sizeof(SmPolicyDeleteData));
 
@@ -397,9 +399,6 @@ ogs_sbi_request_t *smf_npcf_smpolicycontrol_build_delete(
     ogs_expect(request);
 
 end:
-
-    if (message.h.uri)
-        ogs_free(message.h.uri);
 
     if (ueLocation.nr_location) {
         if (ueLocation.nr_location->ue_location_timestamp)
