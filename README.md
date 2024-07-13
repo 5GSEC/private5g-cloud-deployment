@@ -44,14 +44,6 @@ cd ~
 git clone https://github.com/aws-samples/private5g-cloud-deployment.git
 ```
 
-This project deploys 5G Core using the source code provided by open5gs.
-(https://github.com/open5gs/open5gs)
-```bash
-cd ~/private5g-cloud-deployment/my_open5gs
-git clone https://github.com/open5gs/open5gs.git
-rm -rf open5gs/.git/
-```
-
 CDK Bootstrap
 ```bash
 cd ~/private5g-cloud-deployment/app-cdk
@@ -233,24 +225,16 @@ Open the Git repo, commit, and push.
 
 ```bash
 cd ~/private5g-cloud-deployment
-rm -rf .git
 
-> need to setup the SSH key for the CodeCommit repository.
+> you need to setup the SSH key for the CodeCommit repository.
+> see: https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-ssh-unixes.html#setting-up-ssh-unixes-keys
 
 code_commit_uri=$(aws ssm get-parameters --names "CodeCommitUri" | grep "Value" | cut -d'"' -f4)
 echo $code_commit_uri
 
-git remote add origin $code_commit_uri
+git remote add aws $code_commit_uri
 git remote -v
-git status
-
-git add .
-git status
-
-git commit -m "Initial Commit"
-git status
-
-git push --set-upstream origin main
+git push --set-upstream aws main
 ```
 
 <br>
@@ -332,6 +316,7 @@ cdk deploy vpn-route-cdk-stack
 Modify the routing configuration for communication from the RAN segment to the 5G Core.
 
 Modify traffic for 0.0.0.0/0 to be directed to the instance (customerGWInstance).
+> To configure the RAN route table, go to the instance->subnet->route table->edit table->change 0.0.0.0/0 to point to the customer instance
 
 ![](https://vagabond-mongoose-695.notion.site/image/https%3A%2F%2Fprod-files-secure.s3.us-west-2.amazonaws.com%2F1393b3fa-f8b3-4acc-8a30-40f7e425cff0%2Fbf20cd2c-b68f-4fb6-b7a9-3919b853ed97%2FUntitled.png?table=block&id=49a3de8e-cf4a-444c-8886-4702ff37725a&spaceId=1393b3fa-f8b3-4acc-8a30-40f7e425cff0&width=2000&userId=&cache=v2)
 
@@ -340,13 +325,15 @@ Configure CGW using StrongSWAN and Quagga.
 
 Here we will follow the guide in the workshop below to configure it.
 >AWS VPN Workshop - Build Hybrid network using AWS VPN services
->https://catalog.workshops.aws/aws-vpn-at-a-glance/ko-KR/3-s2svpn/3-1-site2site/2-vpnconnection
+> https://catalog.workshops.aws/aws-vpn-at-a-glance/en-US/3-s2svpn/3-1-site2site/3-onprem.html
+> The script is in the root directory of the repository.
+> Refer to [cgwsetup.sh](cgwsetup.sh).
 
 ```bash
 sudo su
 vi cgwsetup.sh
 
-#Refer to the workshop above to write cgwsetup.sh
+# Copy the contents of the script and paste it into the file.
 
 chmod +x cgwsetup.sh
 ./cgwsetup.sh
