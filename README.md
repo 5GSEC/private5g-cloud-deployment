@@ -270,8 +270,8 @@ amf_ipaddr=$(kubectl -n open5gs exec -ti deploy/core5g-amf-1-deployment -- ip a 
 echo $amf_ipaddr
 
 cd ~/private5g-cloud-deployment/network_config
-jq --arg new_ip "$upf_ipaddr" '.Changes[0].ResourceRecordSet.Name = "upf.open5gs.service" |.Changes[0].ResourceRecordSet.ResourceRecords[0].Value = $new_ip' default_resource.json > upf_resource.json
-jq --arg new_ip "$amf_ipaddr" '.Changes[0].ResourceRecordSet.Name = "amf.open5gs.service" |.Changes[0].ResourceRecordSet.ResourceRecords[0].Value = $new_ip' default_resource.json > amf_resource.json
+jq -C --arg new_ip "$upf_ipaddr" '.Changes[0].ResourceRecordSet.Name = "upf.open5gs.service" |.Changes[0].ResourceRecordSet.ResourceRecords[0].Value = $new_ip' default_resource.json > upf_resource.json
+jq -C --arg new_ip "$amf_ipaddr" '.Changes[0].ResourceRecordSet.Name = "amf.open5gs.service" |.Changes[0].ResourceRecordSet.ResourceRecords[0].Value = $new_ip' default_resource.json > amf_resource.json
 
 
 amf_zoneid=$(aws route53 list-hosted-zones-by-name --region us-west-2 | grep -B 1 amf | grep Id | cut -d '/' -f 3 | sed 's/"//g;s/,//g')
