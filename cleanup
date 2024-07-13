@@ -1,0 +1,45 @@
+#!/bin/bash
+
+BUCKET_NAME="cdk-hnb659fds-assets-975050082972-us-east-1"
+
+echo "Deleting all versions from bucket: $BUCKET_NAME"
+
+# List all object versions
+versions=$(aws s3api list-object-versions --bucket $BUCKET_NAME --query='{Objects: Versions[].{Key:Key,VersionId:VersionId}}')
+
+# Delete all object versions
+echo $versions | jq -c '.Objects[]' | while read -r item; do
+    key=$(echo $item | jq -r '.Key')
+    versionId=$(echo $item | jq -r '.VersionId')
+    aws s3api delete-object --bucket $BUCKET_NAME --key $key --version-id $versionId
+done
+
+# List all delete markers
+delete_markers=$(aws s3api list-object-versions --bucket $BUCKET_NAME --query='{Objects: DeleteMarkers[].{Key:Key,VersionId:VersionId}}')
+
+# Delete all delete markers
+echo $delete_markers | jq -c '.Objects[]' | while read -r item; do
+    key=$(echo $item | jq -r '.Key')
+    versionId=$(echo $item | jq -r '.VersionId')
+    aws s3api delete-object --bucket $BUCKET_NAME --key $key --version-id $versionId
+done
+
+# Step 1: List current lifecycle rules
+echo "Listing current lifecycle rules for bucket: $BUCKET_NAME"
+aws s3api get-bucket-lifecycle-configuration --bucket $BUCKET_NAME
+
+# Step 2: Delete all lifecycle rules
+echo "Deleting all lifecycle rules for bucket: $BUCKET_NAME"
+aws s3api delete-bucket-lifecycle --bucket $BUCKET_NAME
+
+echo "Lifecycle rules deletion complete."
+
+# Step 1: Remove all objects from the bucket
+echo "Deleting all objects from bucket: $BUCKET_NAME"
+aws s3 rm s3://$BUCKET_NAME --recursive
+
+# Step 2: Delete the bucket
+echo "Deleting the bucket: $BUCKET_NAME"
+aws s3 rb s3://$BUCKET_NAME --force
+
+echo "Bucket deletion complete."
