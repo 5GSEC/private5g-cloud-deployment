@@ -1,20 +1,12 @@
-# This contains the original code for 5gcore-sctp-loadbalancer.
-# Licensed under the Apache License, Version 2.0.
-# You can find the original code at https://github.com/infinitydon/5gcore-sctp-loadbalancer/blob/main/open5gs-helm-charts/values.yaml
-
-# Default values for open5gs-epc-helm.
-# This is a YAML-formatted file.
-# Declare variables to be passed into your templates.
-
 open5gs:
   image:
-    repository: 975050082972.dkr.ecr.us-east-1.amazonaws.com/ecr-cdk-stack-myopen5gs41a0c7ec-7kisksltr81k
+    repository: 975050082972.dkr.ecr.us-east-1.amazonaws.com/ecr-cdk-stack-myopen5gs41a0c7ec-rcfbesuhqyuc
     pullPolicy: Always
     tag: "v265"
 
 webui:
   image:
-    repository: 975050082972.dkr.ecr.us-east-1.amazonaws.com/open5gs-x86-web
+    repository: 975050082972.dkr.ecr.us-east-1.amazonaws.com/ecr-cdk-stack-open5gsx86webc2dc76ea-gichaofhjz4s
     pullPolicy: Always
     tag: "2.4.9"
 
