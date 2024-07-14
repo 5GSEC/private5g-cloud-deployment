@@ -258,8 +258,8 @@ amf_ipaddr=$(kubectl -n open5gs exec -ti deploy/core5g-amf-1-deployment -- ip a 
 echo $amf_ipaddr
 
 cd ~/private5g-cloud-deployment/network_config
-jq -C --arg new_ip "$upf_ipaddr" '.Changes[0].ResourceRecordSet.Name = "upf.open5gs.service" |.Changes[0].ResourceRecordSet.ResourceRecords[0].Value = $new_ip' default_resource.json > upf_resource.json
-jq -C --arg new_ip "$amf_ipaddr" '.Changes[0].ResourceRecordSet.Name = "amf.open5gs.service" |.Changes[0].ResourceRecordSet.ResourceRecords[0].Value = $new_ip' default_resource.json > amf_resource.json
+jq -M --arg new_ip "$upf_ipaddr" '.Changes[0].ResourceRecordSet.Name = "upf.open5gs.service" |.Changes[0].ResourceRecordSet.ResourceRecords[0].Value = $new_ip' default_resource.json > upf_resource.json
+jq -M --arg new_ip "$amf_ipaddr" '.Changes[0].ResourceRecordSet.Name = "amf.open5gs.service" |.Changes[0].ResourceRecordSet.ResourceRecords[0].Value = $new_ip' default_resource.json > amf_resource.json
 
 
 amf_zoneid=$(aws route53 list-hosted-zones-by-name --region us-east-1 | grep -B 1 amf | grep Id | cut -d '/' -f 3 | sed 's/"//g;s/,//g')
@@ -317,10 +317,8 @@ cdk deploy vpn-route-cdk-stack
 ### Step6. Configure your test environment:
 <br>
 
-Modify the routing configuration for communication from the RAN segment to the 5G Core.
-
-Modify traffic for 0.0.0.0/0 to be directed to the instance (customerGWInstance).
-> To configure the RAN route table, go to the instance->subnet->route table->edit table->change 0.0.0.0/0 to point to the customer instance
+Configure traffic for 0.0.0.0/0 in the CustomerRANInstance to be directed to the CustomerGWInstance
+To configure the RAN route table, go to the Instance (CustomerRanInstance)-> Subnet (PrivateSubnetSubnet1) -> Subnet ID -> Route table -> Select entry -> Action (top right) -> Edit routes -> Replace NAT Gateway to Instance and select the CustomerGWInstance
 
 ![](https://vagabond-mongoose-695.notion.site/image/https%3A%2F%2Fprod-files-secure.s3.us-west-2.amazonaws.com%2F1393b3fa-f8b3-4acc-8a30-40f7e425cff0%2Fbf20cd2c-b68f-4fb6-b7a9-3919b853ed97%2FUntitled.png?table=block&id=49a3de8e-cf4a-444c-8886-4702ff37725a&spaceId=1393b3fa-f8b3-4acc-8a30-40f7e425cff0&width=2000&userId=&cache=v2)
 
