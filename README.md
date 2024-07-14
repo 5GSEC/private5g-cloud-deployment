@@ -262,14 +262,14 @@ jq -C --arg new_ip "$upf_ipaddr" '.Changes[0].ResourceRecordSet.Name = "upf.open
 jq -C --arg new_ip "$amf_ipaddr" '.Changes[0].ResourceRecordSet.Name = "amf.open5gs.service" |.Changes[0].ResourceRecordSet.ResourceRecords[0].Value = $new_ip' default_resource.json > amf_resource.json
 
 
-amf_zoneid=$(aws route53 list-hosted-zones-by-name --region us-west-2 | grep -B 1 amf | grep Id | cut -d '/' -f 3 | sed 's/"//g;s/,//g')
+amf_zoneid=$(aws route53 list-hosted-zones-by-name --region us-east-1 | grep -B 1 amf | grep Id | cut -d '/' -f 3 | sed 's/"//g;s/,//g')
 echo $amf_zoneid
-upf_zoneid=$(aws route53 list-hosted-zones-by-name --region us-west-2 | grep -B 1 upf| grep Id | cut -d '/' -f 3 | sed 's/"//g;s/,//g')
+upf_zoneid=$(aws route53 list-hosted-zones-by-name --region us-east-1 | grep -B 1 upf| grep Id | cut -d '/' -f 3 | sed 's/"//g;s/,//g')
 echo $upf_zoneid
 
 aws route53 change-resource-record-sets --hosted-zone-id ${upf_zoneid} --region {{region}}   --change-batch file://{{resource_file}}
-aws route53 change-resource-record-sets --hosted-zone-id ${upf_zoneid} --region us-west-2   --change-batch file://upf_resource.json
-aws route53 change-resource-record-sets --hosted-zone-id ${amf_zoneid} --region us-west-2   --change-batch file://amf_resource.json
+aws route53 change-resource-record-sets --hosted-zone-id ${upf_zoneid} --region us-east-1   --change-batch file://upf_resource.json
+aws route53 change-resource-record-sets --hosted-zone-id ${amf_zoneid} --region us-east-1   --change-batch file://amf_resource.json
 ```
 <br>
 Ping to verify that the pod deployed successfully.

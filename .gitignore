@@ -15,3 +15,7 @@ app_cdk_*
 app-cdk/.venv
 eks_config/aws-auth-cm.yaml
 cf
+
+# generated files
+upf_resource.json
+amf_resource.json
