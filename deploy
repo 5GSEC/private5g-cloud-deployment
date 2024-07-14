@@ -1,6 +1,99 @@
 #!/bin/bash
 
-cd app-cdk
+configure_vpn_customer_gateway() {
+  # Variables
+  INSTANCE_NAME="customer-vpc-cdk-stack/CustomerGWInstance"
+  REGION="us-east-1"
+
+  # Get the instance ID for the CustomerGWInstance
+  INSTANCE_ID=$(aws ec2 describe-instances --region $REGION --filters "Name=tag:Name,Values=$INSTANCE_NAME" --query "Reservations[*].Instances[*].InstanceId" --output text)
+
+  if [ "$INSTANCE_ID" == "None" ]; then
+    echo "Instance $INSTANCE_NAME not found."
+    exit 1
+  fi
+
+  echo "Found Instance ID: $INSTANCE_ID"
+
+  # Get the public DNS for the CustomerGWInstance
+  PUBLIC_DNS=$(aws ec2 describe-instances --region $REGION --instance-ids $INSTANCE_ID --query "Reservations[*].Instances[*].PublicDnsName" --output text)
+
+  if [ -z "$PUBLIC_DNS" ]; then
+    echo "Public DNS for instance $INSTANCE_ID not found."
+    exit 1
+  fi
+
+  echo "Public DNS for instance $INSTANCE_ID: $PUBLIC_DNS"
+
+  scp -i private5g-east-1.pem ec2-user@$PUBLIC_DNS ../cgwsetup.sh /root/
+
+}
+# get_subnets_id_ran_instance() {
+#   # TODO: implement this function in the customer-vpc-cdk-stack
+#   # Variables
+#   STACK_NAME="customer-vpc-cdk-stack"
+#   VPC_NAME="CustomerVPC"
+#   REGION="us-east-1"
+
+#   # Get the VPC ID using the stack name and VPC name tag
+#   VPC_ID=$(aws ec2 describe-vpcs --region $REGION --filters "Name=tag:Name,Values=${STACK_NAME}/${VPC_NAME}" --query "Vpcs[0].VpcId" --output text)
+
+#   if [ "$VPC_ID" == "None" ]; then
+#     echo "VPC ${STACK_NAME}/${VPC_NAME} not found."
+#     exit 1
+#   fi
+
+#   # echo "Found VPC ID: $VPC_ID"
+
+#   # List subnets associated with the VPC
+#   SUBNETS=$(aws ec2 describe-subnets --region $REGION --filters "Name=vpc-id,Values=$VPC_ID" --query "Subnets[*].{ID:SubnetId,Name:Tags[?Key=='Name']|[0].Value}" --output text)
+
+#   # echo "Subnets in VPC ${VPC_NAME}:"
+#   # echo "$SUBNETS"
+
+#   echo "$SUBNETS" | grep Private | awk '{print $1}'
+# }
+
+# set_default_route_custom_ran_instance() {
+#   # Variables
+#   SUBNET_NAME="PrivateSubnetSubnet1"
+#   VPC_STACK_NAME="customer-vpc-cdk-stack"
+#   GW_INSTANCE_ALIAS="customer-vpc-cdk-stack/CustomerGWInstance"
+#   REGION="us-east-1"
+
+#   # Get the Route Table ID associated with the Subnet
+#   ROUTE_TABLE_ID=$(aws ec2 describe-route-tables --filters "Name=association.subnet-id,Values=$SUBNET_ID" --query "RouteTables[0].RouteTableId" --output text --region $REGION)
+
+#   if [ "$ROUTE_TABLE_ID" == "None" ]; then
+#     echo "Route table for subnet $SUBNET_ID not found."
+#     exit 1
+#   fi
+
+#   echo "Found Route Table ID: $ROUTE_TABLE_ID"
+
+#   # Get the Instance ID for CustomerGWInstance
+#   GW_INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=$GW_INSTANCE_ALIAS" --query "Reservations[0].Instances[0].InstanceId" --output text --region $REGION)
+
+#   if [ "$GW_INSTANCE_ID" == "None" ]; then
+#     echo "Instance $GW_INSTANCE_ALIAS not found."
+#     exit 1
+#   fi
+
+#   echo "Found GW Instance ID: $GW_INSTANCE_ID"
+
+#   # Modify the route to direct 0.0.0.0/0 traffic to the CustomerGWInstance
+#   echo "Modifying the route table to direct 0.0.0.0/0 traffic to the CustomerGWInstance ($GW_INSTANCE_ID)..."
+#   # aws ec2 replace-route --route-table-id $ROUTE_TABLE_ID --destination-cidr-block 0.0.0.0/0 --instance-id $GW_INSTANCE_ID --region $REGION
+
+#   if [ $? -eq 0 ]; then
+#     echo "Route table updated successfully."
+#   else
+#     echo "Failed to update the route table."
+#     exit 1
+#   fi
+# }
+
+cd app-cdk || exit
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -13,41 +106,43 @@ aws cloudformation wait stack-create-complete --stack-name CDKToolkit
 
 cdk deploy eks-vpc-cdk-stack
 if ! aws cloudformation wait stack-create-complete --stack-name eks-vpc-cdk-stack; then
-    aws cloudformation delete-stack --stack-name eks-vpc-cdk-stack
-    echo "failed to create stack"
-    exit 1
+  aws cloudformation delete-stack --stack-name eks-vpc-cdk-stack
+  echo "failed to create stack"
+  exit 1
 fi
 
-cdk synth eks-infra-cf-stack > ./cf/eks-infra-cf.yaml
-aws ec2 create-key-pair --key-name private5g-east-1 --query 'KeyMaterial' --output text > private5g-east-1.pem
+cdk synth eks-infra-cf-stack >./cf/eks-infra-cf.yaml
+aws ec2 delete-key-pair --key-name private5g-east-1
+aws ec2 create-key-pair --key-name private5g-east-1 --query 'KeyMaterial' --output text >private5g-east-1.pem
+chmod 400 private5g-east-1.pem
 
 aws cloudformation create-stack --stack-name eks-infra-stack --template-body file://./cf/eks-infra-cf.yaml --capabilities CAPABILITY_NAMED_IAM | cat
 if ! aws cloudformation wait stack-create-complete --stack-name eks-infra-stack; then
-    echo "failed to create stack"
-    aws cloudformation delete-stack --stack-name eks-infra-stack
-    aws cloudformation delete-stack --stack-name eks-vpc-cdk-stack
-    exit 1
+  echo "failed to create stack"
+  aws cloudformation delete-stack --stack-name eks-infra-stack
+  aws cloudformation delete-stack --stack-name eks-vpc-cdk-stack
+  exit 1
 fi
 
 cdk deploy no-multus-nodegroup-stack --require-approval never
 if ! aws cloudformation wait stack-create-complete --stack-name eks-vpc-cdk-stack; then
-    aws cloudformation delete-stack --stack-name eks-vpc-cdk-stack
-    echo "failed to create stack"
-    exit 1
+  aws cloudformation delete-stack --stack-name eks-vpc-cdk-stack
+  echo "failed to create stack"
+  exit 1
 fi
 
 cdk deploy ecr-cdk-stack
-if ! aws cloudformation wait stack-create-complete --stack-name ecr-cdk-stack ; then
-    aws cloudformation delete-stack --stack-name ecr-cdk-stack
-    echo "failed to create stack"
-    exit 1
+if ! aws cloudformation wait stack-create-complete --stack-name ecr-cdk-stack; then
+  aws cloudformation delete-stack --stack-name ecr-cdk-stack
+  echo "failed to create stack"
+  exit 1
 fi
 
 cdk deploy pipeline-cdk-stack --require-approval never
 if ! aws cloudformation wait stack-create-complete --stack-name pipeline-cdk-stack; then
-    aws cloudformation delete-stack --stack-name pipeline-cdk-stack
-    echo "failed to create stack"
-    exit 1
+  aws cloudformation delete-stack --stack-name pipeline-cdk-stack
+  echo "failed to create stack"
+  exit 1
 fi
 
 eks_cluster_name=$(aws ssm get-parameters --names "EKSClusterName" | grep "Value" | cut -d'"' -f4)
@@ -59,7 +154,7 @@ echo $NGRoleArn
 CodeBuildRoleArn=$(aws ssm get-parameters --names "CodeBuildRoleArn" | grep "Value" | cut -d'"' -f4)
 echo $CodeBuildRoleArn
 
-cat << EOF >> ../eks_config/aws-auth-cm.yaml
+cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -67,24 +162,23 @@ metadata:
   namespace: kube-system
 data:
   mapRoles: |
-    - rolearn: arn:aws:iam::$NGRoleArn
+    - rolearn: $NGRoleArn
       username: system:node:{{EC2PrivateDNSName}}
       groups:
         - system:bootstrappers
         - system:nodes
-    - rolearn: arn:aws:iam::$CodeBuildRoleArn
+    - rolearn: $CodeBuildRoleArn
       username: CodeBuildRole
       groups:
         - system:masters
 EOF
 
-kubectl apply -f ../eks_config/aws-auth-cm.yaml
 kubectl create ns open5gs
 
 MyOpen5gsRepo=$(aws ssm get-parameters --names "EcrRepositoryUri" | grep "Value" | cut -d'"' -f4)
 MyWebOpen5gsRepo=$(aws ssm get-parameters --names "EcrWebRepositoryUri" | grep "Value" | cut -d'"' -f4)
 
-cat << EOF > ../helm_chart/open5gs-helm-charts_nomultus/values.yaml
+cat <<EOF >../helm_chart/open5gs-helm-charts_nomultus/values.yaml
 open5gs:
   image:
     repository: $MyOpen5gsRepo
@@ -168,14 +262,48 @@ git commit -m "update values.yaml"
 git push --set-upstream aws main
 
 # wait pod to be ready
-kubectl -n open5gs wait --for=condition=ready pod -l app.kubernetes.io/name=core5g-smf-1 --timeout=300s
-kubectl -n open5gs wait --for=condition=ready pod -l app.kubernetes.io/name=core5g-upf-1 --timeout=300s
+kubectl -n open5gs wait --for=condition=ready pod -l epc-mode=amf-1
+kubectl -n open5gs wait --for=condition=ready pod -l epc-mode=upf
 
 upf_ipaddr=$(kubectl -n open5gs exec -ti deploy/core5g-upf-deployment -- ip a | grep "global eth0" | awk '{print $2}' | cut -d '/' -f 1)
 echo $upf_ipaddr
 amf_ipaddr=$(kubectl -n open5gs exec -ti deploy/core5g-amf-1-deployment -- ip a | grep "global eth0" | awk '{print $2}' | cut -d '/' -f 1)
 echo $amf_ipaddr
 
-cd ../network_config
-jq -C --arg new_ip "$upf_ipaddr" '.Changes[0].ResourceRecordSet.Name = "upf.open5gs.service" |.Changes[0].ResourceRecordSet.ResourceRecords[0].Value = $new_ip' default_resource.json > upf_resource.json
-jq -C --arg new_ip "$amf_ipaddr" '.Changes[0].ResourceRecordSet.Name = "amf.open5gs.service" |.Changes[0].ResourceRecordSet.ResourceRecords[0].Value = $new_ip' default_resource.json > amf_resource.json
+cd ../network_config || exit
+jq -M --arg new_ip "$upf_ipaddr" '.Changes[0].ResourceRecordSet.Name = "upf.open5gs.service" |.Changes[0].ResourceRecordSet.ResourceRecords[0].Value = $new_ip' default_resource.json >upf_resource.json
+jq -M --arg new_ip "$amf_ipaddr" '.Changes[0].ResourceRecordSet.Name = "amf.open5gs.service" |.Changes[0].ResourceRecordSet.ResourceRecords[0].Value = $new_ip' default_resource.json >amf_resource.json
+
+amf_zoneid=$(aws route53 list-hosted-zones-by-name --region us-east-1 | grep -B 1 amf | grep Id | cut -d '/' -f 3 | sed 's/"//g;s/,//g')
+echo $amf_zoneid
+upf_zoneid=$(aws route53 list-hosted-zones-by-name --region us-east-1 | grep -B 1 upf | grep Id | cut -d '/' -f 3 | sed 's/"//g;s/,//g')
+echo $upf_zoneid
+
+aws route53 change-resource-record-sets --hosted-zone-id ${upf_zoneid} --region us-east-1 --change-batch file://./upf_resource.json | cat
+aws route53 change-resource-record-sets --hosted-zone-id ${amf_zoneid} --region us-east-1 --change-batch file://./amf_resource.json | cat
+
+cd ../app-cdk || exit
+cdk deploy customer-vpc-cdk-stack --require-approval never
+if ! aws cloudformation wait stack-create-complete --stack-name customer-vpc-cdk-stack; then
+  aws cloudformation delete-stack --stack-name customer-vpc-cdk-stack
+  echo "failed to create stack"
+  exit 1
+fi
+
+cdk deploy tgw-vpn-cdk-stack --require-approval never
+if ! aws cloudformation wait stack-create-complete --stack-name tgw-vpn-cdk-stack; then
+  aws cloudformation delete-stack --stack-name tgw-vpn-cdk-stack
+  echo "failed to create stack"
+  exit 1
+fi
+
+cdk deploy vpn-route-cdk-stack --require-approval never
+if ! aws cloudformation wait stack-create-complete --stack-name vpn-route-cdk-stack; then
+  aws cloudformation delete-stack --stack-name vpn-route-cdk-stack
+  echo "failed to create stack"
+  exit 1
+fi
+
+echo "Configure traffic for 0.0.0.0/0 in the CustomerRANInstance to be directed to the CustomerGWInstance"
+echo "To configure the RAN route table, go to the Instance (CustomerRanInstance)-> Subnet (PrivateSubnetSubnet1) -> Subnet ID -> Route table -> Select entry -> Action (top right) -> Edit routes -> Replace NAT Gateway to Instance and select the CustomerGWInstance"
+read
