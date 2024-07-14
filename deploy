@@ -1,0 +1,181 @@
+#!/bin/bash
+
+cd app-cdk
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# cleanup
+rm -rf ./cf/eks-infra-cf.yaml ./cdk.out cdk.context.json
+
+cdk bootstrap
+aws cloudformation wait stack-create-complete --stack-name CDKToolkit
+
+cdk deploy eks-vpc-cdk-stack
+if ! aws cloudformation wait stack-create-complete --stack-name eks-vpc-cdk-stack; then
+    aws cloudformation delete-stack --stack-name eks-vpc-cdk-stack
+    echo "failed to create stack"
+    exit 1
+fi
+
+cdk synth eks-infra-cf-stack > ./cf/eks-infra-cf.yaml
+aws ec2 create-key-pair --key-name private5g-east-1 --query 'KeyMaterial' --output text > private5g-east-1.pem
+
+aws cloudformation create-stack --stack-name eks-infra-stack --template-body file://./cf/eks-infra-cf.yaml --capabilities CAPABILITY_NAMED_IAM | cat
+if ! aws cloudformation wait stack-create-complete --stack-name eks-infra-stack; then
+    echo "failed to create stack"
+    aws cloudformation delete-stack --stack-name eks-infra-stack
+    aws cloudformation delete-stack --stack-name eks-vpc-cdk-stack
+    exit 1
+fi
+
+cdk deploy no-multus-nodegroup-stack --require-approval never
+if ! aws cloudformation wait stack-create-complete --stack-name eks-vpc-cdk-stack; then
+    aws cloudformation delete-stack --stack-name eks-vpc-cdk-stack
+    echo "failed to create stack"
+    exit 1
+fi
+
+cdk deploy ecr-cdk-stack
+if ! aws cloudformation wait stack-create-complete --stack-name ecr-cdk-stack ; then
+    aws cloudformation delete-stack --stack-name ecr-cdk-stack
+    echo "failed to create stack"
+    exit 1
+fi
+
+cdk deploy pipeline-cdk-stack --require-approval never
+if ! aws cloudformation wait stack-create-complete --stack-name pipeline-cdk-stack; then
+    aws cloudformation delete-stack --stack-name pipeline-cdk-stack
+    echo "failed to create stack"
+    exit 1
+fi
+
+eks_cluster_name=$(aws ssm get-parameters --names "EKSClusterName" | grep "Value" | cut -d'"' -f4)
+aws eks update-kubeconfig --name $eks_cluster_name --region us-east-1
+
+NGRoleArn=$(aws ssm get-parameters --names "NGRoleArn" | grep "Value" | cut -d'"' -f4)
+echo $NGRoleArn
+
+CodeBuildRoleArn=$(aws ssm get-parameters --names "CodeBuildRoleArn" | grep "Value" | cut -d'"' -f4)
+echo $CodeBuildRoleArn
+
+cat << EOF >> ../eks_config/aws-auth-cm.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aws-auth
+  namespace: kube-system
+data:
+  mapRoles: |
+    - rolearn: arn:aws:iam::$NGRoleArn
+      username: system:node:{{EC2PrivateDNSName}}
+      groups:
+        - system:bootstrappers
+        - system:nodes
+    - rolearn: arn:aws:iam::$CodeBuildRoleArn
+      username: CodeBuildRole
+      groups:
+        - system:masters
+EOF
+
+kubectl apply -f ../eks_config/aws-auth-cm.yaml
+kubectl create ns open5gs
+
+MyOpen5gsRepo=$(aws ssm get-parameters --names "EcrRepositoryUri" | grep "Value" | cut -d'"' -f4)
+MyWebOpen5gsRepo=$(aws ssm get-parameters --names "EcrWebRepositoryUri" | grep "Value" | cut -d'"' -f4)
+
+cat << EOF > ../helm_chart/open5gs-helm-charts_nomultus/values.yaml
+open5gs:
+  image:
+    repository: $MyOpen5gsRepo
+    pullPolicy: Always
+    tag: "v265"
+
+webui:
+  image:
+    repository: $MyWebOpen5gsRepo
+    pullPolicy: Always
+    tag: "2.4.9"
+
+ueImport:
+  image:
+    repository: free5gmano/nextepc-mongodb
+    pullPolicy: Always
+    tag: "latest"
+
+simulator:
+   ue1:
+     imsi: "208930000000031"
+     op: "63bfa50ee6523365ff14c1f45f88737d"
+     secKey: "0C0A34601D4F07677303652C0462535B"
+     sst: "1"
+     sd: "1"
+   ue2:
+     imsi: "208930000000032"
+     imei: "356938035643803"
+     imeiSv: "4370816125816151"
+     op: "63bfa50ee6523365ff14c1f45f88737d"
+     secKey: "0C0A34601D4F07677303652C0462535B"
+     sst: "1"
+     sd: "1"
+
+dnn: internet
+
+k8swait:
+  repository: groundnuty/k8s-wait-for
+  tag: v1.6
+  pullPolicy: Always
+
+k8s:
+  interface: eth0
+
+amf1:
+  mcc: 208
+  mnc: 93
+  tac: 7
+  networkName: Open5GS
+  ngapInt: eth0
+
+smf:
+  N4Int: eth0
+
+upf:
+  N3N4Int: eth0
+
+nssf:
+  sst: "1"
+  sd: "1"
+
+prometheus:
+  nodeExporter:
+     repository: quay.io/prometheus/node-exporter
+     tag: v1.3.1
+     pullPolicy: Always
+EOF
+
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 975050082972.dkr.ecr.us-east-1.amazonaws.com
+docker build -t $MyWebOpen5gsRepo:2.4.9 -f ../my_open5gs/open5gs/docker/webui/Dockerfile ../my_open5gs/open5gs --push
+
+username=$(aws iam get-user | jq -r .User.UserName)
+aws iam upload-ssh-public-key --user-name $username --ssh-public-key-body file://~/.ssh/id_rsa.pub
+code_commit_uri=$(aws ssm get-parameters --names "CodeCommitUri" --query "Parameters[0].Value" --output text | sed 's/https/ssh/g')
+echo $code_commit_uri
+
+git remote add aws $code_commit_uri || git remote set-url aws $code_commit_uri
+git remote -v
+git add ../helm_chart/open5gs-helm-charts_nomultus/values.yaml
+git commit -m "update values.yaml"
+git push --set-upstream aws main
+
+# wait pod to be ready
+kubectl -n open5gs wait --for=condition=ready pod -l app.kubernetes.io/name=core5g-smf-1 --timeout=300s
+kubectl -n open5gs wait --for=condition=ready pod -l app.kubernetes.io/name=core5g-upf-1 --timeout=300s
+
+upf_ipaddr=$(kubectl -n open5gs exec -ti deploy/core5g-upf-deployment -- ip a | grep "global eth0" | awk '{print $2}' | cut -d '/' -f 1)
+echo $upf_ipaddr
+amf_ipaddr=$(kubectl -n open5gs exec -ti deploy/core5g-amf-1-deployment -- ip a | grep "global eth0" | awk '{print $2}' | cut -d '/' -f 1)
+echo $amf_ipaddr
+
+cd ../network_config
+jq -C --arg new_ip "$upf_ipaddr" '.Changes[0].ResourceRecordSet.Name = "upf.open5gs.service" |.Changes[0].ResourceRecordSet.ResourceRecords[0].Value = $new_ip' default_resource.json > upf_resource.json
+jq -C --arg new_ip "$amf_ipaddr" '.Changes[0].ResourceRecordSet.Name = "amf.open5gs.service" |.Changes[0].ResourceRecordSet.ResourceRecords[0].Value = $new_ip' default_resource.json > amf_resource.json

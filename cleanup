@@ -1,45 +1,120 @@
 #!/bin/bash
 
 BUCKET_NAME="cdk-hnb659fds-assets-975050082972-us-east-1"
+KEY_NAME="private5g-east-1"
+REGION="us-east-1"
 
-echo "Deleting all versions from bucket: $BUCKET_NAME"
+# Set your hosted zone IDs
+AMF_ZONE_ID=$(aws route53 list-hosted-zones-by-name --region us-east-1 | grep -B 1 amf | grep Id | cut -d '/' -f 3 | sed 's/"//g;s/,//g')
+UPF_ZONE_ID=$(aws route53 list-hosted-zones-by-name --region us-east-1 | grep -B 1 upf | grep Id | cut -d '/' -f 3 | sed 's/"//g;s/,//g')
 
-# List all object versions
-versions=$(aws s3api list-object-versions --bucket $BUCKET_NAME --query='{Objects: Versions[].{Key:Key,VersionId:VersionId}}')
+OPEN5GS_REPO_NAME=$(aws ssm get-parameters --names "EcrRepositoryUri" | jq -r '.Parameters[0].Value' | cut -d/ -f2)
+OPEN5GS_WEB_REPO_NAME=$(aws ssm get-parameters --names "EcrWebRepositoryUri" | jq -r '.Parameters[0].Value' | cut -d/ -f2)
 
-# Delete all object versions
-echo $versions | jq -c '.Objects[]' | while read -r item; do
+# Function to delete resource record sets
+delete_resource_record_sets() {
+  local zone_id=$1
+  local zone_name=$2
+
+  # Fetch current resource record sets
+  echo "Fetching resource record sets for zone: $zone_name ($zone_id)"
+  aws route53 list-resource-record-sets --hosted-zone-id $zone_id --region $REGION >${zone_name}_records.json
+
+  # Generate deletion JSON file
+  echo "Generating deletion JSON for zone: $zone_name ($zone_id)"
+  jq '.ResourceRecordSets | map({Action: "DELETE", ResourceRecordSet: .}) | {Changes: .}' ${zone_name}_records.json >${zone_name}_delete.json
+
+  # Execute the deletion
+  echo "Deleting resource record sets for zone: $zone_name ($zone_id)"
+  aws route53 change-resource-record-sets --hosted-zone-id $zone_id --region $REGION --change-batch file://${zone_name}_delete.json
+
+  echo "Deletion record sets complete."
+}
+
+delete_resource_bucket() {
+  local bucket_name=$1
+
+  # List all object versions
+  versions=$(aws s3api list-object-versions --bucket $bucket_name --query='{Objects: Versions[].{Key:Key,VersionId:VersionId}}')
+
+  # Delete all object versions
+  echo $versions | jq -c '.Objects[]' | while read -r item; do
     key=$(echo $item | jq -r '.Key')
     versionId=$(echo $item | jq -r '.VersionId')
-    aws s3api delete-object --bucket $BUCKET_NAME --key $key --version-id $versionId
-done
+    aws s3api delete-object --bucket $bucket_name --key $key --version-id $versionId &>/dev/null
+  done
 
-# List all delete markers
-delete_markers=$(aws s3api list-object-versions --bucket $BUCKET_NAME --query='{Objects: DeleteMarkers[].{Key:Key,VersionId:VersionId}}')
+  # List all delete markers
+  delete_markers=$(aws s3api list-object-versions --bucket $bucket_name --query='{Objects: DeleteMarkers[].{Key:Key,VersionId:VersionId}}')
 
-# Delete all delete markers
-echo $delete_markers | jq -c '.Objects[]' | while read -r item; do
+  # Delete all delete markers
+  echo $delete_markers | jq -c '.Objects[]' | while read -r item; do
     key=$(echo $item | jq -r '.Key')
     versionId=$(echo $item | jq -r '.VersionId')
-    aws s3api delete-object --bucket $BUCKET_NAME --key $key --version-id $versionId
-done
+    aws s3api delete-object --bucket $bucket_name --key $key --version-id $versionId &>/dev/null
+  done
 
-# Step 1: List current lifecycle rules
-echo "Listing current lifecycle rules for bucket: $BUCKET_NAME"
-aws s3api get-bucket-lifecycle-configuration --bucket $BUCKET_NAME
+  # Step 1: List current lifecycle rules
+  echo "Listing current lifecycle rules for bucket: $bucket_name"
+  aws s3api get-bucket-lifecycle-configuration --bucket $bucket_name
 
-# Step 2: Delete all lifecycle rules
-echo "Deleting all lifecycle rules for bucket: $BUCKET_NAME"
-aws s3api delete-bucket-lifecycle --bucket $BUCKET_NAME
+  # Step 2: Delete all lifecycle rules
+  echo "Deleting all lifecycle rules for bucket: $bucket_name"
+  aws s3api delete-bucket-lifecycle --bucket $bucket_name
 
-echo "Lifecycle rules deletion complete."
+  # Step 1: Remove all objects from the bucket
+  echo "Deleting all objects from bucket: $bucket_name"
+  aws s3 rm s3://$bucket_name --recursive
 
-# Step 1: Remove all objects from the bucket
-echo "Deleting all objects from bucket: $BUCKET_NAME"
-aws s3 rm s3://$BUCKET_NAME --recursive
+  # Step 2: Delete the bucket
+  echo "Deleting the bucket: $bucket_name"
+  aws s3 rb s3://$bucket_name --force
 
-# Step 2: Delete the bucket
-echo "Deleting the bucket: $BUCKET_NAME"
-aws s3 rb s3://$BUCKET_NAME --force
+  echo "Bucket deletion complete."
+}
 
-echo "Bucket deletion complete."
+main() {
+  echo "Deleting resource record sets for UPF and AMF zones"
+  delete_resource_record_sets $UPF_ZONE_ID "upf"
+  delete_resource_record_sets $AMF_ZONE_ID "amf"
+
+  echo "Deleting all versions from bucket: $BUCKET_NAME"
+  delete_resource_bucket $BUCKET_NAME
+
+  # delete key pais
+  echo "Deleting key pairs: $KEY_NAME"
+  aws ec2 delete-key-pair --key-name $KEY_NAME
+
+  echo "Key pairs deletion complete."
+
+  echo "Deleting ECR repositories: $OPEN5GS_REPO_NAME and $OPEN5GS_WEB_REPO_NAME"
+  aws ecr delete-repository --repository-name $OPEN5GS_REPO_NAME --region us-east-1 --force
+  aws ecr delete-repository --repository-name $OPEN5GS_WEB_REPO_NAME --region us-east-1 --force
+
+  echo "ECR repositories deletion complete."
+
+  echo "Deleting CloudFormation stacks"
+  aws cloudformation delete-stack --stack-name pipeline-cdk-stack &
+  aws cloudformation delete-stack --stack-name ecr-cdk-stack &
+  aws cloudformation wait stack-delete-complete --stack-name pipeline-cdk-stack
+  aws cloudformation wait stack-delete-complete --stack-name ecr-cdk-stack
+
+  aws cloudformation delete-stack --stack-name no-multus-nodegroup-stack
+  aws cloudformation wait stack-delete-complete --stack-name no-multus-nodegroup-stack
+
+  aws cloudformation delete-stack --stack-name eks-infra-stack
+  aws cloudformation wait stack-delete-complete --stack-name eks-infra-stack
+
+  aws cloudformation delete-stack --stack-name eks-vpc-cdk-stack
+  aws cloudformation wait stack-delete-complete --stack-name eks-vpc-cdk-stack
+
+  aws cloudformation delete-stack --stack-name CDKToolkit
+  aws cloudformation wait stack-delete-complete --stack-name CDKToolkit
+
+  echo "CloudFormation stacks deletion complete."
+
+  rm -rf ./cdk-app/cf/eks-infra-cf.yaml ./cdk-app/cdk.out ./cdk-app/cdk.context.json
+
+}
+
+main "$@"
